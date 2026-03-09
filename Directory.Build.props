@@ -2,7 +2,12 @@
   <PropertyGroup>
     <NuGetAudit>false</NuGetAudit>
     <RepositoryUrl>https://github.com/adz/CodecMapper</RepositoryUrl>
+    <RepositoryBranch>main</RepositoryBranch>
+    <PackageProjectUrl>https://adz.github.io/CodecMapper/</PackageProjectUrl>
     <FsDocsCollectionName>CodecMapper</FsDocsCollectionName>
+    <FsDocsLogoLink>https://adz.github.io/CodecMapper/</FsDocsLogoLink>
+    <FsDocsLogoSource>img/logo.png</FsDocsLogoSource>
+    <FsDocsFaviconSource>logo-mark.png</FsDocsFaviconSource>
     <FsDocsLicenseLink>https://github.com/adz/CodecMapper/blob/main/LICENSE.md</FsDocsLicenseLink>
     <FsDocsReleaseNotesLink>https://github.com/adz/CodecMapper/blob/main/RELEASE_NOTES.md</FsDocsReleaseNotesLink>
   </PropertyGroup>
