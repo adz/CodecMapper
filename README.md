@@ -2,7 +2,7 @@
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/logo-mark.png">
     <source media="(prefers-color-scheme: light)" srcset="docs/logo-mark.png">
-    <img src="docs/logo-mark.png" alt="CodecMapper logo" width="40" align="absmiddle">
+    <img src="docs/logo-mark.png" alt="CodecMapper logo" width="35" align="absmiddle">
   </picture>
   CodecMapper
 </h1>
