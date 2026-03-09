@@ -2,6 +2,7 @@ namespace cmap.Benchmarks
 
 open System
 open BenchmarkDotNet.Attributes
+open BenchmarkDotNet.Running
 
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
@@ -37,3 +38,9 @@ type CompetitiveBenchmarks() =
     [<Benchmark>]
     member _.Newtonsoft_Json_Deserialize() =
         NewtonsoftBench.deserialize<Person> (json)
+
+module Program =
+    [<EntryPoint>]
+    let main argv =
+        BenchmarkRunner.Run<CompetitiveBenchmarks>() |> ignore
+        0
