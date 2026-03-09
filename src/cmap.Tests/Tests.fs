@@ -18,17 +18,17 @@ module Domain =
 
 [<Fact>]
 let ``Round-trip using Fluent DSL (CE)`` () =
-    let addressSchema = schema {
-        construct2 makeAddress
-        field "street" (fun (a: Address) -> a.Street)
-        field "city" (fun (a: Address) -> a.City)
+    let addressSchema = schema<Address> {
+        construct makeAddress
+        field "street" _.Street
+        field "city" _.City
     }
 
-    let personSchema = schema {
-        construct3 makePerson
-        field "id" (fun (p: Person) -> p.Id)
-        field "name" (fun (p: Person) -> p.Name)
-        field "home" (fun (p: Person) -> p.Home) addressSchema
+    let personSchema = schema<Person> {
+        construct makePerson
+        field "id" _.Id
+        field "name" _.Name
+        field "home" _.Home addressSchema
     }
 
     let codec = Json.compile personSchema
@@ -46,17 +46,17 @@ let ``Round-trip using Fluent DSL (CE)`` () =
 
 [<Fact>]
 let ``One schema, multiple formats (JSON and XML)`` () =
-    let addressSchema = schema {
-        construct2 makeAddress
-        field "street" (fun (a: Address) -> a.Street)
-        field "city" (fun (a: Address) -> a.City)
+    let addressSchema = schema<Address> {
+        construct makeAddress
+        field "street" _.Street
+        field "city" _.City
     }
 
-    let personSchema = schema {
-        construct3 makePerson
-        field "id" (fun (p: Person) -> p.Id)
-        field "name" (fun (p: Person) -> p.Name)
-        field "home" (fun (p: Person) -> p.Home) addressSchema
+    let personSchema = schema<Person> {
+        construct makePerson
+        field "id" _.Id
+        field "name" _.Name
+        field "home" _.Home addressSchema
     }
 
     let person =
@@ -69,7 +69,6 @@ let ``One schema, multiple formats (JSON and XML)`` () =
     // JSON 
     let jsonCodec = Json.compile personSchema
     let json = Json.serialize jsonCodec person
-    // Note: Order is now defined by 'field' calls, not alphabetical
     test <@ json = "{\"id\":42,\"name\":\"Adam\",\"home\":{\"street\":\"123 F# Lane\",\"city\":\"AOT City\"}}" @>
 
     // XML
@@ -97,10 +96,10 @@ let ``Round-trip list of strings JSON`` () =
 let ``Round-trip mapped type (PersonId) JSON`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPersonSchema = schema {
-        construct2 makeWrappedPerson
-        field "id" (fun (p: WrappedPerson) -> p.Id) personIdSchema
-        field "tags" (fun (p: WrappedPerson) -> p.Tags) (Schema.list Schema.string)
+    let wrappedPersonSchema = schema<WrappedPerson> {
+        construct makeWrappedPerson
+        field "id" _.Id personIdSchema
+        field "tags" _.Tags (Schema.list Schema.string)
     }
 
     let codec = Json.compile wrappedPersonSchema

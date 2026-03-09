@@ -164,6 +164,14 @@ module Schema =
                 member _.TargetType = t
                 member _.Definition = List(innerSchema)
             }
+        elif t.IsArray then
+            let elementType = t.GetElementType()
+            let elementSchema = resolveSchema elementType
+
+            { new ISchema with
+                member _.TargetType = t
+                member _.Definition = Array(elementSchema)
+            }
         else
             failwithf "Could not automatically resolve schema for type %O. Please provide it explicitly." t
 
@@ -173,7 +181,7 @@ type SchemaState<'T> =
         Fields: SchemaField list
     }
 
-type SchemaBuilder() =
+type SchemaBuilder<'T>() =
     member _.Yield(()) =
         {
             Constructor = None
@@ -189,22 +197,266 @@ type SchemaBuilder() =
             Constructor = Some(fun args -> ctor (unbox args.[0]))
         }
 
-    [<CustomOperation("construct2")>]
-    member inline _.Construct2(state: SchemaState<'T>, ctor: 'a -> 'b -> 'T) =
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'T) =
         { state with
             Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]))
         }
 
-    [<CustomOperation("construct3")>]
-    member inline _.Construct3(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'T) =
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'T) =
         { state with
             Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]) (unbox args.[2]))
         }
 
-    [<CustomOperation("construct4")>]
-    member inline _.Construct4(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'T) =
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'T) =
         { state with
             Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]) (unbox args.[2]) (unbox args.[3]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'T) =
+        { state with
+            Constructor =
+                Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]) (unbox args.[2]) (unbox args.[3]) (unbox args.[4]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'T) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'T) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'T) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'T) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10])
+                        (unbox args.[11]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> 'm -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10])
+                        (unbox args.[11])
+                        (unbox args.[12]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> 'm -> 'n -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10])
+                        (unbox args.[11])
+                        (unbox args.[12])
+                        (unbox args.[13]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> 'm -> 'n -> 'o -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10])
+                        (unbox args.[11])
+                        (unbox args.[12])
+                        (unbox args.[13])
+                        (unbox args.[14]))
+        }
+
+    [<CustomOperation("construct")>]
+    member inline _.Construct
+        (
+            state: SchemaState<'T>,
+            ctor: 'a -> 'b -> 'c -> 'd -> 'e -> 'f -> 'g -> 'h -> 'i -> 'j -> 'k -> 'l -> 'm -> 'n -> 'o -> 'p -> 'T
+        ) =
+        { state with
+            Constructor =
+                Some(fun args ->
+                    ctor
+                        (unbox args.[0])
+                        (unbox args.[1])
+                        (unbox args.[2])
+                        (unbox args.[3])
+                        (unbox args.[4])
+                        (unbox args.[5])
+                        (unbox args.[6])
+                        (unbox args.[7])
+                        (unbox args.[8])
+                        (unbox args.[9])
+                        (unbox args.[10])
+                        (unbox args.[11])
+                        (unbox args.[12])
+                        (unbox args.[13])
+                        (unbox args.[14])
+                        (unbox args.[15]))
         }
 
     [<CustomOperation("field")>]
@@ -248,7 +500,7 @@ type SchemaBuilder() =
 
 [<AutoOpen>]
 module SchemaExtensions =
-    let schema = SchemaBuilder()
+    let schema<'T> = SchemaBuilder<'T>()
 
 module Json =
     type JsonSource = ByteSource

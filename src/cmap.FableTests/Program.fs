@@ -12,17 +12,17 @@ module Domain =
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
 module Schemas =
-    let address = schema {
-        construct2 makeAddress
-        field "street" (fun (a: Address) -> a.Street)
-        field "city" (fun (a: Address) -> a.City)
+    let address = schema<Address> {
+        construct makeAddress
+        field "street" _.Street
+        field "city" _.City
     }
 
-    let person = schema {
-        construct3 makePerson
-        field "id" (fun (p: Person) -> p.Id)
-        field "name" (fun (p: Person) -> p.Name)
-        field "home" (fun (p: Person) -> p.Home) address
+    let person = schema<Person> {
+        construct makePerson
+        field "id" _.Id
+        field "name" _.Name
+        field "home" _.Home address
     }
 
 module Program =

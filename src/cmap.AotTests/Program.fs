@@ -16,25 +16,25 @@ module Domain =
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
 module Schemas =
-    let address = schema {
-        construct2 makeAddress
-        field "street" (fun (a: Address) -> a.Street)
-        field "city" (fun (a: Address) -> a.City)
+    let address = schema<Address> {
+        construct makeAddress
+        field "street" _.Street
+        field "city" _.City
     }
 
-    let person = schema {
-        construct3 makePerson
-        field "id" (fun (p: Person) -> p.Id)
-        field "name" (fun (p: Person) -> p.Name)
-        field "home" (fun (p: Person) -> p.Home) address
+    let person = schema<Person> {
+        construct makePerson
+        field "id" _.Id
+        field "name" _.Name
+        field "home" _.Home address
     }
 
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPerson = schema {
-        construct2 makeWrappedPerson
-        field "id" (fun (p: WrappedPerson) -> p.Id) personId
-        field "tags" (fun (p: WrappedPerson) -> p.Tags) (Schema.list Schema.string)
+    let wrappedPerson = schema<WrappedPerson> {
+        construct makeWrappedPerson
+        field "id" _.Id personId
+        field "tags" _.Tags (Schema.list Schema.string)
     }
 
 module Program =
