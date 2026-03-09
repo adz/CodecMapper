@@ -7,9 +7,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 dotnet fsdocs build \
-    --input docs \
-    --projects src/CodecMapper/CodecMapper.fsproj \
-    --output output \
+    --input "${ROOT_DIR}/docs" \
+    --projects "${ROOT_DIR}/src/CodecMapper/CodecMapper.fsproj" \
+    --output "${ROOT_DIR}/output" \
     --clean \
     --strict \
     --sourcefolder "${ROOT_DIR}"
