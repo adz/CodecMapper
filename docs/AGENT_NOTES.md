@@ -45,6 +45,10 @@ The narrower numeric types are range-checked wrappers over `Schema.int`. The ide
 - JSON uses `null` for `None`.
 - XML uses an empty wrapper element for `None` and a nested `<some>...</some>` element for `Some`.
 - Missing fields are still errors; option support is explicit-value semantics, not omit-on-missing semantics.
+- There are now opt-in relaxations for config-style payloads:
+  - `Schema.missingAsNone`
+  - `Schema.emptyStringAsNone`
+- Keep those wrappers explicit. `Schema.option` itself should stay strict so message-contract behavior does not silently weaken.
 
 ## Pipeline Findings
 

@@ -49,3 +49,8 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Explore a fluent builder-pattern facade for C# over the existing schema model.
   - Keep the F# DSL canonical; the C# facade should be a wrapper, not a second implementation.
   - Evaluate where the facade helps and where bridge/codegen remains the better path.
+
+- [ ] **Task 23: Broaden field-policy controls for config-style contracts**
+  - Decide whether missing/null/empty handling should grow beyond `Schema.missingAsNone` and `Schema.emptyStringAsNone`.
+  - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
+  - Keep strict message-contract behavior as the default.

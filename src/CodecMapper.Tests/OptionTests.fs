@@ -12,6 +12,13 @@ let optionalRecordSchema =
     |> Schema.field "age" _.Age
     |> Schema.build
 
+let relaxedOptionalRecordSchema =
+    Schema.define<OptionalRecord>
+    |> Schema.construct makeOptionalRecord
+    |> Schema.fieldWith "nickname" _.Nickname (Schema.option Schema.string |> Schema.missingAsNone |> Schema.emptyStringAsNone)
+    |> Schema.fieldWith "age" _.Age (Schema.option Schema.int |> Schema.missingAsNone)
+    |> Schema.build
+
 [<Fact>]
 let ``Option values round-trip JSON`` () =
     let codec = Json.compile optionalRecordSchema
@@ -73,3 +80,33 @@ let ``Missing option fields remain an error`` () =
 
     expectFailure "Missing required key: age" (fun () -> Json.deserialize jsonCodec """{"nickname":null}""")
     expectFailure "Expected <age>" (fun () -> Xml.deserialize xmlCodec "<optionalrecord><nickname></nickname></optionalrecord>")
+
+[<Fact>]
+let ``Missing option fields can explicitly decode as None`` () =
+    let jsonCodec = Json.compile relaxedOptionalRecordSchema
+
+    let value = Json.deserialize jsonCodec """{"nickname":"Ada"}"""
+
+    test <@ value = { Nickname = Some "Ada"; Age = None } @>
+
+[<Fact>]
+let ``Empty strings can explicitly decode as None`` () =
+    let jsonCodec = Json.compile relaxedOptionalRecordSchema
+
+    let value = Json.deserialize jsonCodec """{"nickname":"","age":null}"""
+
+    test <@ value = { Nickname = None; Age = None } @>
+
+[<Fact>]
+let ``Relaxed option wrappers keep explicit null encoding`` () =
+    let jsonCodec = Json.compile relaxedOptionalRecordSchema
+    let xmlCodec = Xml.compile relaxedOptionalRecordSchema
+
+    let value =
+        {
+            Nickname = None
+            Age = None
+        }
+
+    test <@ Json.serialize jsonCodec value = """{"nickname":null,"age":null}""" @>
+    test <@ Xml.serialize xmlCodec value = "<optionalrecord><nickname></nickname><age></age></optionalrecord>" @>

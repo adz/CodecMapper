@@ -123,6 +123,8 @@ and SchemaDefinition =
     | List of ISchema
     | Array of ISchema
     | Option of ISchema
+    | MissingAsNone of ISchema
+    | EmptyStringAsNone of ISchema
     | Map of ISchema * (obj -> obj) * (obj -> obj)
 
 type Schema<'T> = inherit ISchema
@@ -269,6 +271,19 @@ module Schema =
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))
 
     let inline option (inner: Schema<'T>) : Schema<'T option> = create (Option(inner :> ISchema))
+
+    ///
+    /// Config-style payloads sometimes treat absent fields as "no value"
+    /// instead of as a contract violation. Keep that policy explicit.
+    let inline missingAsNone (inner: Schema<'T option>) : Schema<'T option> =
+        create (MissingAsNone(inner :> ISchema))
+
+    ///
+    /// Empty strings are often used as a legacy stand-in for "not provided".
+    /// This wrapper keeps that conversion opt-in rather than weakening string
+    /// option semantics globally.
+    let emptyStringAsNone (inner: Schema<string option>) : Schema<string option> =
+        create (EmptyStringAsNone(inner :> ISchema))
 
     let rec resolveSchema (t: System.Type) : ISchema =
         if t = typeof<int> then
@@ -834,10 +849,18 @@ module Json =
             List.ofArray elements |> box
 #endif
 
+        let makeOptionNone (optionType: System.Type) =
+            let noneCase =
+                FSharpType.GetUnionCases(optionType)
+                |> Array.find (fun c -> c.Name = "None")
+
+            FSharpValue.MakeUnion(noneCase, [||])
+
     type CompiledCodec =
         {
             Encode: IByteWriter -> obj -> unit
             Decode: JsonSource -> struct (obj * JsonSource)
+            MissingValue: obj option
         }
 
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
@@ -846,6 +869,7 @@ module Json =
             {
                 Encode = (fun w v -> w.WriteInt(unbox v))
                 Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<int64> ->
             {
@@ -854,6 +878,7 @@ module Json =
                         let value: int64 = unbox v
                         w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<uint32> ->
             {
@@ -862,6 +887,7 @@ module Json =
                         let value: uint32 = unbox v
                         w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<uint64> ->
             {
@@ -870,6 +896,7 @@ module Json =
                         let value: uint64 = unbox v
                         w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<float> ->
             {
@@ -878,6 +905,7 @@ module Json =
                         let value: float = unbox v
                         w.WriteString(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))
                 Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<decimal> ->
             {
@@ -886,6 +914,7 @@ module Json =
                         let value: decimal = unbox v
                         w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
                 Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<string> ->
             {
@@ -944,6 +973,7 @@ module Json =
 
                         w.WriteByte(34uy))
                 Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
+                MissingValue = None
             }
         | Primitive t when t = typeof<bool> ->
             {
@@ -954,6 +984,7 @@ module Json =
                         else
                             w.WriteString("false"))
                 Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
+                MissingValue = None
             }
         | Option innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -981,6 +1012,39 @@ module Json =
                         else
                             let struct (value, next) = innerCodec.Decode src
                             struct (FSharpValue.MakeUnion(someCase, [| value |]), next))
+                MissingValue = None
+            }
+        | MissingAsNone innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some (Runtime.makeOptionNone optionType)
+            }
+        | EmptyStringAsNone innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+            let noneValue = Runtime.makeOptionNone optionType
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src ->
+                        let src = Runtime.skipWhitespace src
+                        let data = src.Data
+
+                        if src.Offset < data.Length && data.[src.Offset] = 34uy then
+                            let struct (text, next) = Runtime.stringDecoder src
+
+                            if text = "" then
+                                struct (noneValue, next)
+                            else
+                                innerCodec.Decode src
+                        else
+                            innerCodec.Decode src)
+                MissingValue = innerCodec.MissingValue
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
@@ -1063,16 +1127,19 @@ module Json =
                         let valSrc = fieldSources.[f.Index]
 
                         if valSrc.Data = null then
-                            failwithf "Missing required key: %s" f.Name
-
-                        let struct (v, _) = f.Codec.Decode valSrc
-                        v)
+                            match f.Codec.MissingValue with
+                            | Some value -> value
+                            | None -> failwithf "Missing required key: %s" f.Name
+                        else
+                            let struct (v, _) = f.Codec.Decode valSrc
+                            v)
 
                 struct (ctor args, current)
 
             {
                 Encode = encoder
                 Decode = decoder
+                MissingValue = None
             }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -1124,6 +1191,7 @@ module Json =
             {
                 Encode = encoder
                 Decode = decoder
+                MissingValue = None
             }
         | Array innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -1199,6 +1267,7 @@ module Json =
             {
                 Encode = encoder
                 Decode = decoder
+                MissingValue = None
             }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
@@ -1206,6 +1275,7 @@ module Json =
             {
                 Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
                 Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s))
+                MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
 
@@ -1255,6 +1325,7 @@ module Xml =
         {
             Encode: XmlWriter -> string -> obj -> unit
             Decode: XmlSource -> string -> struct (obj * XmlSource)
+            MissingValue: obj option
         }
 
     module internal Runtime =
@@ -1430,6 +1501,7 @@ module Xml =
                         let current = Runtime.expectCloseTag tag current
                         let v = System.Int32.Parse(text.Trim())
                         struct (box v, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<int64> ->
             {
@@ -1455,6 +1527,7 @@ module Xml =
                                 System.Globalization.CultureInfo.InvariantCulture
                             )
                         struct (box value, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<uint32> ->
             {
@@ -1480,6 +1553,7 @@ module Xml =
                                 System.Globalization.CultureInfo.InvariantCulture
                             )
                         struct (box value, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<uint64> ->
             {
@@ -1505,6 +1579,7 @@ module Xml =
                                 System.Globalization.CultureInfo.InvariantCulture
                             )
                         struct (box value, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<float> ->
             {
@@ -1530,6 +1605,7 @@ module Xml =
                                 System.Globalization.CultureInfo.InvariantCulture
                             )
                         struct (box value, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<decimal> ->
             {
@@ -1555,6 +1631,7 @@ module Xml =
                                 System.Globalization.CultureInfo.InvariantCulture
                             )
                         struct (box value, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<string> ->
             {
@@ -1574,6 +1651,7 @@ module Xml =
                         let struct (v, current) = Runtime.readTextNode current
                         let current = Runtime.expectCloseTag tag current
                         struct (box v, current))
+                MissingValue = None
             }
         | Primitive t when t = typeof<bool> ->
             {
@@ -1598,6 +1676,7 @@ module Xml =
                         | "false" -> struct (box false, current)
                         | _ -> failwith "Expected true or false"
                     )
+                MissingValue = None
             }
         | Option innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -1630,6 +1709,38 @@ module Xml =
                             let current = Runtime.skipWhitespace current
                             let current = Runtime.expectCloseTag tag current
                             struct (Runtime.makeOptionSome optionType value, current))
+                MissingValue = None
+            }
+        | MissingAsNone innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some (Runtime.makeOptionNone optionType)
+            }
+        | EmptyStringAsNone innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+            let noneValue = Runtime.makeOptionNone optionType
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src tag ->
+                        let struct (value, next) = innerCodec.Decode src tag
+
+                        if isNull value then
+                            struct (value, next)
+                        else
+                            let caseInfo, fields = FSharpValue.GetUnionFields(value, optionType)
+
+                            if caseInfo.Name = "Some" && fields.Length = 1 && fields.[0] :? string && unbox<string> fields.[0] = "" then
+                                struct (noneValue, next)
+                            else
+                                struct (value, next))
+                MissingValue = innerCodec.MissingValue
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
@@ -1663,12 +1774,19 @@ module Xml =
                             compiledFields
                             |> Array.map (fun f ->
                                 current <- Runtime.skipWhitespace current
-                                let struct (v, next) = f.Codec.Decode current f.Name
-                                current <- next
-                                v)
+                                match Runtime.tryReadCloseTag tag current with
+                                | Some _ ->
+                                    match f.Codec.MissingValue with
+                                    | Some value -> value
+                                    | None -> failwithf "Expected <%s>" f.Name
+                                | None ->
+                                    let struct (v, next) = f.Codec.Decode current f.Name
+                                    current <- next
+                                    v)
 
                         current <- Runtime.expectCloseTag tag current
                         struct (ctor args, current))
+                MissingValue = None
             }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -1708,6 +1826,7 @@ module Xml =
                                 current <- next
 
                         struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
+                MissingValue = None
             }
         | Array innerSchema ->
             let innerCodec = compileUntyped innerSchema
@@ -1765,6 +1884,7 @@ module Xml =
                         struct (box (results.ToArray()), current)
 #endif
                     )
+                MissingValue = None
             }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
@@ -1772,6 +1892,7 @@ module Xml =
             {
                 Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
                 Decode = (fun src tag -> let struct (v, s) = innerCodec.Decode src tag in struct (wrap v, s))
+                MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | _ -> failwithf "Unsupported XML schema type"
 
