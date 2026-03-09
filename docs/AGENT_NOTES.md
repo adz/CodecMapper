@@ -97,8 +97,8 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 ## Known Gaps
 
-- Common built-in schemas are still minimal: primitives, `list`, `array`, and `map` are present, but the library does not yet expose a broad “common types” surface.
-- The docs show the main path but do not yet demonstrate all supported features in one place.
+- The common-type surface is broader now, but it still does not cover every .NET numeric or framework type a C# migration story might want.
+- There is no C# attribute bridge yet for `System.Text.Json` or `Newtonsoft.Json` contract metadata.
 
 ## Benchmarking Notes
 
@@ -107,3 +107,10 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - Specifically, the child build exits with code `1` during `_GetProjectReferenceTargetFrameworkProperties` against `cmap.Benchmarks.fsproj`, with `Build FAILED` but `0 Error(s)` surfaced by MSBuild.
 - A manual Release runner was added in `src/cmap.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
 - If BenchmarkDotNet is revisited, treat it as a tooling task separate from performance claims.
+
+## Legacy CodecMapper Comparison
+
+- The previous `CodecMapper` repo is cloned locally at `benchmarks/CodecMapper/` for reference only and is ignored by this repo's Git metadata.
+- Its published benchmark snapshot is not directly comparable to `cmap`'s current README numbers because it benchmarks a 1000-record `Person list` payload, while `cmap` currently publishes a small single-object benchmark.
+- The old repo also fails to complete BenchmarkDotNet runs cleanly on this machine under `.NET SDK 10.0.103`; direct child-project builds still end with `Build FAILED` and `0 Error(s)`.
+- Any serious comparison between the old repo and current `cmap` needs a shared manual harness on the same payload, not a README-to-README comparison.

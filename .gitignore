@@ -21,6 +21,7 @@ node_modules/
 
 # Benchmarks
 BenchmarkDotNet.Artifacts/
+benchmarks/CodecMapper/
 
 # IDEs
 .idea/
