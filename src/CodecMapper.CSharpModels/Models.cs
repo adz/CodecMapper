@@ -1,6 +1,33 @@
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Text.Json;
 namespace CodecMapper.CSharpModels;
+
+public sealed class StjUppercaseStringConverter : System.Text.Json.Serialization.JsonConverter<string>
+{
+    public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
+        reader.GetString() ?? "";
+
+    public override void Write(Utf8JsonWriter writer, string value, JsonSerializerOptions options) =>
+        writer.WriteStringValue(value.ToUpperInvariant());
+}
+
+public sealed class NewtonsoftUppercaseStringConverter : Newtonsoft.Json.JsonConverter<string>
+{
+    public override string? ReadJson(
+        Newtonsoft.Json.JsonReader reader,
+        Type objectType,
+        string? existingValue,
+        bool hasExistingValue,
+        Newtonsoft.Json.JsonSerializer serializer) =>
+        reader.Value?.ToString();
+
+    public override void WriteJson(
+        Newtonsoft.Json.JsonWriter writer,
+        string? value,
+        Newtonsoft.Json.JsonSerializer serializer) =>
+        writer.WriteValue(value?.ToUpperInvariant());
+}
 
 public sealed class StjAddress
 {
@@ -64,6 +91,51 @@ public sealed class StjSettings
     public string InternalNote { get; set; } = "";
 }
 
+public sealed class StjUnsupportedConverter
+{
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    [System.Text.Json.Serialization.JsonConverter(typeof(StjUppercaseStringConverter))]
+    public string Name { get; set; } = "";
+}
+
+public sealed class StjUnsupportedExtensionData
+{
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, JsonElement> Extra { get; set; } = new();
+}
+
+[System.Text.Json.Serialization.JsonPolymorphic]
+[System.Text.Json.Serialization.JsonDerivedType(typeof(StjDerivedAnimal), "derived")]
+public abstract class StjAnimal
+{
+    [System.Text.Json.Serialization.JsonPropertyName("kind")]
+    public string Kind { get; set; } = "";
+}
+
+public sealed class StjDerivedAnimal : StjAnimal
+{
+    [System.Text.Json.Serialization.JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+}
+
+public sealed class StjMixedBinding
+{
+    [System.Text.Json.Serialization.JsonConstructor]
+    public StjMixedBinding(int id)
+    {
+        Id = id;
+    }
+
+    [System.Text.Json.Serialization.JsonPropertyName("id")]
+    public int Id { get; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("label")]
+    public string Label { get; set; } = "";
+}
+
 public sealed class NewtonsoftAddress
 {
     [Newtonsoft.Json.JsonConstructor]
@@ -105,6 +177,23 @@ public sealed class NewtonsoftUser
 
     [Newtonsoft.Json.JsonIgnore]
     public string InternalCode => "secret";
+}
+
+public sealed class NewtonsoftUnsupportedConverter
+{
+    [Newtonsoft.Json.JsonProperty("name")]
+    [Newtonsoft.Json.JsonConverter(typeof(NewtonsoftUppercaseStringConverter))]
+    public string Name { get; set; } = "";
+}
+
+public sealed class NewtonsoftUnsupportedExtensionData
+{
+    [Newtonsoft.Json.JsonProperty("name")]
+    public string Name { get; set; } = "";
+
+    [Newtonsoft.Json.JsonExtensionData]
+    public IDictionary<string, Newtonsoft.Json.Linq.JToken> Extra { get; set; } =
+        new Dictionary<string, Newtonsoft.Json.Linq.JToken>();
 }
 
 [DataContract]
@@ -155,4 +244,19 @@ public sealed class DataContractSettings
     public List<string> Labels { get; set; } = new();
 
     public string InternalNote { get; set; } = "";
+}
+
+[DataContract]
+[KnownType(typeof(DataContractAnimalDog))]
+public abstract class DataContractAnimal
+{
+    [DataMember(Name = "kind", IsRequired = true)]
+    public string Kind { get; set; } = "";
+}
+
+[DataContract]
+public sealed class DataContractAnimalDog : DataContractAnimal
+{
+    [DataMember(Name = "name", IsRequired = true)]
+    public string Name { get; set; } = "";
 }

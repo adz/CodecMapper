@@ -14,12 +14,12 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Make generation reproducible and easy to run locally.
   - Decide whether generated API docs should be committed or treated as build artifacts.
 
-- [ ] **Task 17: Expand the contract bridge surface**
+- [x] **Task 17: Expand the contract bridge surface**
   - Add `DataContract` / `DataMember` import support as another explicit bridge flavor.
   - Add explicit failure tests for unsupported converter, polymorphism, and extension-data attributes.
   - Decide whether mixed constructor-plus-setter classes should remain unsupported or gain a deterministic policy.
   - Add bridge examples to `GETTING_STARTED`.
-  - *Progress:* `DataContract` / `DataMember` import support is now implemented alongside the existing STJ and Newtonsoft importers. Remaining work is around unsupported/failure coverage, policy tightening, and docs/examples.
+  - *Done:* `DataContract` / `DataMember` import support now ships alongside the existing STJ and Newtonsoft importers. Unsupported converter, extension-data, polymorphism, and mixed-binding cases are now covered by explicit failures and tests, and bridge usage is documented in `GETTING_STARTED`.
 
 - [ ] **Task 18: Add code generation modes for codecs**
   - Support generating codec/schema code from message-contract definitions.

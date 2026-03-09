@@ -1,11 +1,18 @@
 module CodecMapper.Tests.CSharpBridgeTests
 
+open System
 open System.Collections.Generic
 open Swensen.Unquote
 open Xunit
 open CodecMapper
 open CodecMapper.Bridge
 open CodecMapper.CSharpModels
+
+let private assertImportFails<'T> (expectedFragment: string) (import: BridgeOptions -> Schema<'T>) =
+    let error =
+        Assert.Throws<Exception>(fun () -> import BridgeOptions.defaults |> ignore)
+
+    test <@ error.Message.Contains(expectedFragment) @>
 
 [<Fact>]
 let ``System.Text.Json bridge imports constructor-bound classes`` () =
@@ -105,3 +112,31 @@ let ``DataContract bridge imports setter-bound classes`` () =
     test <@ roundTrip.Enabled @>
     test <@ Seq.toList roundTrip.Labels = [ "json"; "config" ] @>
     test <@ roundTrip.InternalNote = "" @>
+
+[<Fact>]
+let ``System.Text.Json bridge rejects JsonConverter attributes`` () =
+    assertImportFails<StjUnsupportedConverter> "JsonConverter" SystemTextJson.import
+
+[<Fact>]
+let ``System.Text.Json bridge rejects JsonExtensionData attributes`` () =
+    assertImportFails<StjUnsupportedExtensionData> "JsonExtensionData" SystemTextJson.import
+
+[<Fact>]
+let ``System.Text.Json bridge rejects polymorphic contracts`` () =
+    assertImportFails<StjAnimal> "Polymorphic System.Text.Json contracts" SystemTextJson.import
+
+[<Fact>]
+let ``System.Text.Json bridge rejects mixed constructor and setter binding`` () =
+    assertImportFails<StjMixedBinding> "mixes constructor-bound and setter-bound members" SystemTextJson.import
+
+[<Fact>]
+let ``Newtonsoft bridge rejects JsonConverter attributes`` () =
+    assertImportFails<NewtonsoftUnsupportedConverter> "JsonConverter" NewtonsoftJson.import
+
+[<Fact>]
+let ``Newtonsoft bridge rejects JsonExtensionData attributes`` () =
+    assertImportFails<NewtonsoftUnsupportedExtensionData> "JsonExtensionData" NewtonsoftJson.import
+
+[<Fact>]
+let ``DataContract bridge rejects KnownType polymorphism`` () =
+    assertImportFails<DataContractAnimal> "KnownType polymorphism" DataContracts.import

@@ -125,6 +125,21 @@ module private Runtime =
         with _ ->
             None
 
+    let private hasUnsupportedTypeAttributes flavor (targetType: Type) =
+        match flavor with
+        | SystemTextJson ->
+            if
+                targetType.IsDefined(typeof<System.Text.Json.Serialization.JsonPolymorphicAttribute>, true)
+                || targetType.IsDefined(typeof<System.Text.Json.Serialization.JsonDerivedTypeAttribute>, true)
+            then
+                failwithf
+                    "Polymorphic System.Text.Json contracts on %s are not supported by CodecMapper.Bridge."
+                    targetType.FullName
+        | NewtonsoftJson -> ()
+        | DataContract ->
+            if targetType.IsDefined(typeof<KnownTypeAttribute>, true) then
+                failwithf "KnownType polymorphism on %s is not supported by CodecMapper.Bridge." targetType.FullName
+
     let private getJsonIgnoreCondition (propertyInfo: PropertyInfo) =
         match propertyInfo.GetCustomAttribute<System.Text.Json.Serialization.JsonIgnoreAttribute>() with
         | null -> None
@@ -161,10 +176,22 @@ module private Runtime =
                     "JsonConverter on %s.%s is not supported by CodecMapper.Bridge."
                     propertyInfo.DeclaringType.FullName
                     propertyInfo.Name
+
+            if propertyInfo.IsDefined(typeof<System.Text.Json.Serialization.JsonExtensionDataAttribute>, true) then
+                failwithf
+                    "JsonExtensionData on %s.%s is not supported by CodecMapper.Bridge."
+                    propertyInfo.DeclaringType.FullName
+                    propertyInfo.Name
         | NewtonsoftJson ->
             if propertyInfo.IsDefined(typeof<Newtonsoft.Json.JsonConverterAttribute>, true) then
                 failwithf
                     "JsonConverter on %s.%s is not supported by CodecMapper.Bridge."
+                    propertyInfo.DeclaringType.FullName
+                    propertyInfo.Name
+
+            if propertyInfo.IsDefined(typeof<Newtonsoft.Json.JsonExtensionDataAttribute>, true) then
+                failwithf
+                    "JsonExtensionData on %s.%s is not supported by CodecMapper.Bridge."
                     propertyInfo.DeclaringType.FullName
                     propertyInfo.Name
         | DataContract -> ()
@@ -357,6 +384,8 @@ module private Runtime =
                                 .Invoke(null, [| box innerSchema |])
                             :?> ISchema
                         else
+                            hasUnsupportedTypeAttributes flavor targetType
+
                             let members = getProperties flavor options targetType
 
                             if members.Length = 0 then

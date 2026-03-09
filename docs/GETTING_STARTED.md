@@ -263,6 +263,60 @@ let xml = Xml.serialize xmlCodec person
 let personFromXml = Xml.deserialize xmlCodec xml
 ```
 
+## Import existing C# contracts
+
+If you already have C# models annotated for `System.Text.Json`, `Newtonsoft.Json`, or `DataContract`, you can import a `CodecMapper` schema instead of rewriting the contract by hand.
+
+F#:
+
+```fsharp
+open CodecMapper
+open CodecMapper.Bridge
+
+let userSchema =
+    SystemTextJson.import<MyCompany.Contracts.User> BridgeOptions.defaults
+
+let codec = Json.compile userSchema
+```
+
+C# model:
+
+```csharp
+public sealed class User
+{
+    [JsonConstructor]
+    public User(int id, string displayName)
+    {
+        Id = id;
+        DisplayName = displayName;
+    }
+
+    [JsonPropertyName("user_id")]
+    public int Id { get; }
+
+    [JsonPropertyName("display_name")]
+    public string DisplayName { get; }
+}
+```
+
+Supported bridge surface today:
+
+- constructor-bound classes
+- parameterless setter-bound classes
+- nested imported classes
+- arrays, `List<T>`, and `Nullable<T>`
+- `System.Text.Json`, `Newtonsoft.Json`, and `DataContract` rename/ignore/required metadata
+
+Explicitly unsupported today:
+
+- custom converter attributes
+- extension-data bags
+- polymorphic contracts
+- recursive graphs
+- classes that mix constructor-bound and setter-bound members
+
+The bridge is a migration/bootstrap path. Once you know the imported shape is correct, code generation or a handwritten schema is still the cleaner long-term contract.
+
 ## XML subset
 
 The XML codec intentionally supports a small, explicit subset:
