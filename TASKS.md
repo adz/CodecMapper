@@ -19,6 +19,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Add explicit failure tests for unsupported converter, polymorphism, and extension-data attributes.
   - Decide whether mixed constructor-plus-setter classes should remain unsupported or gain a deterministic policy.
   - Add bridge examples to `GETTING_STARTED`.
+  - *Progress:* `DataContract` / `DataMember` import support is now implemented alongside the existing STJ and Newtonsoft importers. Remaining work is around unsupported/failure coverage, policy tightening, and docs/examples.
 
 - [ ] **Task 18: Add code generation modes for codecs**
   - Support generating codec/schema code from message-contract definitions.

@@ -103,6 +103,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - It currently supports:
   - `System.Text.Json`: `JsonPropertyName`, `JsonIgnore`, `JsonRequired`, `JsonConstructor`
   - `Newtonsoft.Json`: `JsonProperty(PropertyName)`, `JsonIgnore`, `JsonRequired`, `JsonConstructor`
+  - `DataContract`: `DataContract`, `DataMember(Name, IsRequired)`
   - constructor-bound classes
   - parameterless setter-bound classes
   - nested imported classes

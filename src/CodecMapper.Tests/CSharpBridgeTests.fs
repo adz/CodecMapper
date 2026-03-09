@@ -74,3 +74,42 @@ let ``Newtonsoft bridge imports constructor-bound classes`` () =
     test <@ roundTrip.Home.City = "Perth" @>
     test <@ roundTrip.Home.PostCode = "6000" @>
     test <@ Seq.toList roundTrip.Labels = [ "bridge"; "newtonsoft" ] @>
+
+[<Fact>]
+let ``DataContract bridge imports constructor-bound classes`` () =
+    let schema = DataContracts.import<DataContractUser> BridgeOptions.defaults
+    let codec = Json.compile schema
+
+    let value =
+        DataContractUser(
+            11,
+            "Quinn",
+            DataContractAddress("Melbourne", "3000")
+        )
+
+    let json = Json.serialize codec value
+    let roundTrip = Json.deserialize codec json
+
+    test <@ json = """{"user_id":11,"display_name":"Quinn","home":{"city":"Melbourne","post_code":"3000"}}""" @>
+    test <@ roundTrip.Id = 11 @>
+    test <@ roundTrip.DisplayName = "Quinn" @>
+    test <@ roundTrip.Home.City = "Melbourne" @>
+    test <@ roundTrip.Home.PostCode = "3000" @>
+
+[<Fact>]
+let ``DataContract bridge imports setter-bound classes`` () =
+    let schema = DataContracts.import<DataContractSettings> BridgeOptions.defaults
+    let codec = Json.compile schema
+
+    let value = DataContractSettings()
+    value.Enabled <- true
+    value.Labels <- new List<string>([ "json"; "config" ])
+    value.InternalNote <- "skip-me"
+
+    let json = Json.serialize codec value
+    let roundTrip = Json.deserialize codec json
+
+    test <@ json = """{"enabled":true,"labels":["json","config"]}""" @>
+    test <@ roundTrip.Enabled @>
+    test <@ Seq.toList roundTrip.Labels = [ "json"; "config" ] @>
+    test <@ roundTrip.InternalNote = "" @>

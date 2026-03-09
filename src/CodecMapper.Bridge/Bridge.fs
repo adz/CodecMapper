@@ -4,6 +4,7 @@ open System
 open System.Collections.Concurrent
 open System.Collections.Generic
 open System.Reflection
+open System.Runtime.Serialization
 open System.Text.Json.Serialization
 open Newtonsoft.Json
 open CodecMapper
@@ -34,6 +35,7 @@ module BridgeOptions =
 type private Flavor =
     | SystemTextJson
     | NewtonsoftJson
+    | DataContract
 
 type private MemberBinding =
     {
@@ -152,6 +154,7 @@ module private Runtime =
                     propertyInfo.DeclaringType.FullName
                     propertyInfo.Name
         | NewtonsoftJson -> propertyInfo.IsDefined(typeof<Newtonsoft.Json.JsonIgnoreAttribute>, true)
+        | DataContract -> false
 
     let private hasUnsupportedMemberAttributes flavor (propertyInfo: PropertyInfo) =
         match flavor with
@@ -167,6 +170,7 @@ module private Runtime =
                     "JsonConverter on %s.%s is not supported by CodecMapper.Bridge."
                     propertyInfo.DeclaringType.FullName
                     propertyInfo.Name
+        | DataContract -> ()
 
     let private isRequired flavor (propertyInfo: PropertyInfo) =
         match flavor with
@@ -177,6 +181,10 @@ module private Runtime =
             match propertyInfo.GetCustomAttribute<Newtonsoft.Json.JsonPropertyAttribute>() with
             | null -> false
             | attribute -> attribute.Required <> Newtonsoft.Json.Required.Default
+        | DataContract ->
+            match propertyInfo.GetCustomAttribute<DataMemberAttribute>() with
+            | null -> false
+            | attribute -> attribute.IsRequired
 
     let private resolveWireName flavor (options: BridgeOptions) (propertyInfo: PropertyInfo) =
         match flavor with
@@ -189,16 +197,36 @@ module private Runtime =
             | null -> convertName options.DefaultNaming propertyInfo.Name
             | attribute when String.IsNullOrWhiteSpace(attribute.PropertyName) -> convertName options.DefaultNaming propertyInfo.Name
             | attribute -> attribute.PropertyName
+        | DataContract ->
+            match propertyInfo.GetCustomAttribute<DataMemberAttribute>() with
+            | null -> convertName options.DefaultNaming propertyInfo.Name
+            | attribute when String.IsNullOrWhiteSpace(attribute.Name) -> convertName options.DefaultNaming propertyInfo.Name
+            | attribute -> attribute.Name
 
     let private getConstructorAttribute flavor =
         match flavor with
-        | SystemTextJson -> typeof<System.Text.Json.Serialization.JsonConstructorAttribute>
-        | NewtonsoftJson -> typeof<Newtonsoft.Json.JsonConstructorAttribute>
+        | SystemTextJson -> Some typeof<System.Text.Json.Serialization.JsonConstructorAttribute>
+        | NewtonsoftJson -> Some typeof<Newtonsoft.Json.JsonConstructorAttribute>
+        | DataContract -> None
 
     let private getProperties flavor options (targetType: Type) =
-        targetType.GetProperties(publicInstance)
-        |> Array.filter (fun propertyInfo -> propertyInfo.GetIndexParameters().Length = 0 && propertyInfo.CanRead)
-        |> Array.filter (isIgnored flavor >> not)
+        let properties =
+            targetType.GetProperties(publicInstance)
+            |> Array.filter (fun propertyInfo -> propertyInfo.GetIndexParameters().Length = 0 && propertyInfo.CanRead)
+
+        let includedProperties =
+            match flavor with
+            | DataContract ->
+                if not (targetType.IsDefined(typeof<DataContractAttribute>, true)) then
+                    failwithf "Type %s is missing [DataContract]." targetType.FullName
+
+                properties
+                |> Array.filter (fun propertyInfo -> propertyInfo.IsDefined(typeof<DataMemberAttribute>, true))
+            | _ ->
+                properties
+                |> Array.filter (isIgnored flavor >> not)
+
+        includedProperties
         |> Array.map (fun propertyInfo ->
             hasUnsupportedMemberAttributes flavor propertyInfo
 
@@ -220,7 +248,9 @@ module private Runtime =
 
         let constructors = targetType.GetConstructors(publicInstance)
         let attributedConstructors =
-            constructors |> Array.filter (fun ctor -> ctor.IsDefined(constructorAttribute, true))
+            match constructorAttribute with
+            | Some attribute -> constructors |> Array.filter (fun ctor -> ctor.IsDefined(attribute, true))
+            | None -> [||]
 
         let ctor =
             match attributedConstructors with
@@ -376,3 +406,6 @@ module SystemTextJson =
 
 module NewtonsoftJson =
     let import<'T> options = Runtime.import<'T> Flavor.NewtonsoftJson options
+
+module DataContracts =
+    let import<'T> options = Runtime.import<'T> Flavor.DataContract options

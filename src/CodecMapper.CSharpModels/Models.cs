@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.Serialization;
 namespace CodecMapper.CSharpModels;
 
 public sealed class StjAddress
@@ -104,4 +105,54 @@ public sealed class NewtonsoftUser
 
     [Newtonsoft.Json.JsonIgnore]
     public string InternalCode => "secret";
+}
+
+[DataContract]
+public sealed class DataContractAddress
+{
+    public DataContractAddress(string city, string postCode)
+    {
+        City = city;
+        PostCode = postCode;
+    }
+
+    [DataMember(Name = "city", IsRequired = true)]
+    public string City { get; }
+
+    [DataMember(Name = "post_code", IsRequired = true)]
+    public string PostCode { get; }
+}
+
+[DataContract]
+public sealed class DataContractUser
+{
+    public DataContractUser(int id, string displayName, DataContractAddress home)
+    {
+        Id = id;
+        DisplayName = displayName;
+        Home = home;
+    }
+
+    [DataMember(Name = "user_id", IsRequired = true)]
+    public int Id { get; }
+
+    [DataMember(Name = "display_name", IsRequired = true)]
+    public string DisplayName { get; }
+
+    [DataMember(Name = "home", IsRequired = true)]
+    public DataContractAddress Home { get; }
+
+    public string InternalCode => "not-on-wire";
+}
+
+[DataContract]
+public sealed class DataContractSettings
+{
+    [DataMember(Name = "enabled", IsRequired = true)]
+    public bool Enabled { get; set; }
+
+    [DataMember(Name = "labels", IsRequired = true)]
+    public List<string> Labels { get; set; } = new();
+
+    public string InternalNote { get; set; } = "";
 }
