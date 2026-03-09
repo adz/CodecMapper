@@ -1,10 +1,11 @@
-# CodecMapper
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-mark.png">
-  <source media="(prefers-color-scheme: light)" srcset="docs/logo-mark.png">
-  <img src="docs/logo-mark.png" alt="CodecMapper logo" width="72">
-</picture>
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-mark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/logo-mark.png">
+    <img src="docs/logo-mark.png" alt="CodecMapper logo" width="40" align="absmiddle">
+  </picture>
+  CodecMapper
+</h1>
 
 [![CI](https://github.com/adz/CodecMapper/actions/workflows/ci.yml/badge.svg)](https://github.com/adz/CodecMapper/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-0a7ea4)](https://adz.github.io/CodecMapper/)
