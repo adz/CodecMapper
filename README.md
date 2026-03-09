@@ -39,12 +39,12 @@ They are machine-specific and should be read mainly as relative comparisons on t
 
 | Operation | Mean ns/op | Alloc B/op |
 | --- | ---: | ---: |
-| `System.Text.Json` serialize | 889.5 | 504.2 |
-| `cmap` serialize | 533.1 | 512.0 |
-| `Newtonsoft.Json` serialize | 1239.2 | 1664.8 |
-| `System.Text.Json` deserialize | 1143.5 | 896.0 |
-| `cmap` deserialize bytes | 936.4 | 912.0 |
-| `Newtonsoft.Json` deserialize | 2018.5 | 3560.0 |
+| `System.Text.Json` serialize | 864.7 | 504.2 |
+| `cmap` serialize | 581.9 | 512.0 |
+| `Newtonsoft.Json` serialize | 1510.5 | 1664.8 |
+| `System.Text.Json` deserialize | 1096.6 | 896.0 |
+| `cmap` deserialize bytes | 874.1 | 912.0 |
+| `Newtonsoft.Json` deserialize | 1787.5 | 3560.0 |
 
 ## Notes
 
