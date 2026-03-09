@@ -147,6 +147,11 @@ module Program =
         let pDecoded = Json.deserialize pCodec pJson
         test "Nested record round-trip" pDecoded p
 
+        let pXmlCodec = Xml.compile Schemas.person
+        let pXml = Xml.serialize pXmlCodec p
+        let pXmlDecoded = Xml.deserialize pXmlCodec pXml
+        test "Nested record XML round-trip" pXmlDecoded p
+
         // 2. Mapped types
         let wpCodec = Json.compile Schemas.wrappedPerson
 
@@ -198,6 +203,11 @@ module Program =
         let optionalJson = Json.serialize optionalCodec optionalValue
         let optionalDecoded = Json.deserialize optionalCodec optionalJson
         test "Option round-trip" optionalDecoded optionalValue
+
+        let optionalXmlCodec = Xml.compile Schemas.optionalRecord
+        let optionalXml = Xml.serialize optionalXmlCodec optionalValue
+        let optionalXmlDecoded = Xml.deserialize optionalXmlCodec optionalXml
+        test "Option XML round-trip" optionalXmlDecoded optionalValue
 
         // 7. Extended numeric support
         let numericCodec = Json.compile Schemas.numericRecord

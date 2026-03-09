@@ -92,7 +92,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `src/cmap.Tests/SchemaDslTests.fs` proves the typed pipeline with a 20-field round trip.
 - `src/cmap.Tests/JsonParserTests.fs` holds the JSON compliance and adversarial cases.
 - `src/cmap.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
-- `src/cmap.AotTests/Program.fs` and `src/cmap.FableTests/Program.fs` are the compatibility sentinels. Keep them green when changing schema APIs.
+- `src/cmap.AotTests/Program.fs` and `src/cmap.FableTests/Program.fs` are the compatibility sentinels. They now cover JSON and XML nested-record paths plus selected option/mapping/common-type cases.
 - `src/cmap.Benchmarks/CmapBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
 
 ## Known Gaps
