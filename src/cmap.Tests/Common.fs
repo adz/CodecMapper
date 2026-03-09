@@ -41,6 +41,24 @@ module Domain =
             Age = age
         }
 
+    type NumericRecord =
+        {
+            Total: int64
+            Count: uint32
+            Capacity: uint64
+            Ratio: float
+            Price: decimal
+        }
+
+    let makeNumericRecord total count capacity ratio price =
+        {
+            Total = total
+            Count = count
+            Capacity = capacity
+            Ratio = ratio
+            Price = price
+        }
+
     type CollectionRecord = { List: int list; Array: string array }
     let makeCollectionRecord l a = { List = l; Array = a }
 

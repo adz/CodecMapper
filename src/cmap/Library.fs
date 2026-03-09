@@ -152,6 +152,11 @@ module Schema =
         }
 
     let int: Schema<int> = create (Primitive typeof<int>)
+    let int64: Schema<int64> = create (Primitive typeof<int64>)
+    let uint32: Schema<uint32> = create (Primitive typeof<uint32>)
+    let uint64: Schema<uint64> = create (Primitive typeof<uint64>)
+    let float: Schema<float> = create (Primitive typeof<float>)
+    let decimal: Schema<decimal> = create (Primitive typeof<decimal>)
     let string: Schema<string> = create (Primitive typeof<string>)
     let bool: Schema<bool> = create (Primitive typeof<bool>)
 
@@ -268,6 +273,16 @@ module Schema =
     let rec resolveSchema (t: System.Type) : ISchema =
         if t = typeof<int> then
             int :> ISchema
+        elif t = typeof<int64> then
+            int64 :> ISchema
+        elif t = typeof<uint32> then
+            uint32 :> ISchema
+        elif t = typeof<uint64> then
+            uint64 :> ISchema
+        elif t = typeof<float> then
+            float :> ISchema
+        elif t = typeof<decimal> then
+            decimal :> ISchema
         elif t = typeof<string> then
             string :> ISchema
         elif t = typeof<bool> then
@@ -423,35 +438,136 @@ module Json =
 
             ByteSource(data, i)
 
-        let intDecoder: Decoder<int> =
-            fun src ->
-                let src = skipWhitespace src
+        let inline isDigit (b: byte) = b >= 48uy && b <= 57uy
 
-                if src.Offset >= src.Data.Length then
-                    failwith "Unexpected end of input"
+        let numberToken (allowFractionAndExponent: bool) (src: JsonSource) =
+            let src = skipWhitespace src
 
-                let mutable i = src.Offset
-                let mutable res = 0
-                let mutable neg = false
-                let data = src.Data
+            if src.Offset >= src.Data.Length then
+                failwith "Unexpected end of input"
 
-                if data.[i] = 45uy then
-                    neg <- true
-                    i <- i + 1
+            let data = src.Data
+            let mutable i = src.Offset
 
-                let start = i
+            if data.[i] = 45uy then
+                i <- i + 1
 
-                if i < data.Length - 1 && data.[i] = 48uy && data.[i + 1] >= 48uy && data.[i + 1] <= 57uy then
+            if i >= data.Length then
+                failwith "Expected digit"
+
+            if data.[i] = 48uy then
+                i <- i + 1
+
+                if i < data.Length && isDigit data.[i] then
                     failwith "Leading zeroes are not allowed"
-
-                while i < data.Length && data.[i] >= 48uy && data.[i] <= 57uy do
-                    res <- res * 10 + (System.Convert.ToInt32(data.[i]) - 48)
+            elif isDigit data.[i] then
+                while i < data.Length && isDigit data.[i] do
                     i <- i + 1
+            else
+                failwith "Expected digit"
 
-                if i = start then
+            if allowFractionAndExponent && i < data.Length && data.[i] = 46uy then
+                i <- i + 1
+
+                if i >= data.Length || not (isDigit data.[i]) then
                     failwith "Expected digit"
 
-                struct ((if neg then -res else res), ByteSource(data, i))
+                while i < data.Length && isDigit data.[i] do
+                    i <- i + 1
+
+            if allowFractionAndExponent && i < data.Length && (data.[i] = 101uy || data.[i] = 69uy) then
+                i <- i + 1
+
+                if i < data.Length && (data.[i] = 43uy || data.[i] = 45uy) then
+                    i <- i + 1
+
+                if i >= data.Length || not (isDigit data.[i]) then
+                    failwith "Expected digit"
+
+                while i < data.Length && isDigit data.[i] do
+                    i <- i + 1
+
+#if !FABLE_COMPILER
+            let token = Encoding.UTF8.GetString(data, src.Offset, i - src.Offset)
+#else
+            let token = Encoding.UTF8.GetString(data.[src.Offset .. i - 1])
+#endif
+
+            struct (token, ByteSource(data, i))
+
+        let intDecoder: Decoder<int> =
+            fun src ->
+                let struct (token, next) = numberToken false src
+
+                try
+                    struct (
+                        System.Int32.Parse(token, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with :? System.OverflowException ->
+                    failwithf "int value out of range: %s" token
+
+        let int64Decoder: Decoder<int64> =
+            fun src ->
+                let struct (token, next) = numberToken false src
+
+                try
+                    struct (
+                        System.Int64.Parse(token, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with :? System.OverflowException ->
+                    failwithf "int64 value out of range: %s" token
+
+        let uint32Decoder: Decoder<uint32> =
+            fun src ->
+                let struct (token, next) = numberToken false src
+
+                try
+                    struct (
+                        System.UInt32.Parse(token, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with :? System.OverflowException ->
+                    failwithf "uint32 value out of range: %s" token
+
+        let uint64Decoder: Decoder<uint64> =
+            fun src ->
+                let struct (token, next) = numberToken false src
+
+                try
+                    struct (
+                        System.UInt64.Parse(token, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with :? System.OverflowException ->
+                    failwithf "uint64 value out of range: %s" token
+
+        let floatDecoder: Decoder<float> =
+            fun src ->
+                let struct (token, next) = numberToken true src
+
+                try
+                    struct (
+                        System.Double.Parse(token, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with
+                | :? System.FormatException -> failwithf "Invalid float value: %s" token
+                | :? System.OverflowException -> failwithf "float value out of range: %s" token
+
+        let decimalDecoder: Decoder<decimal> =
+            fun src ->
+                let struct (token, next) = numberToken true src
+
+                try
+                    struct (
+                        System.Decimal.Parse(token, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture),
+                        next
+                    )
+                with
+                | :? System.FormatException -> failwithf "Invalid decimal value: %s" token
+                | :? System.OverflowException -> failwithf "decimal value out of range: %s" token
 
         let boolDecoder: Decoder<bool> =
             fun src ->
@@ -730,6 +846,46 @@ module Json =
             {
                 Encode = (fun w v -> w.WriteInt(unbox v))
                 Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<int64> ->
+            {
+                Encode =
+                    (fun w v ->
+                        let value: int64 = unbox v
+                        w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<uint32> ->
+            {
+                Encode =
+                    (fun w v ->
+                        let value: uint32 = unbox v
+                        w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<uint64> ->
+            {
+                Encode =
+                    (fun w v ->
+                        let value: uint64 = unbox v
+                        w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<float> ->
+            {
+                Encode =
+                    (fun w v ->
+                        let value: float = unbox v
+                        w.WriteString(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))
+                Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<decimal> ->
+            {
+                Encode =
+                    (fun w v ->
+                        let value: decimal = unbox v
+                        w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
             }
         | Primitive t when t = typeof<string> ->
             {
@@ -1275,6 +1431,131 @@ module Xml =
                         let v = System.Int32.Parse(text.Trim())
                         struct (box v, current))
             }
+        | Primitive t when t = typeof<int64> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString((unbox<int64> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let value =
+                            System.Int64.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Integer,
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                        struct (box value, current))
+            }
+        | Primitive t when t = typeof<uint32> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString((unbox<uint32> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let value =
+                            System.UInt32.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Integer,
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                        struct (box value, current))
+            }
+        | Primitive t when t = typeof<uint64> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString((unbox<uint64> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let value =
+                            System.UInt64.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Integer,
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                        struct (box value, current))
+            }
+        | Primitive t when t = typeof<float> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString((unbox<float> v).ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let value =
+                            System.Double.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                        struct (box value, current))
+            }
+        | Primitive t when t = typeof<decimal> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString((unbox<decimal> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let value =
+                            System.Decimal.Parse(
+                                text.Trim(),
+                                System.Globalization.NumberStyles.Float,
+                                System.Globalization.CultureInfo.InvariantCulture
+                            )
+                        struct (box value, current))
+            }
         | Primitive t when t = typeof<string> ->
             {
                 Encode =
@@ -1499,6 +1780,16 @@ module Xml =
         let rootTag =
             if schema.TargetType = typeof<int> then
                 "int"
+            elif schema.TargetType = typeof<int64> then
+                "int64"
+            elif schema.TargetType = typeof<uint32> then
+                "uint32"
+            elif schema.TargetType = typeof<uint64> then
+                "uint64"
+            elif schema.TargetType = typeof<float> then
+                "float"
+            elif schema.TargetType = typeof<decimal> then
+                "decimal"
             elif schema.TargetType = typeof<string> then
                 "string"
             elif schema.TargetType = typeof<bool> then

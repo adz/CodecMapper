@@ -32,6 +32,24 @@ module Domain =
     type OptionalRecord = { Nickname: string option; Age: int option }
     let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
 
+    type NumericRecord =
+        {
+            Total: int64
+            Count: uint32
+            Capacity: uint64
+            Ratio: float
+            Price: decimal
+        }
+
+    let makeNumericRecord total count capacity ratio price =
+        {
+            Total = total
+            Count = count
+            Capacity = capacity
+            Ratio = ratio
+            Price = price
+        }
+
     type AuditRecord =
         {
             UserId: Guid
@@ -85,6 +103,16 @@ module Schemas =
         |> Schema.construct makeOptionalRecord
         |> Schema.field "nickname" _.Nickname
         |> Schema.field "age" _.Age
+        |> Schema.build
+
+    let numericRecord =
+        Schema.define<NumericRecord>
+        |> Schema.construct makeNumericRecord
+        |> Schema.field "total" _.Total
+        |> Schema.field "count" _.Count
+        |> Schema.field "capacity" _.Capacity
+        |> Schema.field "ratio" _.Ratio
+        |> Schema.field "price" _.Price
         |> Schema.build
 
     let auditRecord =
@@ -170,6 +198,22 @@ module Program =
         let optionalJson = Json.serialize optionalCodec optionalValue
         let optionalDecoded = Json.deserialize optionalCodec optionalJson
         test "Option round-trip" optionalDecoded optionalValue
+
+        // 7. Extended numeric support
+        let numericCodec = Json.compile Schemas.numericRecord
+
+        let numeric =
+            {
+                Total = 9_223_372_036_854_775_000L
+                Count = 4_294_967_000u
+                Capacity = 18_446_744_073_709_551_000UL
+                Ratio = -12.5e3
+                Price = 12345.6789M
+            }
+
+        let numericJson = Json.serialize numericCodec numeric
+        let numericDecoded = Json.deserialize numericCodec numericJson
+        test "Extended numeric round-trip" numericDecoded numeric
 
         printfn "All AOT tests passed successfully!"
         0

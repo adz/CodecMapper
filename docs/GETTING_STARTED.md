@@ -128,10 +128,15 @@ Current wire representation is explicit rather than omitted:
 These helpers are available directly and also auto-resolve inside records:
 
 - `Schema.int`
+- `Schema.int64`
 - `Schema.int16`
 - `Schema.byte`
 - `Schema.sbyte`
+- `Schema.uint32`
 - `Schema.uint16`
+- `Schema.uint64`
+- `Schema.float`
+- `Schema.decimal`
 - `Schema.bool`
 - `Schema.char`
 - `Schema.string`

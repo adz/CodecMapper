@@ -23,9 +23,14 @@ Use this form in tests, docs, and benchmarks unless the public API changes delib
 The library now auto-resolves these additional schema helpers:
 
 - `Schema.int16`
+- `Schema.int64`
 - `Schema.byte`
 - `Schema.sbyte`
+- `Schema.uint32`
 - `Schema.uint16`
+- `Schema.uint64`
+- `Schema.float`
+- `Schema.decimal`
 - `Schema.char`
 - `Schema.guid`
 - `Schema.dateTime`

@@ -55,10 +55,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - *Done:* Added `Schema.option`, JSON `null` handling, and auto-resolution for `option<'T>`.
   - *Notes:* `None` is `null` in JSON and an empty wrapper element in XML. Missing fields still remain errors; option support is explicit-value based.
 
-- [ ] **Task 8: Broaden numeric support deliberately**
+- [x] **Task 8: Broaden numeric support deliberately**
   - Decide which additional numeric shapes should be first-class: likely `int64`, `uint32`, `uint64`, `float`, and `decimal`.
   - Extend parser support only where semantics are clear and testable across JSON, XML, AOT, and Fable.
   - Keep failure behavior explicit for unsupported numeric forms rather than silently truncating.
+  - *Done:* Added `int64`, `uint32`, `uint64`, `float`, and `decimal` schemas with JSON and XML encode/decode support.
+  - *Notes:* JSON now tokenizes numeric literals explicitly, including fractional and exponent forms for `float` and `decimal`. Integer types still reject leading zeroes and fail explicitly on overflow.
 
 - [ ] **Task 9: Expand compatibility sentinels**
   - Bring the AOT and Fable sentinel projects closer to the real surface area.
