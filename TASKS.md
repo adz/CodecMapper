@@ -41,11 +41,17 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
   - Only add shapes that preserve symmetric encode/decode semantics cleanly.
 
-- [ ] **Task 24: Split product, tests, and benchmarks into top-level folders**
+- [ ] **Task 20a: Surface and extend Fable compatibility**
+  - Document the existing compatibility story for Native AOT and Fable so it is visible in the README, getting-started docs, and API docs.
+  - Explain that `tests/CodecMapper.FableTests/` is a sentinel compatibility app rather than a full JS runtime integration suite.
+  - Add an explicit `Fable 5` compatibility test path so upgrades do not silently regress the supported transpiler baseline.
+
+- [x] **Task 24: Split product, tests, and benchmarks into top-level folders**
   - Move runtime libraries under a dedicated top-level `src/` root.
   - Move test projects under a dedicated top-level `tests/` root.
   - Move benchmark and comparison runners under a dedicated top-level `benchmarks/` root.
   - Update solution/project references, scripts, hooks, and docs to match the new layout.
+  - *Done:* Public libraries now live under `src/`, test projects under `tests/`, and benchmark apps under `benchmarks/`. The solution, project references, CI paths, formatter scripts, and agent notes now follow that split.
 
 - [x] **Task 21: Add a config contracts migration guide**
   - Write a guide for treating configuration as an explicit schema contract rather than an incidental serializer shape.
@@ -65,7 +71,8 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
   - Keep strict message-contract behavior as the default.
 
-- [ ] **Task 25: Remove legacy comparison shims**
+- [x] **Task 25: Remove legacy comparison shims**
   - Remove `CodecMapper.LegacyShim` and any remaining compatibility glue for the archived experimental repo.
   - Decide whether old-vs-new comparison stays as a standalone manual benchmark or is retired entirely.
   - Clean up docs and benchmark notes that still describe the shim path.
+  - *Done:* Removed `CodecMapper.LegacyShim` and the local compare-runner shim path. The archived experimental repo remains preserved under `benchmarks/CodecMapper/` for reference only.

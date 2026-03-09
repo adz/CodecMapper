@@ -1,3 +1,7 @@
+/// `CodecMapper` is a schema-first codec library for explicit wire contracts.
+///
+/// Start in `Schema` to describe the wire shape, then compile that schema in
+/// `Json` or `Xml` depending on the format boundary you need to talk to.
 namespace CodecMapper
 
 open System.Text

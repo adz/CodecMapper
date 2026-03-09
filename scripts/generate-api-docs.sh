@@ -8,7 +8,6 @@ cd "${ROOT_DIR}"
 
 dotnet fsdocs build \
     --input "${ROOT_DIR}/docs" \
-    --projects "${ROOT_DIR}/src/CodecMapper/CodecMapper.fsproj" \
     --output "${ROOT_DIR}/output" \
     --clean \
     --strict \

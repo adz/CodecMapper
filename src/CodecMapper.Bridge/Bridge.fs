@@ -1,3 +1,8 @@
+/// Importers for existing .NET contract metadata into `CodecMapper` schemas.
+///
+/// The bridge is intentionally .NET-only and aimed at migration scenarios:
+/// start from C# classes that already carry serializer attributes, import a
+/// `Schema<'T>`, then compile and use that schema like any handwritten one.
 namespace CodecMapper.Bridge
 
 open System
@@ -9,6 +14,8 @@ open System.Text.Json.Serialization
 open Newtonsoft.Json
 open CodecMapper
 
+/// Controls how CLR member names map to wire names when no explicit serializer
+/// attribute overrides the property name.
 type NamingPolicy =
     | Exact
     | CamelCase
@@ -17,13 +24,18 @@ type NamingPolicy =
     | KebabCaseLower
     | KebabCaseUpper
 
+/// Options for schema import from annotated CLR models.
 type BridgeOptions = {
     DefaultNaming: NamingPolicy
     IncludeFields: bool
     RespectNullableAnnotations: bool
 }
 
+/// Common bridge option presets.
 module BridgeOptions =
+    /// Conservative defaults for contract import.
+    ///
+    /// These defaults prefer explicit attributes over convention-heavy import.
     let defaults = {
         DefaultNaming = Exact
         IncludeFields = false
@@ -455,14 +467,27 @@ module private Runtime =
     let import<'T> flavor options : Schema<'T> =
         importType flavor options [] typeof<'T> :?> Schema<'T>
 
+/// Imports schemas from `System.Text.Json`-annotated CLR types.
+///
+/// Supported metadata today is intentionally narrow: rename, ignore,
+/// required, and constructor binding. Unsupported serializer-specific
+/// features fail explicitly during import.
 module SystemTextJson =
+    /// Imports a `Schema<'T>` from a `System.Text.Json`-annotated CLR type.
     let import<'T> options =
         Runtime.import<'T> Flavor.SystemTextJson options
 
+/// Imports schemas from `Newtonsoft.Json`-annotated CLR types.
 module NewtonsoftJson =
+    /// Imports a `Schema<'T>` from a `Newtonsoft.Json`-annotated CLR type.
     let import<'T> options =
         Runtime.import<'T> Flavor.NewtonsoftJson options
 
+/// Imports schemas from `[DataContract]` / `[DataMember]` CLR types.
+///
+/// This is the strictest import path: when `[DataContract]` is present, only
+/// `[DataMember]` properties are considered part of the wire contract.
 module DataContracts =
+    /// Imports a `Schema<'T>` from a `[DataContract]` CLR type.
     let import<'T> options =
         Runtime.import<'T> Flavor.DataContract options

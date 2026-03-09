@@ -37,13 +37,13 @@ jobs:
         run: bash scripts/format-check.sh
 
       - name: Run test suite
-        run: dotnet test src/CodecMapper.Tests/CodecMapper.Tests.fsproj --nologo -v minimal
+        run: dotnet test tests/CodecMapper.Tests/CodecMapper.Tests.fsproj --nologo -v minimal
 
       - name: Run AOT sentinel
-        run: dotnet run --project src/CodecMapper.AotTests/CodecMapper.AotTests.fsproj --nologo
+        run: dotnet run --project tests/CodecMapper.AotTests/CodecMapper.AotTests.fsproj --nologo
 
       - name: Run Fable sentinel
-        run: dotnet run --project src/CodecMapper.FableTests/CodecMapper.FableTests.fsproj --nologo
+        run: dotnet run --project tests/CodecMapper.FableTests/CodecMapper.FableTests.fsproj --nologo
 
       - name: Build API docs
         run: bash scripts/generate-api-docs.sh

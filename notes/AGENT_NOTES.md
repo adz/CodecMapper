@@ -93,12 +93,12 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 ## Test Coverage Notes
 
-- `src/CodecMapper.Tests/SchemaDslTests.fs` proves the typed pipeline with a 20-field round trip.
-- `src/CodecMapper.Tests/JsonParserTests.fs` holds the JSON compliance and adversarial cases.
-- `src/CodecMapper.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
-- `src/CodecMapper.Tests/CSharpBridgeTests.fs` covers the first runtime import path from C# classes and serializer attributes.
-- `src/CodecMapper.AotTests/Program.fs` and `src/CodecMapper.FableTests/Program.fs` are the compatibility sentinels. They now cover JSON and XML nested-record paths plus selected option/mapping/common-type cases.
-- `src/CodecMapper.Benchmarks/CodecMapperBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
+- `tests/CodecMapper.Tests/SchemaDslTests.fs` proves the typed pipeline with a 20-field round trip.
+- `tests/CodecMapper.Tests/JsonParserTests.fs` holds the JSON compliance and adversarial cases.
+- `tests/CodecMapper.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
+- `tests/CodecMapper.Tests/CSharpBridgeTests.fs` covers the first runtime import path from C# classes and serializer attributes.
+- `tests/CodecMapper.AotTests/Program.fs` and `tests/CodecMapper.FableTests/Program.fs` are the compatibility sentinels. They now cover JSON and XML nested-record paths plus selected option/mapping/common-type cases.
+- `benchmarks/CodecMapper.Benchmarks/CodecMapperBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
 
 ## Known Gaps
 
@@ -118,29 +118,29 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - extension data
   - converter attributes
   - mixed constructor-plus-setter binding
-- Those unsupported paths are now pinned by dedicated tests in `src/CodecMapper.Tests/CSharpBridgeTests.fs`, not just by design notes.
+- Those unsupported paths are now pinned by dedicated tests in `tests/CodecMapper.Tests/CSharpBridgeTests.fs`, not just by design notes.
 - `docs/CONFIG_CONTRACTS.md` now records the recommended config migration direction: explicit schema contracts, JSON as the canonical write format, XML as migration input only, explicit version envelopes, and a separation between wire contracts and richer domain models.
 
 ## Benchmarking Notes
 
-- `src/CodecMapper.Benchmarks/CodecMapper.Benchmarks.fsproj` is now a runnable BenchmarkDotNet app again (`OutputType=Exe` plus a real entrypoint), so the failure is no longer at the top-level `dotnet run` step.
+- `benchmarks/CodecMapper.Benchmarks/CodecMapper.Benchmarks.fsproj` is now a runnable BenchmarkDotNet app again (`OutputType=Exe` plus a real entrypoint), so the failure is no longer at the top-level `dotnet run` step.
 - The archived experimental clone under `benchmarks/CodecMapper/` also contains a `CodecMapper.Benchmarks.fsproj`, which makes BenchmarkDotNet's default child-project generator ambiguous once both repos exist in the same workspace.
-- `src/CodecMapper.Benchmarks/Program.fs` now forces BenchmarkDotNet onto `InProcessEmitToolchain` to avoid child-project generation entirely.
+- `benchmarks/CodecMapper.Benchmarks/Program.fs` now forces BenchmarkDotNet onto `InProcessEmitToolchain` to avoid child-project generation entirely.
 - The remaining warning during local runs is just Linux process-priority elevation failure (`Permission denied`), which does not stop benchmarks from executing.
-- A manual Release runner was added in `src/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
+- A manual Release runner was added in `benchmarks/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
 - Keep the manual Release runner for fast local snapshots and README updates; use BenchmarkDotNet when you specifically want richer statistical output.
 
 ## Formatting
 
 - The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
-- The repo also has `scripts/generate-api-docs.sh`, which builds `fsdocs` output from the checked-in `docs/` content plus the core `CodecMapper` project XML comments.
+- The repo also has `scripts/generate-api-docs.sh`, which builds `fsdocs` output from the checked-in `docs/` content plus the public library XML comments under `src/`.
 - GitHub Actions CI now lives in `.github/workflows/ci.yml` and is expected to stay aligned with those scripts:
   - `dotnet tool restore`
   - `dotnet restore CodecMapper.sln`
   - `bash scripts/format-check.sh`
-  - `dotnet test src/CodecMapper.Tests/CodecMapper.Tests.fsproj`
-  - `dotnet run --project src/CodecMapper.AotTests/CodecMapper.AotTests.fsproj`
-  - `dotnet run --project src/CodecMapper.FableTests/CodecMapper.FableTests.fsproj`
+  - `dotnet test tests/CodecMapper.Tests/CodecMapper.Tests.fsproj`
+  - `dotnet run --project tests/CodecMapper.AotTests/CodecMapper.AotTests.fsproj`
+  - `dotnet run --project tests/CodecMapper.FableTests/CodecMapper.FableTests.fsproj`
   - `bash scripts/generate-api-docs.sh`
 - That workflow now also deploys `output/` to GitHub Pages on pushes to `main`/`master`. The validation artifact (`api-docs`) and the Pages artifact should both come from the same generated `output/` tree.
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
@@ -153,21 +153,11 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - Keep formatter changes small and policy-driven. If you change `.editorconfig`, rerun the formatter across the repo and review the resulting DSL/test readability before committing.
 - The preserved CodecMapper logo now lives at `docs/logo.png` and is referenced from both `README.md` and `docs/index.md`. Treat that as the canonical branding asset path.
 - `fsdocs` output is treated as a generated artifact, not checked-in source. Build it into `output/`, which is ignored by Git.
-- The generated API docs are only as good as the XML comments in `src/CodecMapper/Library.fs`. If you change the public surface, update those comments in the same task instead of letting the reference drift.
+- The generated API docs are only as good as the XML comments in `src/`. If you change the public surface, update those comments in the same task instead of letting the reference drift.
 
 ## Legacy CodecMapper Comparison
 
 - The previous `CodecMapper` repo is cloned locally at `benchmarks/CodecMapper/` for reference only and is ignored by this repo's Git metadata.
 - Its published benchmark snapshot is not directly comparable to `CodecMapper`'s current README numbers because it benchmarks a 1000-record `Person list` payload, while `CodecMapper` currently publishes a small single-object benchmark.
 - The old repo also fails to complete BenchmarkDotNet runs cleanly on this machine under `.NET SDK 10.0.103`; direct child-project builds still end with `Build FAILED` and `0 Error(s)`.
-- Any serious comparison between the old repo and current `CodecMapper` needs a shared manual harness on the same payload, not a README-to-README comparison.
-- `src/CodecMapper.CompareRunner/` is that shared harness. Latest local run on the 1000-record nested-list payload:
-  - `STJ encode` `674487.8 ns/op`
-  - `CodecMapper encode` `769925.5 ns/op`
-  - old `CodecMapper encode` `781210.3 ns/op`
-  - `STJ decode` `1422827.2 ns/op`
-  - `CodecMapper decode bytes` `1971350.4 ns/op`
-  - old `CodecMapper decode stream` `2132364.1 ns/op`
-- To keep that harness buildable after the repo rename, the local archived clone under `benchmarks/CodecMapper/` is expected to be built as `CodecMapper.CPExperiment.dll` so it does not collide with the current `CodecMapper.dll`.
-- Current `CodecMapper` is slightly faster than the old repo on that shared payload, but the old repo allocates less. Do not frame the rename decision as a simple performance win for the old implementation.
 - Legacy branding assets from the archived experimental repo are preserved under `notes/legacy-codemapper/`.

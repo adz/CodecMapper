@@ -7,6 +7,7 @@
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>link</TrimMode>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <IsPackable>false</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CodecMapper\CodecMapper.fsproj" />
+    <ProjectReference Include="..\..\src\CodecMapper\CodecMapper.fsproj" />
   </ItemGroup>
 
 </Project>

@@ -26,8 +26,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CodecMapper\CodecMapper.fsproj" />
-    <ProjectReference Include="..\CodecMapper.Bridge\CodecMapper.Bridge.fsproj" />
+    <ProjectReference Include="..\..\src\CodecMapper\CodecMapper.fsproj" />
+    <ProjectReference Include="..\..\src\CodecMapper.Bridge\CodecMapper.Bridge.fsproj" />
     <ProjectReference Include="..\CodecMapper.CSharpModels\CodecMapper.CSharpModels.csproj" />
   </ItemGroup>
 
