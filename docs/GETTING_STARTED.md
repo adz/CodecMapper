@@ -17,22 +17,17 @@ A `Schema<'T>` is an abstract blueprint for a type `'T`. It defines how to build
 
 ### The DSL
 
-The `schema` computation expression (CE) is the primary tool for building record mappings.
+The `schema<'T>` computation expression (CE) is the primary tool for building record mappings.
 
 #### The Constructor Pattern
 
-Every `schema` block **must** begin with a `construct` line. To ensure maximum performance and compatibility (AOT/Fable), we use arity-specific constructors:
-
-- `construct` (1 arg)
-- `construct2` (2 args)
-- `construct3` (3 args)
-... and so on.
+Every `schema` block **must** begin with a `construct` line. We provide unified `construct` overloads for curried functions up to arity 16.
 
 ```fsharp
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema = schema {
-    construct2 makePerson
+let personSchema = schema<Person> {
+    construct makePerson
     field "id" _.Id
     field "name" _.Name
 }
@@ -61,8 +56,8 @@ open cmap
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema = schema {
-    construct2 makePerson
+let personSchema = schema<Person> {
+    construct makePerson
     field "id" _.Id
     field "name" _.Name
 }
@@ -83,8 +78,8 @@ Schemas are composable. You can use one schema inside another.
 type Team = { Name: string; Members: Person list }
 let makeTeam name members = { Name = name; Members = members }
 
-let teamSchema = schema {
-    construct2 makeTeam
+let teamSchema = schema<Team> {
+    construct makeTeam
     field "team_name" _.Name
     field "members" _.Members (Schema.list personSchema)
 }

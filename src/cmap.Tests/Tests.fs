@@ -111,3 +111,37 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
     let json = Json.serialize codec p
     let decoded = Json.deserialize codec json
     test <@ decoded = p @>
+
+type CollectionRecord = { List: int list; Array: string array }
+let makeCollectionRecord l a = { List = l; Array = a }
+
+[<Fact>]
+let ``Round-trip collections with auto-resolution`` () =
+    let collectionSchema = schema<CollectionRecord> {
+        construct makeCollectionRecord
+        field "list" _.List
+        field "array" _.Array
+    }
+    let codec = Json.compile collectionSchema
+    let value = { List = [1; 2]; Array = [|"a"; "b"|] }
+    let json = Json.serialize codec value
+    let decoded = Json.deserialize codec json
+    test <@ decoded = value @>
+
+type LargeRecord = { F1: int; F2: string; F3: int }
+let makeLargeRecord (args: obj[]) = 
+    { F1 = unbox args.[0]; F2 = unbox args.[1]; F3 = unbox args.[2] }
+
+[<Fact>]
+let ``Round-trip using obj array escape hatch (Unlimited Arity)`` () =
+    let largeSchema = schema<LargeRecord> {
+        construct makeLargeRecord
+        field "f1" _.F1
+        field "f2" _.F2
+        field "f3" _.F3
+    }
+    let codec = Json.compile largeSchema
+    let value = { F1 = 1; F2 = "two"; F3 = 3 }
+    let json = Json.serialize codec value
+    let decoded = Json.deserialize codec json
+    test <@ decoded = value @>

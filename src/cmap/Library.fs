@@ -817,6 +817,62 @@ module Json =
                 Encode = encoder
                 Decode = decoder
             }
+        | Array innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+
+            let encoder (writer: JsonWriter) (vObj: obj) =
+                let arr = vObj :?> System.Array
+                writer.WriteByte(91uy)
+                let mutable first = true
+
+                for i in 0 .. arr.Length - 1 do
+                    if not first then
+                        writer.WriteByte(44uy)
+
+                    innerCodec.Encode writer (arr.GetValue(i))
+                    first <- false
+
+                writer.WriteByte(93uy)
+
+            let decoder (src: JsonSource) =
+                let mutable src = Runtime.skipWhitespace src
+
+                if src.Offset >= src.Data.Length || src.Data.[src.Offset] <> 91uy then
+                    failwith "Expected ["
+
+                src <- src.Advance(1)
+                let results = ResizeArray<obj>()
+                let mutable continueLoop = true
+                src <- Runtime.skipWhitespace src
+
+                if src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                    continueLoop <- false
+                    src <- src.Advance(1)
+
+                while continueLoop do
+                    let struct (item, nextSrc) = innerCodec.Decode src
+                    results.Add(item)
+                    src <- Runtime.skipWhitespace nextSrc
+
+                    if src.Offset < src.Data.Length && src.Data.[src.Offset] = 44uy then
+                        src <- src.Advance(1)
+                    elif src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                        continueLoop <- false
+                        src <- src.Advance(1)
+                    else
+                        failwith "Expected , or ]"
+
+                let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
+
+                for i in 0 .. results.Count - 1 do
+                    targetArray.SetValue(results.[i], i)
+
+                struct (box targetArray, src)
+
+            {
+                Encode = encoder
+                Decode = decoder
+            }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
 

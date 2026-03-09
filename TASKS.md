@@ -61,3 +61,24 @@ This file tracks the implementation of the "Schema-first" architecture for `cmap
   - Remove deprecated `record` and `recordWith` functions from `Library.fs`.
   - Update `GETTING_STARTED.md` in `docs/` to reflect the new syntax.
   - *Success criteria:* Library is clean and documentation is accurate.
+
+- [ ] ** Task 12: Parser hardening**
+  - Ensure all the following:
+  - Valid JSON Examples Your parser should successfully process these inputs:
+        Empty object: {}
+        Empty array: []
+        Simple key-value pairs: {"key": "value", "number": 123, "boolean": true, "nullValue": null}
+        Nested objects and arrays: {"person": {"name": "John", "age": 30}, "hobbies": ["reading", "gaming", "coding"]}
+        Correctly escaped characters: {"path": "C:\\Users\\Name", "quote": "He said \\"Hello\\""}
+        Unicode characters: {"greeting": "Hello, Wor\u006c\u0064!"}
+
+  - Invalid JSON Examples (Edge Cases) Your parser should reject these inputs and handle the errors gracefully:
+        Trailing commas: {"a": 1,} or [1, 2,]
+        Unquoted keys: {key: "value"}
+        Single quotes instead of double quotes: {'key': 'value'}
+        Missing colons or commas: {"key" "value"} or {"key": "value" "key2": "value2"}
+        Invalid data types/syntax: {"number": 0.123.456} or {"boolean": maybe}
+        Mismatched brackets/braces: {"array": [1, 2]} or [{"key": "value"}]
+        Deeply nested structures: Very deep nesting (e.g., [[[[...]]]]) to test for stack overflow vulnerabilities.
+        Large numbers (precision issues): Numbers beyond the safe integer limit (2^53 - 1) if not handled as strings or specific BigInt types.
+        Duplicate keys: {"role": "user", "role": "admin"} (behavior should be consistent or explicitly handled).
