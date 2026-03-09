@@ -24,12 +24,14 @@ let personSchema =
 let ``Round-trip nested records XML`` () =
     let codec = Xml.compile personSchema
 
-    let value =
-        { Id = 42
-          Name = "Adam"
-          Home =
-            { Street = "123 F# Lane"
-              City = "AOT City" } }
+    let value = {
+        Id = 42
+        Name = "Adam"
+        Home = {
+            Street = "123 F# Lane"
+            City = "AOT City"
+        }
+    }
 
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml
@@ -56,11 +58,14 @@ let ``Decode XML with inter-element whitespace`` () =
 
     test
         <@
-            decoded = { Id = 42
-                        Name = "Adam"
-                        Home =
-                          { Street = "123 F# Lane"
-                            City = "AOT City" } }
+            decoded = {
+                          Id = 42
+                          Name = "Adam"
+                          Home = {
+                              Street = "123 F# Lane"
+                              City = "AOT City"
+                          }
+                      }
         @>
 
 [<Fact>]
@@ -85,9 +90,10 @@ let ``Round-trip collections and mapped wrappers XML`` () =
 
     let codec = Xml.compile wrappedPersonSchema
 
-    let value =
-        { Id = PersonId 123
-          Tags = [ "fsharp"; "xml" ] }
+    let value = {
+        Id = PersonId 123
+        Tags = [ "fsharp"; "xml" ]
+    }
 
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml
@@ -106,9 +112,10 @@ let ``Round-trip bool and arrays XML`` () =
             |> Schema.build
         )
 
-    let value =
-        { Enabled = true
-          Aliases = [| "one"; "two" |] }
+    let value = {
+        Enabled = true
+        Aliases = [| "one"; "two" |]
+    }
 
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml

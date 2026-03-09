@@ -17,29 +17,32 @@ type NamingPolicy =
     | KebabCaseLower
     | KebabCaseUpper
 
-type BridgeOptions =
-    { DefaultNaming: NamingPolicy
-      IncludeFields: bool
-      RespectNullableAnnotations: bool }
+type BridgeOptions = {
+    DefaultNaming: NamingPolicy
+    IncludeFields: bool
+    RespectNullableAnnotations: bool
+}
 
 module BridgeOptions =
-    let defaults =
-        { DefaultNaming = Exact
-          IncludeFields = false
-          RespectNullableAnnotations = false }
+    let defaults = {
+        DefaultNaming = Exact
+        IncludeFields = false
+        RespectNullableAnnotations = false
+    }
 
 type private Flavor =
     | SystemTextJson
     | NewtonsoftJson
     | DataContract
 
-type private MemberBinding =
-    { ClrName: string
-      WireName: string
-      MemberType: Type
-      Getter: obj -> obj
-      Setter: (obj -> obj -> unit) option
-      Required: bool }
+type private MemberBinding = {
+    ClrName: string
+    WireName: string
+    MemberType: Type
+    Getter: obj -> obj
+    Setter: (obj -> obj -> unit) option
+    Required: bool
+}
 
 type private ConstructionPlan =
     | Constructor of ConstructorInfo * MemberBinding array
@@ -223,20 +226,22 @@ module private Runtime =
         |> Array.map (fun propertyInfo ->
             hasUnsupportedMemberAttributes flavor propertyInfo
 
-            { ClrName = propertyInfo.Name
-              WireName = resolveWireName flavor options propertyInfo
-              MemberType = propertyInfo.PropertyType
-              Getter = fun instance -> propertyInfo.GetValue(instance)
-              Setter =
-                if
-                    propertyInfo.CanWrite
-                    && not (isNull propertyInfo.SetMethod)
-                    && propertyInfo.SetMethod.IsPublic
-                then
-                    Some(fun instance value -> propertyInfo.SetValue(instance, value))
-                else
-                    None
-              Required = isRequired flavor propertyInfo })
+            {
+                ClrName = propertyInfo.Name
+                WireName = resolveWireName flavor options propertyInfo
+                MemberType = propertyInfo.PropertyType
+                Getter = fun instance -> propertyInfo.GetValue(instance)
+                Setter =
+                    if
+                        propertyInfo.CanWrite
+                        && not (isNull propertyInfo.SetMethod)
+                        && propertyInfo.SetMethod.IsPublic
+                    then
+                        Some(fun instance value -> propertyInfo.SetValue(instance, value))
+                    else
+                        None
+                Required = isRequired flavor propertyInfo
+            })
 
     let private getConstructionPlan flavor (targetType: Type) (members: MemberBinding array) =
         let constructorAttribute = getConstructorAttribute flavor
@@ -378,11 +383,12 @@ module private Runtime =
                                     memberInfo.ClrName, importType flavor options nextPath memberInfo.MemberType)
                                 |> dict
 
-                            let makeField (memberInfo: MemberBinding) =
-                                { Name = memberInfo.WireName
-                                  Type = memberInfo.MemberType
-                                  GetValue = memberInfo.Getter
-                                  Schema = memberSchemas.[memberInfo.ClrName] }
+                            let makeField (memberInfo: MemberBinding) = {
+                                Name = memberInfo.WireName
+                                Type = memberInfo.MemberType
+                                GetValue = memberInfo.Getter
+                                Schema = memberSchemas.[memberInfo.ClrName]
+                            }
 
                             let plan = getConstructionPlan flavor targetType members
 

@@ -8,8 +8,7 @@ open CodecMapper
 
 type Address = { Street: string; City: string }
 
-type Person =
-    { Id: int; Name: string; Home: Address }
+type Person = { Id: int; Name: string; Home: Address }
 
 module Schemas =
     let address =
@@ -31,12 +30,14 @@ module Bench =
     let private stjOptions = System.Text.Json.JsonSerializerOptions()
     let private cmapCodec = Json.compile Schemas.person
 
-    let person =
-        { Id = 42
-          Name = "Benchmark User"
-          Home =
-            { Street = "123 F# Way"
-              City = "AOT City" } }
+    let person = {
+        Id = 42
+        Name = "Benchmark User"
+        Home = {
+            Street = "123 F# Way"
+            City = "AOT City"
+        }
+    }
 
     let json =
         "{\"Home\":{\"City\":\"AOT City\",\"Street\":\"123 F# Way\"},\"Id\":42,\"Name\":\"Benchmark User\"}"
@@ -58,15 +59,16 @@ module Bench =
     let newtonsoftDeserialize () =
         JsonConvert.DeserializeObject<Person>(json)
 
-type Measurement =
-    { MeanNs: float; MeanAllocBytes: float }
+type Measurement = { MeanNs: float; MeanAllocBytes: float }
 
 module Runner =
     let private measure iterations rounds action guard =
         let rec loop round timeTotal allocTotal sinkSeed =
             if round = rounds then
-                { MeanNs = timeTotal / float rounds
-                  MeanAllocBytes = allocTotal / float rounds }
+                {
+                    MeanNs = timeTotal / float rounds
+                    MeanAllocBytes = allocTotal / float rounds
+                }
             else
                 GC.Collect()
                 GC.WaitForPendingFinalizers()
@@ -100,13 +102,14 @@ module Runner =
         printfn "Machine-specific numbers. Compare ratios more than absolutes."
         printfn ""
 
-        let results =
-            [ "STJ serialize", measure 200000 5 Bench.stjSerialize hashString
-              "CodecMapper serialize", measure 200000 5 Bench.cmapSerialize hashString
-              "Newtonsoft serialize", measure 100000 5 Bench.newtonsoftSerialize hashString
-              "STJ deserialize", measure 200000 5 Bench.stjDeserialize hashPerson
-              "CodecMapper deserialize bytes", measure 200000 5 Bench.cmapDeserializeBytes hashPerson
-              "Newtonsoft deserialize", measure 100000 5 Bench.newtonsoftDeserialize hashPerson ]
+        let results = [
+            "STJ serialize", measure 200000 5 Bench.stjSerialize hashString
+            "CodecMapper serialize", measure 200000 5 Bench.cmapSerialize hashString
+            "Newtonsoft serialize", measure 100000 5 Bench.newtonsoftSerialize hashString
+            "STJ deserialize", measure 200000 5 Bench.stjDeserialize hashPerson
+            "CodecMapper deserialize bytes", measure 200000 5 Bench.cmapDeserializeBytes hashPerson
+            "Newtonsoft deserialize", measure 100000 5 Bench.newtonsoftDeserialize hashPerson
+        ]
 
         for (name, result) in results do
             printfn "%s | %.1f ns/op | %.1f B/op" name result.MeanNs result.MeanAllocBytes

@@ -8,6 +8,8 @@ charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[*.fs]
-fsharp_stroustrup_style = true
+[*.{fs,fsi,fsx}]
+fsharp_multiline_bracket_style = stroustrup
 fsharp_max_line_length = 120
+fsharp_newline_before_multiline_computation_expression = true
+fsharp_keep_max_number_of_blank_lines = 1

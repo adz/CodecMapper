@@ -24,16 +24,17 @@ let commonTypeSchema =
 let ``Auto-resolved common types round-trip JSON`` () =
     let codec = Json.compile commonTypeSchema
 
-    let value =
-        { Age = 42s
-          Level = 7uy
-          Delta = -3y
-          Score = 512us
-          Initial = 'A'
-          UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
-          CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
-          UpdatedAt = DateTimeOffset(2024, 10, 12, 18, 0, 0, TimeSpan.FromHours(9.0))
-          Duration = TimeSpan.FromMinutes(95.0) }
+    let value = {
+        Age = 42s
+        Level = 7uy
+        Delta = -3y
+        Score = 512us
+        Initial = 'A'
+        UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
+        CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
+        UpdatedAt = DateTimeOffset(2024, 10, 12, 18, 0, 0, TimeSpan.FromHours(9.0))
+        Duration = TimeSpan.FromMinutes(95.0)
+    }
 
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
@@ -44,16 +45,17 @@ let ``Auto-resolved common types round-trip JSON`` () =
 let ``Auto-resolved common types round-trip XML`` () =
     let codec = Xml.compile commonTypeSchema
 
-    let value =
-        { Age = 42s
-          Level = 7uy
-          Delta = -3y
-          Score = 512us
-          Initial = 'A'
-          UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
-          CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
-          UpdatedAt = DateTimeOffset(2024, 10, 12, 18, 0, 0, TimeSpan.FromHours(9.0))
-          Duration = TimeSpan.FromMinutes(95.0) }
+    let value = {
+        Age = 42s
+        Level = 7uy
+        Delta = -3y
+        Score = 512us
+        Initial = 'A'
+        UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
+        CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
+        UpdatedAt = DateTimeOffset(2024, 10, 12, 18, 0, 0, TimeSpan.FromHours(9.0))
+        Duration = TimeSpan.FromMinutes(95.0)
+    }
 
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml

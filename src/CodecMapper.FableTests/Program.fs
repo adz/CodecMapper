@@ -8,8 +8,7 @@ module Domain =
     type Address = { Street: string; City: string }
     let makeAddress street city = { Street = street; City = city }
 
-    type Person =
-        { Id: int; Name: string; Home: Address }
+    type Person = { Id: int; Name: string; Home: Address }
 
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
@@ -27,9 +26,10 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
-    type OptionalRecord =
-        { Nickname: string option
-          Age: int option }
+    type OptionalRecord = {
+        Nickname: string option
+        Age: int option
+    }
 
     let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
 
@@ -80,10 +80,11 @@ module Program =
         try
             let pCodec = Json.compile Schemas.person
 
-            let p =
-                { Id = 42
-                  Name = "Fable"
-                  Home = { Street = "Street"; City = "City" } }
+            let p = {
+                Id = 42
+                Name = "Fable"
+                Home = { Street = "Street"; City = "City" }
+            }
 
             let pJson = Json.serialize pCodec p
             let pDecoded = Json.deserialize pCodec pJson

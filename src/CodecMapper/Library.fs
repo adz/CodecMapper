@@ -32,13 +32,15 @@ module Core =
         abstract member Count: int
 
     /// Optimized implementation of IByteWriter.
-    type ResizableBuffer =
-        { mutable InternalData: byte[]
-          mutable InternalCount: int }
+    type ResizableBuffer = {
+        mutable InternalData: byte[]
+        mutable InternalCount: int
+    } with
 
-        static member Create(initialCapacity: int) =
-            { InternalData = Array.zeroCreate initialCapacity
-              InternalCount = 0 }
+        static member Create(initialCapacity: int) = {
+            InternalData = Array.zeroCreate initialCapacity
+            InternalCount = 0
+        }
 
         interface IByteWriter with
             member x.Ensure(n: int) =
@@ -100,11 +102,12 @@ module Core =
             member x.Count = x.InternalCount
 
 /// Abstract blueprint for serialization.
-type SchemaField =
-    { Name: string
-      Type: System.Type
-      GetValue: obj -> obj
-      Schema: ISchema }
+type SchemaField = {
+    Name: string
+    Type: System.Type
+    GetValue: obj -> obj
+    Schema: ISchema
+}
 
 and ISchema =
     abstract member TargetType: System.Type
@@ -128,16 +131,15 @@ type Schema<'T> =
 /// The builder keeps the constructor's remaining type in `'Ctor` so each
 /// appended field proves, at compile time, that one more argument has been
 /// supplied before `build` can close over the final record value.
-type Builder<'T, 'Ctor> =
-    {
-        Fields: SchemaField list
+type Builder<'T, 'Ctor> = {
+    Fields: SchemaField list
 
-        ///
-        /// We evaluate the curried constructor from left to right against decoded
-        /// field values stored in the compiler's `obj[]` buffer. This keeps the
-        /// public DSL typed while still fitting the existing record compiler.
-        App: obj[] -> int -> 'Ctor
-    }
+    ///
+    /// We evaluate the curried constructor from left to right against decoded
+    /// field values stored in the compiler's `obj[]` buffer. This keeps the
+    /// public DSL typed while still fitting the existing record compiler.
+    App: obj[] -> int -> 'Ctor
+}
 
 module Schema =
     let unwrap (s: ISchema) = s
@@ -145,7 +147,8 @@ module Schema =
     let inline create<'T> def =
         { new Schema<'T> with
             member _.TargetType = typeof<'T>
-            member _.Definition = def }
+            member _.Definition = def
+        }
 
     let int: Schema<int> = create (Primitive typeof<int>)
     let int64: Schema<int64> = create (Primitive typeof<int64>)
@@ -326,7 +329,8 @@ module Schema =
 
             { new ISchema with
                 member _.TargetType = t
-                member _.Definition = Option(innerSchema) }
+                member _.Definition = Option(innerSchema)
+            }
         elif
             t.IsGenericType
             && t.GetGenericTypeDefinition() = typeof<list<_>>.GetGenericTypeDefinition()
@@ -336,14 +340,16 @@ module Schema =
 
             { new ISchema with
                 member _.TargetType = t
-                member _.Definition = List(innerSchema) }
+                member _.Definition = List(innerSchema)
+            }
         elif t.IsArray then
             let elementType = t.GetElementType()
             let elementSchema = resolveSchema elementType
 
             { new ISchema with
                 member _.TargetType = t
-                member _.Definition = Array(elementSchema) }
+                member _.Definition = Array(elementSchema)
+            }
         else
             failwithf "Could not automatically resolve schema for type %O. Please provide it explicitly." t
 
@@ -357,9 +363,10 @@ module Schema =
     /// names like `Id` or `Name`.
     let inline define<'T> : Builder<'T, unit> = { Fields = []; App = (fun _ _ -> ()) }
 
-    let inline construct (ctor: 'Ctor) (builder: Builder<'T, unit>) : Builder<'T, 'Ctor> =
-        { Fields = builder.Fields
-          App = (fun _ _ -> ctor) }
+    let inline construct (ctor: 'Ctor) (builder: Builder<'T, unit>) : Builder<'T, 'Ctor> = {
+        Fields = builder.Fields
+        App = (fun _ _ -> ctor)
+    }
 
     let inline field
         (name: string)
@@ -368,19 +375,22 @@ module Schema =
         : Builder<'T, 'Next> =
         let schema = resolveSchema typeof<'Field>
 
-        let f =
-            { Name = name
-              Type = typeof<'Field>
-              GetValue = (fun r -> box (getter (unbox r)))
-              Schema = schema }
+        let f = {
+            Name = name
+            Type = typeof<'Field>
+            GetValue = (fun r -> box (getter (unbox r)))
+            Schema = schema
+        }
 
         let nextApp (args: obj[]) (idx: int) =
             let fCurried = builder.App args (idx - 1)
             let arg = unbox<'Field> args.[idx]
             fCurried arg
 
-        { Fields = f :: builder.Fields
-          App = nextApp }
+        {
+            Fields = f :: builder.Fields
+            App = nextApp
+        }
 
     let inline fieldWith
         (name: string)
@@ -388,19 +398,22 @@ module Schema =
         (schema: Schema<'Field>)
         (builder: Builder<'T, 'Field -> 'Next>)
         : Builder<'T, 'Next> =
-        let f =
-            { Name = name
-              Type = typeof<'Field>
-              GetValue = (fun r -> box (getter (unbox r)))
-              Schema = unwrap schema }
+        let f = {
+            Name = name
+            Type = typeof<'Field>
+            GetValue = (fun r -> box (getter (unbox r)))
+            Schema = unwrap schema
+        }
 
         let nextApp (args: obj[]) (idx: int) =
             let fCurried = builder.App args (idx - 1)
             let arg = unbox<'Field> args.[idx]
             fCurried arg
 
-        { Fields = f :: builder.Fields
-          App = nextApp }
+        {
+            Fields = f :: builder.Fields
+            App = nextApp
+        }
 
     let build (builder: Builder<'T, 'T>) : Schema<'T> =
         let fields = builder.Fields |> List.rev |> List.toArray
@@ -417,9 +430,10 @@ module Json =
 
     type Decoder<'T> = JsonSource -> struct ('T * JsonSource)
 
-    type Codec<'T> =
-        { Encode: IByteWriter -> 'T -> unit
-          Decode: Decoder<'T> }
+    type Codec<'T> = {
+        Encode: IByteWriter -> 'T -> unit
+        Decode: Decoder<'T>
+    }
 
     module internal Runtime =
         let inline skipWhitespace (src: JsonSource) =
@@ -859,54 +873,61 @@ module Json =
 
             FSharpValue.MakeUnion(noneCase, [||])
 
-    type CompiledCodec =
-        { Encode: IByteWriter -> obj -> unit
-          Decode: JsonSource -> struct (obj * JsonSource)
-          MissingValue: obj option }
+    type CompiledCodec = {
+        Encode: IByteWriter -> obj -> unit
+        Decode: JsonSource -> struct (obj * JsonSource)
+        MissingValue: obj option
+    }
 
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
-        | Primitive t when t = typeof<int> ->
-            { Encode = (fun w v -> w.WriteInt(unbox v))
-              Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<int64> ->
-            { Encode =
+        | Primitive t when t = typeof<int> -> {
+            Encode = (fun w v -> w.WriteInt(unbox v))
+            Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<int64> -> {
+            Encode =
                 (fun w v ->
                     let value: int64 = unbox v
                     w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-              Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<uint32> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<uint32> -> {
+            Encode =
                 (fun w v ->
                     let value: uint32 = unbox v
                     w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-              Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<uint64> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<uint64> -> {
+            Encode =
                 (fun w v ->
                     let value: uint64 = unbox v
                     w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-              Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<float> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<float> -> {
+            Encode =
                 (fun w v ->
                     let value: float = unbox v
                     w.WriteString(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))
-              Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<decimal> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<decimal> -> {
+            Encode =
                 (fun w v ->
                     let value: decimal = unbox v
                     w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-              Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<string> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<string> -> {
+            Encode =
                 (fun w v ->
                     let value: string = unbox v
                     w.WriteByte(34uy)
@@ -959,17 +980,19 @@ module Json =
                     flushSegment value.Length
 
                     w.WriteByte(34uy))
-              Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
-              MissingValue = None }
-        | Primitive t when t = typeof<bool> ->
-            { Encode =
+            Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<bool> -> {
+            Encode =
                 (fun w v ->
                     if unbox<bool> v then
                         w.WriteString("true")
                     else
                         w.WriteString("false"))
-              Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
-              MissingValue = None }
+            Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
+            MissingValue = None
+          }
         | Option innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
@@ -977,62 +1000,70 @@ module Json =
             let noneCase = cases |> Array.find (fun c -> c.Name = "None")
             let someCase = cases |> Array.find (fun c -> c.Name = "Some")
 
-            { Encode =
-                (fun w v ->
-                    if isNull v then
-                        w.WriteString("null")
-                    else
-                        let _, fields = FSharpValue.GetUnionFields(v, optionType)
-                        innerCodec.Encode w fields.[0])
-              Decode =
-                (fun src ->
-                    let src = Runtime.skipWhitespace src
-                    let data = src.Data
+            {
+                Encode =
+                    (fun w v ->
+                        if isNull v then
+                            w.WriteString("null")
+                        else
+                            let _, fields = FSharpValue.GetUnionFields(v, optionType)
+                            innerCodec.Encode w fields.[0])
+                Decode =
+                    (fun src ->
+                        let src = Runtime.skipWhitespace src
+                        let data = src.Data
 
-                    if src.Offset < data.Length && data.[src.Offset] = 110uy then
-                        let next = Runtime.nullDecoder src
-                        struct (FSharpValue.MakeUnion(noneCase, [||]), next)
-                    else
-                        let struct (value, next) = innerCodec.Decode src
-                        struct (FSharpValue.MakeUnion(someCase, [| value |]), next))
-              MissingValue = None }
+                        if src.Offset < data.Length && data.[src.Offset] = 110uy then
+                            let next = Runtime.nullDecoder src
+                            struct (FSharpValue.MakeUnion(noneCase, [||]), next)
+                        else
+                            let struct (value, next) = innerCodec.Decode src
+                            struct (FSharpValue.MakeUnion(someCase, [| value |]), next))
+                MissingValue = None
+            }
         | MissingAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
 
-            { Encode = innerCodec.Encode
-              Decode = innerCodec.Decode
-              MissingValue = Some(Runtime.makeOptionNone optionType) }
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some(Runtime.makeOptionNone optionType)
+            }
         | EmptyStringAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
             let noneValue = Runtime.makeOptionNone optionType
 
-            { Encode = innerCodec.Encode
-              Decode =
-                (fun src ->
-                    let src = Runtime.skipWhitespace src
-                    let data = src.Data
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src ->
+                        let src = Runtime.skipWhitespace src
+                        let data = src.Data
 
-                    if src.Offset < data.Length && data.[src.Offset] = 34uy then
-                        let struct (text, next) = Runtime.stringDecoder src
+                        if src.Offset < data.Length && data.[src.Offset] = 34uy then
+                            let struct (text, next) = Runtime.stringDecoder src
 
-                        if text = "" then
-                            struct (noneValue, next)
+                            if text = "" then
+                                struct (noneValue, next)
+                            else
+                                innerCodec.Decode src
                         else
-                            innerCodec.Decode src
-                    else
-                        innerCodec.Decode src)
-              MissingValue = innerCodec.MissingValue }
+                            innerCodec.Decode src)
+                MissingValue = innerCodec.MissingValue
+            }
         | Record(t, fields, ctor) ->
             let compiledFields =
                 fields
                 |> Array.mapi (fun i f ->
                     let codec = compileUntyped f.Schema
 
-                    {| Name = f.Name
-                       Index = i
-                       Codec = codec |})
+                    {|
+                        Name = f.Name
+                        Index = i
+                        Codec = codec
+                    |})
 
             let encoder (writer: IByteWriter) (vObj: obj) =
                 writer.WriteByte(123uy)
@@ -1112,9 +1143,11 @@ module Json =
 
                 struct (ctor args, current)
 
-            { Encode = encoder
-              Decode = decoder
-              MissingValue = None }
+            {
+                Encode = encoder
+                Decode = decoder
+                MissingValue = None
+            }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
@@ -1162,9 +1195,11 @@ module Json =
 
                 struct (Runtime.makeList (innerSchema.TargetType) (List.rev results |> List.toArray), src)
 
-            { Encode = encoder
-              Decode = decoder
-              MissingValue = None }
+            {
+                Encode = encoder
+                Decode = decoder
+                MissingValue = None
+            }
         | Array innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
@@ -1236,22 +1271,28 @@ module Json =
                 struct (box (results.ToArray()), src)
 #endif
 
-            { Encode = encoder
-              Decode = decoder
-              MissingValue = None }
+            {
+                Encode = encoder
+                Decode = decoder
+                MissingValue = None
+            }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
 
-            { Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
-              Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s))
-              MissingValue = innerCodec.MissingValue |> Option.map wrap }
+            {
+                Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
+                Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s))
+                MissingValue = innerCodec.MissingValue |> Option.map wrap
+            }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
 
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
 
-        { Encode = (fun w v -> compiled.Encode w (box v))
-          Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s)) }
+        {
+            Encode = (fun w v -> compiled.Encode w (box v))
+            Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s))
+        }
 
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
@@ -1281,14 +1322,16 @@ module Xml =
     type XmlSource = ByteSource
     type XmlWriter = IByteWriter
 
-    type Codec<'T> =
-        { Encode: XmlWriter -> 'T -> unit
-          Decode: XmlSource -> struct ('T * XmlSource) }
+    type Codec<'T> = {
+        Encode: XmlWriter -> 'T -> unit
+        Decode: XmlSource -> struct ('T * XmlSource)
+    }
 
-    type CompiledCodec =
-        { Encode: XmlWriter -> string -> obj -> unit
-          Decode: XmlSource -> string -> struct (obj * XmlSource)
-          MissingValue: obj option }
+    type CompiledCodec = {
+        Encode: XmlWriter -> string -> obj -> unit
+        Decode: XmlSource -> string -> struct (obj * XmlSource)
+        MissingValue: obj option
+    }
 
     module internal Runtime =
         let inline skipWhitespace (src: XmlSource) =
@@ -1448,8 +1491,8 @@ module Xml =
 
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
-        | Primitive t when t = typeof<int> ->
-            { Encode =
+        | Primitive t when t = typeof<int> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1459,16 +1502,17 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
                     let v = System.Int32.Parse(text.Trim())
                     struct (box v, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<int64> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<int64> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1478,7 +1522,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1492,9 +1536,10 @@ module Xml =
                         )
 
                     struct (box value, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<uint32> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<uint32> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1504,7 +1549,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1518,9 +1563,10 @@ module Xml =
                         )
 
                     struct (box value, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<uint64> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<uint64> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1530,7 +1576,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1544,9 +1590,10 @@ module Xml =
                         )
 
                     struct (box value, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<float> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<float> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1556,7 +1603,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1570,9 +1617,10 @@ module Xml =
                         )
 
                     struct (box value, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<decimal> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<decimal> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1582,7 +1630,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1596,9 +1644,10 @@ module Xml =
                         )
 
                     struct (box value, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<string> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<string> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1608,15 +1657,16 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (v, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
                     struct (box v, current))
-              MissingValue = None }
-        | Primitive t when t = typeof<bool> ->
-            { Encode =
+            MissingValue = None
+          }
+        | Primitive t when t = typeof<bool> -> {
+            Encode =
                 (fun w tag v ->
                     w.WriteByte(60uy)
                     w.WriteString(tag)
@@ -1626,7 +1676,7 @@ module Xml =
                     w.WriteByte(47uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy))
-              Decode =
+            Decode =
                 (fun src tag ->
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
@@ -1636,212 +1686,231 @@ module Xml =
                     | "true" -> struct (box true, current)
                     | "false" -> struct (box false, current)
                     | _ -> failwith "Expected true or false")
-              MissingValue = None }
+            MissingValue = None
+          }
         | Option innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
 
-            { Encode =
-                (fun w tag v ->
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
 
-                    if not (isNull v) then
-                        innerCodec.Encode w "some" (FSharpValue.GetUnionFields(v, optionType) |> snd |> Array.item 0)
+                        if not (isNull v) then
+                            innerCodec.Encode
+                                w
+                                "some"
+                                (FSharpValue.GetUnionFields(v, optionType) |> snd |> Array.item 0)
 
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let current = Runtime.expectOpenTag tag src
-                    let current = Runtime.skipWhitespace current
-
-                    match Runtime.tryReadCloseTag tag current with
-                    | Some next -> struct (Runtime.makeOptionNone optionType, next)
-                    | None ->
-                        let struct (value, current) = innerCodec.Decode current "some"
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
                         let current = Runtime.skipWhitespace current
-                        let current = Runtime.expectCloseTag tag current
-                        struct (Runtime.makeOptionSome optionType value, current))
-              MissingValue = None }
+
+                        match Runtime.tryReadCloseTag tag current with
+                        | Some next -> struct (Runtime.makeOptionNone optionType, next)
+                        | None ->
+                            let struct (value, current) = innerCodec.Decode current "some"
+                            let current = Runtime.skipWhitespace current
+                            let current = Runtime.expectCloseTag tag current
+                            struct (Runtime.makeOptionSome optionType value, current))
+                MissingValue = None
+            }
         | MissingAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
 
-            { Encode = innerCodec.Encode
-              Decode = innerCodec.Decode
-              MissingValue = Some(Runtime.makeOptionNone optionType) }
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some(Runtime.makeOptionNone optionType)
+            }
         | EmptyStringAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
             let noneValue = Runtime.makeOptionNone optionType
 
-            { Encode = innerCodec.Encode
-              Decode =
-                (fun src tag ->
-                    let struct (value, next) = innerCodec.Decode src tag
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src tag ->
+                        let struct (value, next) = innerCodec.Decode src tag
 
-                    if isNull value then
-                        struct (value, next)
-                    else
-                        let caseInfo, fields = FSharpValue.GetUnionFields(value, optionType)
-
-                        if
-                            caseInfo.Name = "Some"
-                            && fields.Length = 1
-                            && fields.[0] :? string
-                            && unbox<string> fields.[0] = ""
-                        then
-                            struct (noneValue, next)
+                        if isNull value then
+                            struct (value, next)
                         else
-                            struct (value, next))
-              MissingValue = innerCodec.MissingValue }
+                            let caseInfo, fields = FSharpValue.GetUnionFields(value, optionType)
+
+                            if
+                                caseInfo.Name = "Some"
+                                && fields.Length = 1
+                                && fields.[0] :? string
+                                && unbox<string> fields.[0] = ""
+                            then
+                                struct (noneValue, next)
+                            else
+                                struct (value, next))
+                MissingValue = innerCodec.MissingValue
+            }
         | Record(t, fields, ctor) ->
             let compiledFields =
                 fields
-                |> Array.map (fun f ->
-                    {| Name = f.Name
-                       Codec = compileUntyped f.Schema
-                       GetValue = f.GetValue |})
+                |> Array.map (fun f -> {|
+                    Name = f.Name
+                    Codec = compileUntyped f.Schema
+                    GetValue = f.GetValue
+                |})
 
-            { Encode =
-                (fun w tag vObj ->
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
+            {
+                Encode =
+                    (fun w tag vObj ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
 
-                    for f in compiledFields do
-                        f.Codec.Encode w f.Name (f.GetValue vObj)
+                        for f in compiledFields do
+                            f.Codec.Encode w f.Name (f.GetValue vObj)
 
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let mutable current = Runtime.expectOpenTag tag src
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = Runtime.expectOpenTag tag src
 
-                    let args =
-                        compiledFields
-                        |> Array.map (fun f ->
-                            current <- Runtime.skipWhitespace current
+                        let args =
+                            compiledFields
+                            |> Array.map (fun f ->
+                                current <- Runtime.skipWhitespace current
 
-                            match Runtime.tryReadCloseTag tag current with
-                            | Some _ ->
-                                match f.Codec.MissingValue with
-                                | Some value -> value
-                                | None -> failwithf "Expected <%s>" f.Name
-                            | None ->
-                                let struct (v, next) = f.Codec.Decode current f.Name
-                                current <- next
-                                v)
+                                match Runtime.tryReadCloseTag tag current with
+                                | Some _ ->
+                                    match f.Codec.MissingValue with
+                                    | Some value -> value
+                                    | None -> failwithf "Expected <%s>" f.Name
+                                | None ->
+                                    let struct (v, next) = f.Codec.Decode current f.Name
+                                    current <- next
+                                    v)
 
-                    current <- Runtime.expectCloseTag tag current
-                    struct (ctor args, current))
-              MissingValue = None }
+                        current <- Runtime.expectCloseTag tag current
+                        struct (ctor args, current))
+                MissingValue = None
+            }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
-            { Encode =
-                (fun w tag vObj ->
-                    let list = vObj :?> System.Collections.IEnumerable
+            {
+                Encode =
+                    (fun w tag vObj ->
+                        let list = vObj :?> System.Collections.IEnumerable
 
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
 
-                    for item in list do
-                        innerCodec.Encode w "item" item
+                        for item in list do
+                            innerCodec.Encode w "item" item
 
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let mutable current = Runtime.expectOpenTag tag src
-                    let results = ResizeArray<obj>()
-                    let mutable continueLoop = true
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = Runtime.expectOpenTag tag src
+                        let results = ResizeArray<obj>()
+                        let mutable continueLoop = true
 
-                    while continueLoop do
-                        current <- Runtime.skipWhitespace current
+                        while continueLoop do
+                            current <- Runtime.skipWhitespace current
 
-                        match Runtime.tryReadCloseTag tag current with
-                        | Some next ->
-                            current <- next
-                            continueLoop <- false
-                        | None ->
-                            let struct (item, next) = innerCodec.Decode current "item"
-                            results.Add(item)
-                            current <- next
+                            match Runtime.tryReadCloseTag tag current with
+                            | Some next ->
+                                current <- next
+                                continueLoop <- false
+                            | None ->
+                                let struct (item, next) = innerCodec.Decode current "item"
+                                results.Add(item)
+                                current <- next
 
-                    struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
-              MissingValue = None }
+                        struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
+                MissingValue = None
+            }
         | Array innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
-            { Encode =
-                (fun w tag vObj ->
+            {
+                Encode =
+                    (fun w tag vObj ->
 #if !FABLE_COMPILER
-                    let arr = vObj :?> System.Array
+                        let arr = vObj :?> System.Array
 #else
-                    let arr = vObj :?> obj array
+                        let arr = vObj :?> obj array
 #endif
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
-
-#if !FABLE_COMPILER
-                    for i in 0 .. arr.Length - 1 do
-                        innerCodec.Encode w "item" (arr.GetValue(i))
-#else
-                    for i in 0 .. arr.Length - 1 do
-                        innerCodec.Encode w "item" arr.[i]
-#endif
-
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let mutable current = Runtime.expectOpenTag tag src
-                    let results = ResizeArray<obj>()
-                    let mutable continueLoop = true
-
-                    while continueLoop do
-                        current <- Runtime.skipWhitespace current
-
-                        match Runtime.tryReadCloseTag tag current with
-                        | Some next ->
-                            current <- next
-                            continueLoop <- false
-                        | None ->
-                            let struct (item, next) = innerCodec.Decode current "item"
-                            results.Add(item)
-                            current <- next
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
 
 #if !FABLE_COMPILER
-                    let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
-
-                    for i in 0 .. results.Count - 1 do
-                        targetArray.SetValue(results.[i], i)
-
-                    struct (box targetArray, current)
+                        for i in 0 .. arr.Length - 1 do
+                            innerCodec.Encode w "item" (arr.GetValue(i))
 #else
-                    struct (box (results.ToArray()), current)
+                        for i in 0 .. arr.Length - 1 do
+                            innerCodec.Encode w "item" arr.[i]
 #endif
-                )
-              MissingValue = None }
+
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = Runtime.expectOpenTag tag src
+                        let results = ResizeArray<obj>()
+                        let mutable continueLoop = true
+
+                        while continueLoop do
+                            current <- Runtime.skipWhitespace current
+
+                            match Runtime.tryReadCloseTag tag current with
+                            | Some next ->
+                                current <- next
+                                continueLoop <- false
+                            | None ->
+                                let struct (item, next) = innerCodec.Decode current "item"
+                                results.Add(item)
+                                current <- next
+
+#if !FABLE_COMPILER
+                        let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
+
+                        for i in 0 .. results.Count - 1 do
+                            targetArray.SetValue(results.[i], i)
+
+                        struct (box targetArray, current)
+#else
+                        struct (box (results.ToArray()), current)
+#endif
+                    )
+                MissingValue = None
+            }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
 
-            { Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
-              Decode = (fun src tag -> let struct (v, s) = innerCodec.Decode src tag in struct (wrap v, s))
-              MissingValue = innerCodec.MissingValue |> Option.map wrap }
+            {
+                Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
+                Decode = (fun src tag -> let struct (v, s) = innerCodec.Decode src tag in struct (wrap v, s))
+                MissingValue = innerCodec.MissingValue |> Option.map wrap
+            }
         | _ -> failwithf "Unsupported XML schema type"
 
     let compile (schema: Schema<'T>) : Codec<'T> =
@@ -1858,8 +1927,10 @@ module Xml =
             elif schema.TargetType = typeof<bool> then "bool"
             else schema.TargetType.Name.ToLowerInvariant()
 
-        { Encode = (fun w v -> compiled.Encode w rootTag (box v))
-          Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s)) }
+        {
+            Encode = (fun w v -> compiled.Encode w rootTag (box v))
+            Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s))
+        }
 
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)

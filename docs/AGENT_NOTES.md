@@ -134,6 +134,12 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
 - `.githooks/pre-commit` runs the format check, so commits are expected to be `fantomas`-clean.
+- The active Fantomas policy is intentionally conservative:
+  - `fsharp_multiline_bracket_style = stroustrup`
+  - `fsharp_max_line_length = 120`
+  - `fsharp_newline_before_multiline_computation_expression = true`
+  - `fsharp_keep_max_number_of_blank_lines = 1`
+- Keep formatter changes small and policy-driven. If you change `.editorconfig`, rerun the formatter across the repo and review the resulting DSL/test readability before committing.
 
 ## Legacy CodecMapper Comparison
 

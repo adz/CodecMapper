@@ -4,8 +4,7 @@ open CodecMapper
 
 type Address = { Street: string; City: string }
 
-type Person =
-    { Id: int; Name: string; Home: Address }
+type Person = { Id: int; Name: string; Home: Address }
 
 module Schemas =
     let address =

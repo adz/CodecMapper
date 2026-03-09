@@ -9,12 +9,14 @@ open BenchmarkDotNet.Toolchains.InProcess.Emit
 
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
-    let person =
-        { Id = 42
-          Name = "Benchmark User"
-          Home =
-            { Street = "123 F# Way"
-              City = "AOT City" } }
+    let person = {
+        Id = 42
+        Name = "Benchmark User"
+        Home = {
+            Street = "123 F# Way"
+            City = "AOT City"
+        }
+    }
 
     let json =
         "{\"Home\":{\"City\":\"AOT City\",\"Street\":\"123 F# Way\"},\"Id\":42,\"Name\":\"Benchmark User\"}"

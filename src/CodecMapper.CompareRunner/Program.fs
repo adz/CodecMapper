@@ -13,33 +13,36 @@ module CurrentJson = CodecMapper.Json
 
 type CurrentAddress = { City: string; PostCode: string }
 
-type CurrentPerson =
-    { Id: int
-      Name: string
-      IsActive: bool
-      Score: float
-      Home: CurrentAddress
-      Tags: string array }
+type CurrentPerson = {
+    Id: int
+    Name: string
+    IsActive: bool
+    Score: float
+    Home: CurrentAddress
+    Tags: string array
+}
 
 type SharedAddress = { City: string; PostCode: string }
 
-type SharedPerson =
-    { Id: int
-      Name: string
-      IsActive: bool
-      Score: float
-      Home: SharedAddress
-      Tags: string array }
+type SharedPerson = {
+    Id: int
+    Name: string
+    IsActive: bool
+    Score: float
+    Home: SharedAddress
+    Tags: string array
+}
 
 let makeCurrentAddress city postCode : CurrentAddress = { City = city; PostCode = postCode }
 
-let makeCurrentPerson id name isActive score home tags : CurrentPerson =
-    { Id = id
-      Name = name
-      IsActive = isActive
-      Score = score
-      Home = home
-      Tags = tags }
+let makeCurrentPerson id name isActive score home tags : CurrentPerson = {
+    Id = id
+    Name = name
+    IsActive = isActive
+    Score = score
+    Home = home
+    Tags = tags
+}
 
 module CurrentSchemas =
     let address =
@@ -63,28 +66,34 @@ module CurrentSchemas =
     let people = Schema.list person
 
 module Payload =
-    let sharedPeople: SharedPerson list =
-        [ for i in 1..1000 ->
-              { Id = i
+    let sharedPeople: SharedPerson list = [
+        for i in 1..1000 ->
+            {
+                Id = i
                 Name = $"User-{i}"
                 IsActive = i % 2 = 0
                 Score = float i * 1.25
-                Home =
-                  { City = "Adelaide"
-                    PostCode = sprintf "50%02d" (i % 100) }
-                Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |] } ]
+                Home = {
+                    City = "Adelaide"
+                    PostCode = sprintf "50%02d" (i % 100)
+                }
+                Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |]
+            }
+    ]
 
     let currentPeople: CurrentPerson list =
         sharedPeople
-        |> List.map (fun person ->
-            { Id = person.Id
-              Name = person.Name
-              IsActive = person.IsActive
-              Score = person.Score
-              Home =
-                { City = person.Home.City
-                  PostCode = person.Home.PostCode }
-              Tags = Array.copy person.Tags })
+        |> List.map (fun person -> {
+            Id = person.Id
+            Name = person.Name
+            IsActive = person.IsActive
+            Score = person.Score
+            Home = {
+                City = person.Home.City
+                PostCode = person.Home.PostCode
+            }
+            Tags = Array.copy person.Tags
+        })
 
     let legacyPeople = Fixtures.createPeople 1000
 
@@ -124,15 +133,16 @@ module Bench =
     let newtonsoftDecode () =
         JsonConvert.DeserializeObject<SharedPerson list>(Payload.json)
 
-type Measurement =
-    { MeanNs: float; MeanAllocBytes: float }
+type Measurement = { MeanNs: float; MeanAllocBytes: float }
 
 module Runner =
     let private measure iterations rounds action guard =
         let rec loop round timeTotal allocTotal sinkSeed =
             if round = rounds then
-                { MeanNs = timeTotal / float rounds
-                  MeanAllocBytes = allocTotal / float rounds }
+                {
+                    MeanNs = timeTotal / float rounds
+                    MeanAllocBytes = allocTotal / float rounds
+                }
             else
                 GC.Collect()
                 GC.WaitForPendingFinalizers()
@@ -180,16 +190,17 @@ module Runner =
         printfn "Machine-specific numbers. Compare relative behavior on this machine."
         printfn ""
 
-        let results =
-            [ "STJ encode", measure 1000 5 Bench.stjEncode hashString
-              "Current CodecMapper encode", measure 1000 5 Bench.currentEncode hashString
-              "Legacy CodecMapper encode", measure 1000 5 Bench.legacyEncode hashString
-              "Newtonsoft encode", measure 500 5 Bench.newtonsoftEncode hashString
-              "STJ decode", measure 1000 5 Bench.stjDecode hashSharedOption
-              "Current CodecMapper decode bytes", measure 1000 5 Bench.currentDecodeBytes hashCurrentList
-              "Legacy CodecMapper decode doc", measure 1000 5 Bench.legacyDecodeDoc hashLegacyResult
-              "Legacy CodecMapper decode stream", measure 1000 5 Bench.legacyDecodeStream hashLegacyResult
-              "Newtonsoft decode", measure 500 5 Bench.newtonsoftDecode hashSharedOption ]
+        let results = [
+            "STJ encode", measure 1000 5 Bench.stjEncode hashString
+            "Current CodecMapper encode", measure 1000 5 Bench.currentEncode hashString
+            "Legacy CodecMapper encode", measure 1000 5 Bench.legacyEncode hashString
+            "Newtonsoft encode", measure 500 5 Bench.newtonsoftEncode hashString
+            "STJ decode", measure 1000 5 Bench.stjDecode hashSharedOption
+            "Current CodecMapper decode bytes", measure 1000 5 Bench.currentDecodeBytes hashCurrentList
+            "Legacy CodecMapper decode doc", measure 1000 5 Bench.legacyDecodeDoc hashLegacyResult
+            "Legacy CodecMapper decode stream", measure 1000 5 Bench.legacyDecodeStream hashLegacyResult
+            "Newtonsoft decode", measure 500 5 Bench.newtonsoftDecode hashSharedOption
+        ]
 
         for (name, result) in results do
             printfn "%s | %.1f ns/op | %.1f B/op" name result.MeanNs result.MeanAllocBytes

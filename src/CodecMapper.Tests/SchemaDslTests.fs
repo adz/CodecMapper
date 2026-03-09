@@ -25,12 +25,14 @@ let ``Round-trip using Pipeline DSL`` () =
 
     let codec = Json.compile personSchema
 
-    let person =
-        { Id = 42
-          Name = "Adam"
-          Home =
-            { Street = "123 F# Lane"
-              City = "Pipeline City" } }
+    let person = {
+        Id = 42
+        Name = "Adam"
+        Home = {
+            Street = "123 F# Lane"
+            City = "Pipeline City"
+        }
+    }
 
     let json = Json.serialize codec person
     let decoded = Json.deserialize codec json
@@ -53,12 +55,14 @@ let ``One schema, multiple formats (JSON and XML)`` () =
         |> Schema.fieldWith "home" _.Home addressSchema
         |> Schema.build
 
-    let person =
-        { Id = 42
-          Name = "Adam"
-          Home =
-            { Street = "123 F# Lane"
-              City = "AOT City" } }
+    let person = {
+        Id = 42
+        Name = "Adam"
+        Home = {
+            Street = "123 F# Lane"
+            City = "AOT City"
+        }
+    }
 
     let jsonCodec = Json.compile personSchema
     let json = Json.serialize jsonCodec person
@@ -97,9 +101,10 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
 
     let codec = Json.compile wrappedPersonSchema
 
-    let p =
-        { Id = PersonId 123
-          Tags = [ "fsharp"; "aot" ] }
+    let p = {
+        Id = PersonId 123
+        Tags = [ "fsharp"; "aot" ]
+    }
 
     let json = Json.serialize codec p
     let decoded = Json.deserialize codec json
@@ -116,9 +121,10 @@ let ``Round-trip collections with auto-resolution`` () =
 
     let codec = Json.compile collectionSchema
 
-    let value =
-        { List = [ 1; 2 ]
-          Array = [| "a"; "b" |] }
+    let value = {
+        List = [ 1; 2 ]
+        Array = [| "a"; "b" |]
+    }
 
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
@@ -153,27 +159,28 @@ let ``Round-trip using typed pipeline with 20 fields`` () =
 
     let codec = Json.compile largeSchema
 
-    let value =
-        { F1 = 1
-          F2 = 2
-          F3 = 3
-          F4 = 4
-          F5 = 5
-          F6 = 6
-          F7 = 7
-          F8 = 8
-          F9 = 9
-          F10 = 10
-          F11 = 11
-          F12 = 12
-          F13 = 13
-          F14 = 14
-          F15 = 15
-          F16 = 16
-          F17 = 17
-          F18 = 18
-          F19 = 19
-          F20 = 20 }
+    let value = {
+        F1 = 1
+        F2 = 2
+        F3 = 3
+        F4 = 4
+        F5 = 5
+        F6 = 6
+        F7 = 7
+        F8 = 8
+        F9 = 9
+        F10 = 10
+        F11 = 11
+        F12 = 12
+        F13 = 13
+        F14 = 14
+        F15 = 15
+        F16 = 16
+        F17 = 17
+        F18 = 18
+        F19 = 19
+        F20 = 20
+    }
 
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
@@ -198,9 +205,10 @@ let ``Pipeline DSL can use opened Schema module at file scope`` () =
 
     let codec = Json.compile personSchema
 
-    let person =
-        { Id = 12
-          Name = "Open"
-          Home = { Street = "Short"; City = "DSL" } }
+    let person = {
+        Id = 12
+        Name = "Open"
+        Home = { Street = "Short"; City = "DSL" }
+    }
 
     test <@ Json.deserialize codec (Json.serialize codec person) = person @>

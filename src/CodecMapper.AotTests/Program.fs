@@ -8,8 +8,7 @@ module Domain =
     type Address = { Street: string; City: string }
     let makeAddress street city = { Street = street; City = city }
 
-    type Person =
-        { Id: int; Name: string; Home: Address }
+    type Person = { Id: int; Name: string; Home: Address }
 
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
@@ -31,35 +30,40 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
-    type OptionalRecord =
-        { Nickname: string option
-          Age: int option }
+    type OptionalRecord = {
+        Nickname: string option
+        Age: int option
+    }
 
     let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
 
-    type NumericRecord =
-        { Total: int64
-          Count: uint32
-          Capacity: uint64
-          Ratio: float
-          Price: decimal }
+    type NumericRecord = {
+        Total: int64
+        Count: uint32
+        Capacity: uint64
+        Ratio: float
+        Price: decimal
+    }
 
-    let makeNumericRecord total count capacity ratio price =
-        { Total = total
-          Count = count
-          Capacity = capacity
-          Ratio = ratio
-          Price = price }
+    let makeNumericRecord total count capacity ratio price = {
+        Total = total
+        Count = count
+        Capacity = capacity
+        Ratio = ratio
+        Price = price
+    }
 
-    type AuditRecord =
-        { UserId: Guid
-          CreatedAt: DateTime
-          Duration: TimeSpan }
+    type AuditRecord = {
+        UserId: Guid
+        CreatedAt: DateTime
+        Duration: TimeSpan
+    }
 
-    let makeAuditRecord userId createdAt duration =
-        { UserId = userId
-          CreatedAt = createdAt
-          Duration = duration }
+    let makeAuditRecord userId createdAt duration = {
+        UserId = userId
+        CreatedAt = createdAt
+        Duration = duration
+    }
 
 module Schemas =
     let address =
@@ -135,10 +139,11 @@ module Program =
         // 1. Simple record
         let pCodec = Json.compile Schemas.person
 
-        let p =
-            { Id = 42
-              Name = "AOT"
-              Home = { Street = "Street"; City = "City" } }
+        let p = {
+            Id = 42
+            Name = "AOT"
+            Home = { Street = "Street"; City = "City" }
+        }
 
         let pJson = Json.serialize pCodec p
         let pDecoded = Json.deserialize pCodec pJson
@@ -152,9 +157,10 @@ module Program =
         // 2. Mapped types
         let wpCodec = Json.compile Schemas.wrappedPerson
 
-        let wp =
-            { Id = PersonId 123
-              Tags = [ "a"; "b" ] }
+        let wp = {
+            Id = PersonId 123
+            Tags = [ "a"; "b" ]
+        }
 
         let wpJson = Json.serialize wpCodec wp
         let wpDecoded = Json.deserialize wpCodec wpJson
@@ -170,10 +176,11 @@ module Program =
         // 4. Common built-in schema helpers
         let auditCodec = Json.compile Schemas.auditRecord
 
-        let audit =
-            { UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
-              CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
-              Duration = TimeSpan.FromMinutes(95.0) }
+        let audit = {
+            UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
+            CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
+            Duration = TimeSpan.FromMinutes(95.0)
+        }
 
         let auditJson = Json.serialize auditCodec audit
         let auditDecoded = Json.deserialize auditCodec auditJson
@@ -203,12 +210,13 @@ module Program =
         // 7. Extended numeric support
         let numericCodec = Json.compile Schemas.numericRecord
 
-        let numeric =
-            { Total = 9_223_372_036_854_775_000L
-              Count = 4_294_967_000u
-              Capacity = 18_446_744_073_709_551_000UL
-              Ratio = -12.5e3
-              Price = 12345.6789M }
+        let numeric = {
+            Total = 9_223_372_036_854_775_000L
+            Count = 4_294_967_000u
+            Capacity = 18_446_744_073_709_551_000UL
+            Ratio = -12.5e3
+            Price = 12345.6789M
+        }
 
         let numericJson = Json.serialize numericCodec numeric
         let numericDecoded = Json.deserialize numericCodec numericJson
