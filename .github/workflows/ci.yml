@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore CodecMapper.sln --nologo
+
+      - name: Check formatting
+        run: bash scripts/format-check.sh
+
+      - name: Run test suite
+        run: dotnet test src/CodecMapper.Tests/CodecMapper.Tests.fsproj --nologo -v minimal
+
+      - name: Run AOT sentinel
+        run: dotnet run --project src/CodecMapper.AotTests/CodecMapper.AotTests.fsproj --nologo
+
+      - name: Run Fable sentinel
+        run: dotnet run --project src/CodecMapper.FableTests/CodecMapper.FableTests.fsproj --nologo
+
+      - name: Build API docs
+        run: bash scripts/generate-api-docs.sh
+
+      - name: Upload generated docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-docs
+          path: output/
+          if-no-files-found: error

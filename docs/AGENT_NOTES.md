@@ -134,6 +134,14 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 - The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
 - The repo also has `scripts/generate-api-docs.sh`, which builds `fsdocs` output from the checked-in `docs/` content plus the core `CodecMapper` project XML comments.
+- GitHub Actions CI now lives in `.github/workflows/ci.yml` and is expected to stay aligned with those scripts:
+  - `dotnet tool restore`
+  - `dotnet restore CodecMapper.sln`
+  - `bash scripts/format-check.sh`
+  - `dotnet test src/CodecMapper.Tests/CodecMapper.Tests.fsproj`
+  - `dotnet run --project src/CodecMapper.AotTests/CodecMapper.AotTests.fsproj`
+  - `dotnet run --project src/CodecMapper.FableTests/CodecMapper.FableTests.fsproj`
+  - `bash scripts/generate-api-docs.sh`
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
 - `.githooks/pre-commit` runs the format check, so commits are expected to be `fantomas`-clean.
 - The active Fantomas policy is intentionally conservative:
