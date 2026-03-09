@@ -18,6 +18,22 @@ let personSchema =
 
 Use this form in tests, docs, and benchmarks unless the public API changes deliberately.
 
+## Common Type Surface
+
+The library now auto-resolves these additional schema helpers:
+
+- `Schema.int16`
+- `Schema.byte`
+- `Schema.sbyte`
+- `Schema.uint16`
+- `Schema.char`
+- `Schema.guid`
+- `Schema.dateTime`
+- `Schema.dateTimeOffset`
+- `Schema.timeSpan`
+
+The narrower numeric types are range-checked wrappers over `Schema.int`. The identity and time-based types are string-backed so JSON and XML remain symmetric without extra handwritten token parsers.
+
 ## Pipeline Findings
 
 - `Schema.define` currently returns `Builder<'T, unit>`.

@@ -157,6 +157,92 @@ module Schema =
     let inline map (wrap: 'U -> 'T) (unwrapFunc: 'T -> 'U) (inner: Schema<'U>) : Schema<'T> =
         create (Map(inner :> ISchema, (fun x -> box (wrap (unbox x))), (fun x -> box (unwrapFunc (unbox x)))))
 
+    ///
+    /// Narrow numeric types can safely reuse the integer codec as long as the
+    /// schema enforces range checks on decode.
+    let private rangedInt<'T> (typeName: string) (minValue: int) (maxValue: int) (convert: int -> 'T) (toInt: 'T -> int) : Schema<'T> =
+        int
+        |> map
+            (fun value ->
+                if value < minValue || value > maxValue then
+                    failwithf "%s value out of range: %d" typeName value
+
+                convert value)
+            toInt
+
+    let int16: Schema<int16> =
+        rangedInt
+            "int16"
+            (System.Convert.ToInt32(System.Int16.MinValue))
+            (System.Convert.ToInt32(System.Int16.MaxValue))
+            System.Convert.ToInt16
+            System.Convert.ToInt32
+
+    let byte: Schema<byte> = rangedInt "byte" 0 255 System.Convert.ToByte System.Convert.ToInt32
+
+    let sbyte: Schema<sbyte> =
+        rangedInt
+            "sbyte"
+            (System.Convert.ToInt32(System.SByte.MinValue))
+            (System.Convert.ToInt32(System.SByte.MaxValue))
+            System.Convert.ToSByte
+            System.Convert.ToInt32
+
+    let uint16: Schema<uint16> =
+        rangedInt
+            "uint16"
+            0
+            (System.Convert.ToInt32(System.UInt16.MaxValue))
+            System.Convert.ToUInt16
+            System.Convert.ToInt32
+
+    ///
+    /// Common domain identity and timestamp types ride on top of the string
+    /// codec so JSON and XML stay symmetric without extra parser branches.
+    let guid: Schema<System.Guid> =
+        string
+        |> map System.Guid.Parse (fun value -> value.ToString("D"))
+
+    let char: Schema<char> =
+        string
+        |> map
+            (fun value ->
+                if value.Length <> 1 then
+                    failwithf "char value must contain exactly one character, got %d" value.Length
+
+                value.[0])
+            (fun value -> value.ToString())
+
+    let dateTime: Schema<System.DateTime> =
+        string
+        |> map
+            (fun value ->
+                System.DateTime.ParseExact(
+                    value,
+                    "O",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind
+                ))
+            (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
+
+    let dateTimeOffset: Schema<System.DateTimeOffset> =
+        string
+        |> map
+            (fun value ->
+                System.DateTimeOffset.ParseExact(
+                    value,
+                    "O",
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind
+                ))
+            (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
+
+    let timeSpan: Schema<System.TimeSpan> =
+        string
+        |> map
+            (fun value -> System.TimeSpan.ParseExact(value, "c", System.Globalization.CultureInfo.InvariantCulture))
+            (fun value -> value.ToString("c", System.Globalization.CultureInfo.InvariantCulture))
+
     let inline list (inner: Schema<'T>) : Schema<'T list> = create (List(inner :> ISchema))
 
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))
@@ -168,6 +254,24 @@ module Schema =
             string :> ISchema
         elif t = typeof<bool> then
             bool :> ISchema
+        elif t = typeof<int16> then
+            int16 :> ISchema
+        elif t = typeof<byte> then
+            byte :> ISchema
+        elif t = typeof<sbyte> then
+            sbyte :> ISchema
+        elif t = typeof<uint16> then
+            uint16 :> ISchema
+        elif t = typeof<System.Guid> then
+            guid :> ISchema
+        elif t = typeof<char> then
+            char :> ISchema
+        elif t = typeof<System.DateTime> then
+            dateTime :> ISchema
+        elif t = typeof<System.DateTimeOffset> then
+            dateTimeOffset :> ISchema
+        elif t = typeof<System.TimeSpan> then
+            timeSpan :> ISchema
         elif
             t.IsGenericType
             && t.GetGenericTypeDefinition() = typeof<list<_>>.GetGenericTypeDefinition()

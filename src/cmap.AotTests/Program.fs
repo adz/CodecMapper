@@ -15,6 +15,20 @@ module Domain =
     type WrappedPerson = { Id: PersonId; Tags: string list }
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
+    type AuditRecord =
+        {
+            UserId: Guid
+            CreatedAt: DateTime
+            Duration: TimeSpan
+        }
+
+    let makeAuditRecord userId createdAt duration =
+        {
+            UserId = userId
+            CreatedAt = createdAt
+            Duration = duration
+        }
+
 module Schemas =
     let address = 
         Schema.define<Address>
@@ -38,6 +52,14 @@ module Schemas =
         |> Schema.construct makeWrappedPerson
         |> Schema.fieldWith "id" _.Id personId
         |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        |> Schema.build
+
+    let auditRecord =
+        Schema.define<AuditRecord>
+        |> Schema.construct makeAuditRecord
+        |> Schema.field "userId" _.UserId
+        |> Schema.field "createdAt" _.CreatedAt
+        |> Schema.field "duration" _.Duration
         |> Schema.build
 
 module Program =
@@ -81,6 +103,20 @@ module Program =
         let lJson = Json.serialize listCodec l
         let lDecoded = Json.deserialize listCodec lJson
         test "List round-trip" lDecoded l
+
+        // 4. Common built-in schema helpers
+        let auditCodec = Json.compile Schemas.auditRecord
+
+        let audit =
+            {
+                UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
+                CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
+                Duration = TimeSpan.FromMinutes(95.0)
+            }
+
+        let auditJson = Json.serialize auditCodec audit
+        let auditDecoded = Json.deserialize auditCodec auditJson
+        test "Common type round-trip" auditDecoded audit
 
         printfn "All AOT tests passed successfully!"
         0

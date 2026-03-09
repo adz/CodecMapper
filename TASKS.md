@@ -23,10 +23,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - *Done:* XML now supports `int`, `string`, `bool`, records, `list`, `array`, and mapped schemas on both encode and decode.
   - *Notes:* The supported subset is element-only XML with exact tags, escaped text nodes, repeated `<item>` children for collections, and ignorable inter-element whitespace.
 
-- [ ] **Task 3: Common Schema Definitions**
+- [x] **Task 3: Common Schema Definitions**
   - Add first-class schema definitions or resolvers for common built-in types.
   - Prioritize types likely to appear in domain records: numeric variants, option-like shapes if feasible, dates/times, GUIDs, and other low-friction core types.
   - Keep the API AOT- and Fable-conscious.
+  - *Done:* Added auto-resolved schemas for `int16`, `byte`, `sbyte`, `uint16`, `char`, `Guid`, `DateTime`, `DateTimeOffset`, and `TimeSpan`.
+  - *Notes:* This keeps common domain identifiers and timestamps symmetric across JSON and XML without adding new parser branches beyond the integer core.
 
 - [ ] **Task 4: Richer Schema Customization**
   - Expand mapping/customization support for domain wrappers and special constructors such as `UserId`.

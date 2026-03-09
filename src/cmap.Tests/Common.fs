@@ -1,5 +1,6 @@
 module TestCommon
 
+open System
 open Swensen.Unquote
 
 [<AutoOpen>]
@@ -19,6 +20,32 @@ module Domain =
 
     type BoolArrayRecord = { Enabled: bool; Aliases: string array }
     let makeBoolArrayRecord enabled aliases = { Enabled = enabled; Aliases = aliases }
+
+    type CommonTypeRecord =
+        {
+            Age: int16
+            Level: byte
+            Delta: sbyte
+            Score: uint16
+            Initial: char
+            UserId: Guid
+            CreatedAt: DateTime
+            UpdatedAt: DateTimeOffset
+            Duration: TimeSpan
+        }
+
+    let makeCommonTypeRecord age level delta score initial userId createdAt updatedAt duration =
+        {
+            Age = age
+            Level = level
+            Delta = delta
+            Score = score
+            Initial = initial
+            UserId = userId
+            CreatedAt = createdAt
+            UpdatedAt = updatedAt
+            Duration = duration
+        }
 
     type IdOnly = { Id: int }
     let makeIdOnly id = { Id = id }
