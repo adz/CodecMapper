@@ -45,19 +45,19 @@ This file tracks the implementation of the "Schema-first" architecture for `cmap
   - Verify Fable compilation for JS target.
   - *Success criteria:* Library runs successfully in a Node.js test environment.
 
-- [ ] **Task 10: Fluent DSL Implementation (Minimal)**
+- [x] **Task 10: Fluent DSL Implementation (Minimal)**
   - Implement a basic `SchemaBuilder` (CE) in `Library.fs`.
   - Support `construct` for simple constructors and `field` for primitive types.
   - *Success criteria:* Minimal test case passes using `schema { ... }`.
 
-- [ ] **Task 11: Test Migration & Full DSL Support**
+- [x] **Task 11: Test Migration & Full DSL Support**
   - Update `src/cmap.Tests`, `AotTests`, and `FableTests` to use the Fluent DSL.
   - Support `construct` for curried functions up to arity 8.
   - Support `field` with auto-resolution for lists and arrays.
   - Support explicit `field` for nested custom schemas.
   - *Success criteria:* All existing tests pass with the new DSL.
 
-- [ ] **Task 11b: Cleanup**
+- [x] **Task 11b: Cleanup**
   - Remove deprecated `record` and `recordWith` functions from `Library.fs`.
   - Update `GETTING_STARTED.md` in `docs/` to reflect the new syntax.
   - *Success criteria:* Library is clean and documentation is accurate.
