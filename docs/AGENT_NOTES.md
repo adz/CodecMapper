@@ -92,13 +92,27 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `src/CodecMapper.Tests/SchemaDslTests.fs` proves the typed pipeline with a 20-field round trip.
 - `src/CodecMapper.Tests/JsonParserTests.fs` holds the JSON compliance and adversarial cases.
 - `src/CodecMapper.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
+- `src/CodecMapper.Tests/CSharpBridgeTests.fs` covers the first runtime import path from C# classes and serializer attributes.
 - `src/CodecMapper.AotTests/Program.fs` and `src/CodecMapper.FableTests/Program.fs` are the compatibility sentinels. They now cover JSON and XML nested-record paths plus selected option/mapping/common-type cases.
 - `src/CodecMapper.Benchmarks/CodecMapperBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
 
 ## Known Gaps
 
 - The common-type surface is broader now, but it still does not cover every .NET numeric or framework type a C# migration story might want.
-- A bridge design now exists in `docs/CSHARP_ATTRIBUTE_BRIDGE.md`, but there is still no implementation yet for `System.Text.Json` or `Newtonsoft.Json` contract metadata.
+- The first `.NET`-only bridge implementation now exists in `src/CodecMapper.Bridge/`.
+- It currently supports:
+  - `System.Text.Json`: `JsonPropertyName`, `JsonIgnore`, `JsonRequired`, `JsonConstructor`
+  - `Newtonsoft.Json`: `JsonProperty(PropertyName)`, `JsonIgnore`, `JsonRequired`, `JsonConstructor`
+  - constructor-bound classes
+  - parameterless setter-bound classes
+  - nested imported classes
+  - arrays, `List<T>`, and `Nullable<T>`
+- It currently rejects:
+  - recursive graphs
+  - polymorphism
+  - extension data
+  - converter attributes
+  - mixed constructor-plus-setter binding
 
 ## Benchmarking Notes
 
