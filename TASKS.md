@@ -9,11 +9,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - Capture the latest serialize/deserialize numbers for `cmap`, `System.Text.Json`, and `Newtonsoft.Json`.
   - Create or update the top-level project README with the benchmark summary and any important caveats about machine-specific results.
 
-- [ ] **Task 1: JSON Parser Hardening**
+- [x] **Task 1: JSON Parser Hardening**
   - Add a broad deterministic test matrix for valid and invalid JSON inputs.
   - Cover empty structures, nesting, escapes, unicode escapes, numeric edge cases, malformed separators, trailing commas, duplicate keys, and deep nesting.
   - Make parser behavior explicit for ambiguous cases so the library is deterministic, not accidental.
-  - *Progress:* Escaped strings, unicode escapes, duplicate-key behavior, malformed-object rejection, and safer unknown-value skipping are now covered in `src/cmap.Tests/Tests.fs`.
+  - *Done:* Coverage now lives in `src/cmap.Tests/JsonParserTests.fs`, with focused schema integration tests in `src/cmap.Tests/SchemaDslTests.fs`.
+  - *Notes:* JSON now rejects trailing top-level content, leading-zero integers, malformed string escapes, incomplete bool literals, and over-depth unknown values. Unknown-field skipping is depth-bounded and deterministic, and `Schema.bool` is fully supported by `Json.compile`.
 
 - [ ] **Task 2: Expand XML Parsing**
   - Extend XML decode support beyond the current narrow subset.

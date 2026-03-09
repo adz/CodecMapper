@@ -308,6 +308,9 @@ module Json =
 
                 let start = i
 
+                if i < data.Length - 1 && data.[i] = 48uy && data.[i + 1] >= 48uy && data.[i + 1] <= 57uy then
+                    failwith "Leading zeroes are not allowed"
+
                 while i < data.Length && data.[i] >= 48uy && data.[i] <= 57uy do
                     res <- res * 10 + (System.Convert.ToInt32(data.[i]) - 48)
                     i <- i + 1
@@ -316,6 +319,23 @@ module Json =
                     failwith "Expected digit"
 
                 struct ((if neg then -res else res), ByteSource(data, i))
+
+        let boolDecoder: Decoder<bool> =
+            fun src ->
+                let src = skipWhitespace src
+                let data = src.Data
+
+                if src.Offset >= data.Length then
+                    failwith "Unexpected end of input"
+
+                let remaining = data.Length - src.Offset
+
+                if remaining >= 4 && data.[src.Offset] = 116uy && data.[src.Offset + 1] = 114uy && data.[src.Offset + 2] = 117uy && data.[src.Offset + 3] = 101uy then
+                    struct (true, ByteSource(data, src.Offset + 4))
+                elif remaining >= 5 && data.[src.Offset] = 102uy && data.[src.Offset + 1] = 97uy && data.[src.Offset + 2] = 108uy && data.[src.Offset + 3] = 115uy && data.[src.Offset + 4] = 101uy then
+                    struct (false, ByteSource(data, src.Offset + 5))
+                else
+                    failwith "Expected true or false"
 
         let stringRaw (src: JsonSource) : struct (int * int * JsonSource) =
             let src = skipWhitespace src
@@ -327,13 +347,20 @@ module Json =
             ///
             /// Strings are also used while skipping unknown fields, so escaped
             /// quotes must not terminate the scan early.
+            let isEscapedQuote index =
+                let mutable slashCount = 0
+                let mutable j = index - 1
+
+                while j >= src.Offset && data.[j] = 92uy do
+                    slashCount <- slashCount + 1
+                    j <- j - 1
+
+                slashCount % 2 = 1
+
             let mutable i = src.Offset + 1
 
-            while i < data.Length && data.[i] <> 34uy do
-                if data.[i] = 92uy then
-                    i <- i + 2
-                else
-                    i <- i + 1
+            while i < data.Length && not (data.[i] = 34uy && not (isEscapedQuote i)) do
+                i <- i + 1
 
             if i >= data.Length then
                 failwith "Unterminated string"
@@ -435,7 +462,12 @@ module Json =
 
                 struct (value, ByteSource(data, i + 1))
 
-        let rec skipValue (src: JsonSource) : JsonSource =
+        let maxJsonDepth = 256
+
+        let rec skipValueAt depth (src: JsonSource) : JsonSource =
+            if depth > maxJsonDepth then
+                failwith "Maximum JSON nesting depth exceeded"
+
             let src = skipWhitespace src
 
             if src.Offset >= src.Data.Length then
@@ -459,7 +491,7 @@ module Json =
                         if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
                             failwith "Expected :"
 
-                        let afterValue = skipWhitespace (skipValue (afterColon.Advance(1)))
+                        let afterValue = skipWhitespace (skipValueAt (depth + 1) (afterColon.Advance(1)))
 
                         if afterValue.Offset < data.Length && data.[afterValue.Offset] = 44uy then
                             current <- skipWhitespace (afterValue.Advance(1))
@@ -479,7 +511,7 @@ module Json =
                         continueLoop <- false
 
                     while continueLoop do
-                        let afterItem = skipWhitespace (skipValue current)
+                        let afterItem = skipWhitespace (skipValueAt (depth + 1) current)
 
                         if afterItem.Offset < data.Length && data.[afterItem.Offset] = 44uy then
                             current <- skipWhitespace (afterItem.Advance(1))
@@ -507,6 +539,8 @@ module Json =
                         i <- i + 1
 
                     ByteSource(data, i)
+
+        let skipValue (src: JsonSource) : JsonSource = skipValueAt 0 src
 
         let inline bytesEqual (a: byte[]) (b: byte[]) (offset: int) (len: int) =
             if a.Length <> len then
@@ -608,6 +642,16 @@ module Json =
 
                         w.WriteByte(34uy))
                 Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
+            }
+        | Primitive t when t = typeof<bool> ->
+            {
+                Encode =
+                    (fun w v ->
+                        if unbox<bool> v then
+                            w.WriteString("true")
+                        else
+                            w.WriteString("false"))
+                Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
@@ -851,11 +895,21 @@ module Json =
 
     let deserialize (codec: Codec<'T>) (json: string) =
         let bytes = Encoding.UTF8.GetBytes(json)
-        let struct (v, _) = codec.Decode (ByteSource(bytes, 0))
+        let struct (v, rest) = codec.Decode (ByteSource(bytes, 0))
+        let rest = Runtime.skipWhitespace rest
+
+        if rest.Offset <> bytes.Length then
+            failwith "Trailing content after top-level JSON value"
+
         v
 
     let deserializeBytes (codec: Codec<'T>) (bytes: byte[]) =
-        let struct (v, _) = codec.Decode (ByteSource(bytes, 0))
+        let struct (v, rest) = codec.Decode (ByteSource(bytes, 0))
+        let rest = Runtime.skipWhitespace rest
+
+        if rest.Offset <> bytes.Length then
+            failwith "Trailing content after top-level JSON value"
+
         v
 
 module Xml =

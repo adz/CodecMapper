@@ -6,7 +6,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="Tests.fs" />
+    <Compile Include="Common.fs" />
+    <Compile Include="SchemaDslTests.fs" />
+    <Compile Include="JsonParserTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
