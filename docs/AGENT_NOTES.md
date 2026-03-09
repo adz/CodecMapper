@@ -152,6 +152,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - Keep formatter changes small and policy-driven. If you change `.editorconfig`, rerun the formatter across the repo and review the resulting DSL/test readability before committing.
 - The preserved CodecMapper logo now lives at `docs/logo.png` and is referenced from both `README.md` and `docs/index.md`. Treat that as the canonical branding asset path.
 - `fsdocs` output is treated as a generated artifact, not checked-in source. Build it into `output/`, which is ignored by Git.
+- The generated API docs are only as good as the XML comments in `src/CodecMapper/Library.fs`. If you change the public surface, update those comments in the same task instead of letting the reference drift.
 
 ## Legacy CodecMapper Comparison
 

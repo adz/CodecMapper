@@ -6,6 +6,7 @@ open Microsoft.FSharp.Reflection
 open System.Diagnostics.CodeAnalysis
 
 [<AutoOpen>]
+/// Low-level byte reading and writing primitives shared by the JSON and XML runtimes.
 module Core =
     /// A lightweight context for reading bytes.
     [<Struct>]
@@ -15,28 +16,47 @@ module Core =
 
         new(data, offset) = { Data = data; Offset = offset }
 
+        /// Advances the source by `n` bytes.
         member inline x.Advance(n: int) = ByteSource(x.Data, x.Offset + n)
+
+        /// Returns a copy of the source with an explicit absolute offset.
         member inline x.SetOffset(n: int) = ByteSource(x.Data, n)
 
+    /// Functional helpers over `ByteSource`.
     module ByteSource =
+        /// Advances the source by `n` bytes.
         let inline advance (n: int) (src: ByteSource) = src.Advance(n)
+
+        /// Returns a copy of the source with an explicit absolute offset.
         let inline setOffset (n: int) (src: ByteSource) = src.SetOffset(n)
 
     /// Abstraction for writing bytes, to be implemented per target platform.
     type IByteWriter =
+        /// Ensures that at least `n` more bytes can be written without reallocating.
         abstract member Ensure: int -> unit
+
+        /// Writes a single byte.
         abstract member WriteByte: byte -> unit
+
+        /// Writes a UTF-8 string payload.
         abstract member WriteString: string -> unit
+
+        /// Writes an integer value.
         abstract member WriteInt: int -> unit
+
+        /// Exposes the current backing storage.
         abstract member Data: byte[]
+
+        /// Exposes the number of written bytes.
         abstract member Count: int
 
-    /// Optimized implementation of IByteWriter.
+    /// Growable in-memory byte buffer used by the built-in codecs.
     type ResizableBuffer = {
         mutable InternalData: byte[]
         mutable InternalCount: int
     } with
 
+        /// Creates a new buffer with the requested initial capacity.
         static member Create(initialCapacity: int) = {
             InternalData = Array.zeroCreate initialCapacity
             InternalCount = 0
@@ -101,7 +121,10 @@ module Core =
             member x.Data = x.InternalData
             member x.Count = x.InternalCount
 
-/// Abstract blueprint for serialization.
+/// Captures one named field inside a record schema.
+///
+/// A `SchemaField` binds the wire name, CLR type, getter, and nested schema
+/// for a single record member.
 type SchemaField = {
     Name: string
     Type: System.Type
@@ -109,10 +132,15 @@ type SchemaField = {
     Schema: ISchema
 }
 
+/// Erased schema abstraction used internally and by advanced integrations.
+///
+/// Most callers should stay on `Schema<'T>`, but codecs and bridges compile
+/// against this untyped representation.
 and ISchema =
     abstract member TargetType: System.Type
     abstract member Definition: SchemaDefinition
 
+/// The structural schema shapes understood by the compiler backends.
 and SchemaDefinition =
     | Primitive of System.Type
     | Record of System.Type * SchemaField[] * (obj[] -> obj)
@@ -123,6 +151,10 @@ and SchemaDefinition =
     | EmptyStringAsNone of ISchema
     | Map of ISchema * (obj -> obj) * (obj -> obj)
 
+/// A typed schema for values of `'T`.
+///
+/// Schemas are pure descriptions. Compile them with `Json.compile` or
+/// `Xml.compile` to get executable codecs.
 type Schema<'T> =
     inherit ISchema
 
@@ -141,24 +173,52 @@ type Builder<'T, 'Ctor> = {
     App: obj[] -> int -> 'Ctor
 }
 
+/// Helpers for building explicit schemas and reusing common built-in shapes.
+///
+/// This is the main authoring surface for `CodecMapper`. Build a `Schema<'T>`
+/// once, then compile it into JSON or XML codecs.
 module Schema =
+    /// Exposes the erased schema view for advanced integrations.
     let unwrap (s: ISchema) = s
 
+    /// Creates a schema from a raw structural definition.
+    ///
+    /// This is public for advanced integrations, but most callers should
+    /// prefer the higher-level helpers in this module.
     let inline create<'T> def =
         { new Schema<'T> with
             member _.TargetType = typeof<'T>
             member _.Definition = def
         }
 
+    /// A schema for `int`.
     let int: Schema<int> = create (Primitive typeof<int>)
+
+    /// A schema for `int64`.
     let int64: Schema<int64> = create (Primitive typeof<int64>)
+
+    /// A schema for `uint32`.
     let uint32: Schema<uint32> = create (Primitive typeof<uint32>)
+
+    /// A schema for `uint64`.
     let uint64: Schema<uint64> = create (Primitive typeof<uint64>)
+
+    /// A schema for `float`.
     let float: Schema<float> = create (Primitive typeof<float>)
+
+    /// A schema for `decimal`.
     let decimal: Schema<decimal> = create (Primitive typeof<decimal>)
+
+    /// A schema for `string`.
     let string: Schema<string> = create (Primitive typeof<string>)
+
+    /// A schema for `bool`.
     let bool: Schema<bool> = create (Primitive typeof<bool>)
 
+    /// Projects an existing schema through total wrap and unwrap functions.
+    ///
+    /// Use this when the wire shape is unchanged but the in-memory model uses
+    /// a wrapper type.
     let inline map (wrap: 'U -> 'T) (unwrapFunc: 'T -> 'U) (inner: Schema<'U>) : Schema<'T> =
         create (Map(inner :> ISchema, (fun x -> box (wrap (unbox x))), (fun x -> box (unwrapFunc (unbox x)))))
 
@@ -196,6 +256,7 @@ module Schema =
                 convert value)
             toInt
 
+    /// A schema for `int16`.
     let int16: Schema<int16> =
         rangedInt
             "int16"
@@ -204,9 +265,11 @@ module Schema =
             System.Convert.ToInt16
             System.Convert.ToInt32
 
+    /// A schema for `byte`.
     let byte: Schema<byte> =
         rangedInt "byte" 0 255 System.Convert.ToByte System.Convert.ToInt32
 
+    /// A schema for `sbyte`.
     let sbyte: Schema<sbyte> =
         rangedInt
             "sbyte"
@@ -215,6 +278,7 @@ module Schema =
             System.Convert.ToSByte
             System.Convert.ToInt32
 
+    /// A schema for `uint16`.
     let uint16: Schema<uint16> =
         rangedInt
             "uint16"
@@ -223,12 +287,14 @@ module Schema =
             System.Convert.ToUInt16
             System.Convert.ToInt32
 
+    /// A schema for `Guid` using the round-trippable `"D"` string format.
     ///
     /// Common domain identity and timestamp types ride on top of the string
     /// codec so JSON and XML stay symmetric without extra parser branches.
     let guid: Schema<System.Guid> =
         string |> map System.Guid.Parse (fun value -> value.ToString("D"))
 
+    /// A schema for `char` backed by a single-character string.
     let char: Schema<char> =
         string
         |> map
@@ -239,6 +305,7 @@ module Schema =
                 value.[0])
             (fun value -> value.ToString())
 
+    /// A schema for `DateTime` using the round-trippable `"O"` string format.
     let dateTime: Schema<System.DateTime> =
         string
         |> map
@@ -251,6 +318,7 @@ module Schema =
                 ))
             (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
 
+    /// A schema for `DateTimeOffset` using the round-trippable `"O"` string format.
     let dateTimeOffset: Schema<System.DateTimeOffset> =
         string
         |> map
@@ -263,16 +331,23 @@ module Schema =
                 ))
             (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
 
+    /// A schema for `TimeSpan` using the invariant `"c"` format.
     let timeSpan: Schema<System.TimeSpan> =
         string
         |> map
             (fun value -> System.TimeSpan.ParseExact(value, "c", System.Globalization.CultureInfo.InvariantCulture))
             (fun value -> value.ToString("c", System.Globalization.CultureInfo.InvariantCulture))
 
+    /// Builds a schema for an F# list.
     let inline list (inner: Schema<'T>) : Schema<'T list> = create (List(inner :> ISchema))
 
+    /// Builds a schema for an array.
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))
 
+    /// Builds a schema for an option value.
+    ///
+    /// The default semantics are strict: `None` is explicit on the wire, and
+    /// missing fields still fail unless you add a field-policy wrapper.
     let inline option (inner: Schema<'T>) : Schema<'T option> = create (Option(inner :> ISchema))
 
     ///
@@ -288,6 +363,10 @@ module Schema =
     let emptyStringAsNone (inner: Schema<string option>) : Schema<string option> =
         create (EmptyStringAsNone(inner :> ISchema))
 
+    /// Resolves a built-in schema for a CLR type.
+    ///
+    /// This powers automatic field resolution for primitives, lists, arrays,
+    /// options, and the common built-in wrapper types.
     let rec resolveSchema (t: System.Type) : ISchema =
         if t = typeof<int> then
             int :> ISchema
@@ -353,7 +432,7 @@ module Schema =
         else
             failwithf "Could not automatically resolve schema for type %O. Please provide it explicitly." t
 
-    // Pipeline DSL
+    /// Pipeline DSL helpers.
     ///
     /// The pipeline starts by capturing the curried constructor up front so
     /// subsequent field steps only describe the wire layout.
@@ -361,13 +440,17 @@ module Schema =
     /// We still ask for `'T` explicitly because relying on field-label
     /// inference alone becomes brittle as soon as multiple record types share
     /// names like `Id` or `Name`.
+    ///
+    /// Starts a pipeline schema definition for `'T`.
     let inline define<'T> : Builder<'T, unit> = { Fields = []; App = (fun _ _ -> ()) }
 
+    /// Captures the constructor used to rebuild `'T` during decoding.
     let inline construct (ctor: 'Ctor) (builder: Builder<'T, unit>) : Builder<'T, 'Ctor> = {
         Fields = builder.Fields
         App = (fun _ _ -> ctor)
     }
 
+    /// Adds a field that can be resolved automatically from its type.
     let inline field
         (name: string)
         (getter: 'T -> 'Field)
@@ -392,6 +475,10 @@ module Schema =
             App = nextApp
         }
 
+    /// Adds a field with an explicit nested schema.
+    ///
+    /// Use this when the field type needs a custom schema or should not rely
+    /// on automatic resolution.
     let inline fieldWith
         (name: string)
         (getter: 'T -> 'Field)
@@ -415,6 +502,7 @@ module Schema =
             App = nextApp
         }
 
+    /// Closes a fully-applied pipeline and returns the schema for `'T`.
     let build (builder: Builder<'T, 'T>) : Schema<'T> =
         let fields = builder.Fields |> List.rev |> List.toArray
         let targetType = typeof<'T>
@@ -424,12 +512,21 @@ module Schema =
 
         create<'T> (Record(targetType, fields, buildFunc))
 
+/// JSON codec compilation and runtime helpers.
+///
+/// Compile a schema once, then reuse the resulting codec for repeated JSON
+/// serialization and deserialization.
 module Json =
+    /// The byte-level input state for JSON decoding.
     type JsonSource = ByteSource
+
+    /// The byte-level output abstraction used by JSON encoders.
     type JsonWriter = IByteWriter
 
+    /// Decoder shape used by the compiled JSON runtime.
     type Decoder<'T> = JsonSource -> struct ('T * JsonSource)
 
+    /// A compiled JSON codec for a specific schema.
     type Codec<'T> = {
         Encode: IByteWriter -> 'T -> unit
         Decode: Decoder<'T>
@@ -1286,6 +1383,7 @@ module Json =
             }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
 
+    /// Compiles a schema into a reusable JSON codec.
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
 
@@ -1294,11 +1392,16 @@ module Json =
             Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s))
         }
 
+    /// Serializes a value to JSON using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
         codec.Encode writer value
         Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
 
+    /// Deserializes a JSON payload using a previously compiled codec.
+    ///
+    /// The entire payload must be consumed. Trailing content is treated as an
+    /// error rather than ignored.
     let deserialize (codec: Codec<'T>) (json: string) =
         let bytes = Encoding.UTF8.GetBytes(json)
         let struct (v, rest) = codec.Decode(ByteSource(bytes, 0))
@@ -1309,6 +1412,7 @@ module Json =
 
         v
 
+    /// Deserializes a UTF-8 byte payload using a previously compiled codec.
     let deserializeBytes (codec: Codec<'T>) (bytes: byte[]) =
         let struct (v, rest) = codec.Decode(ByteSource(bytes, 0))
         let rest = Runtime.skipWhitespace rest
@@ -1318,10 +1422,19 @@ module Json =
 
         v
 
+/// XML codec compilation and runtime helpers.
+///
+/// The XML backend intentionally supports a smaller explicit subset than the
+/// JSON backend: element content only, repeated `<item>` nodes for
+/// collections, and ignorable inter-element whitespace.
 module Xml =
+    /// The byte-level input state for XML decoding.
     type XmlSource = ByteSource
+
+    /// The byte-level output abstraction used by XML encoders.
     type XmlWriter = IByteWriter
 
+    /// A compiled XML codec for a specific schema.
     type Codec<'T> = {
         Encode: XmlWriter -> 'T -> unit
         Decode: XmlSource -> struct ('T * XmlSource)
@@ -1913,6 +2026,7 @@ module Xml =
             }
         | _ -> failwithf "Unsupported XML schema type"
 
+    /// Compiles a schema into a reusable XML codec.
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
 
@@ -1932,11 +2046,13 @@ module Xml =
             Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s))
         }
 
+    /// Serializes a value to XML using the schema-derived root element name.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
         codec.Encode writer value
         Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
 
+    /// Deserializes an XML payload using the schema-derived root element name.
     let deserialize (codec: Codec<'T>) (xml: string) =
         let bytes = Encoding.UTF8.GetBytes(xml)
         let struct (v, rest) = codec.Decode(ByteSource(bytes, 0))
@@ -1947,6 +2063,7 @@ module Xml =
 
         v
 
+    /// Deserializes a UTF-8 byte payload using a previously compiled XML codec.
     let deserializeBytes (codec: Codec<'T>) (bytes: byte[]) =
         let struct (v, rest) = codec.Decode(ByteSource(bytes, 0))
         let rest = Runtime.skipWhitespace rest
