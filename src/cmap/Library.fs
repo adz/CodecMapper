@@ -12,7 +12,13 @@ module Core =
     type ByteSource =
         val Data: byte[]
         val Offset: int
-        new(data, offset) = { Data = data; Offset = offset }
+
+        new(data, offset) =
+            {
+                Data = data
+                Offset = offset
+            }
+
         member inline x.Advance(n: int) = ByteSource(x.Data, x.Offset + n)
         member inline x.SetOffset(n: int) = ByteSource(x.Data, n)
 
@@ -31,12 +37,16 @@ module Core =
 
     /// Optimized implementation of IByteWriter.
     type ResizableBuffer =
-        { mutable InternalData: byte[]
-          mutable InternalCount: int }
+        {
+            mutable InternalData: byte[]
+            mutable InternalCount: int
+        }
 
         static member Create(initialCapacity: int) =
-            { InternalData = Array.zeroCreate initialCapacity
-              InternalCount = 0 }
+            {
+                InternalData = Array.zeroCreate initialCapacity
+                InternalCount = 0
+            }
 
         interface IByteWriter with
             member x.Ensure(n: int) =
@@ -57,10 +67,7 @@ module Core =
 #if !FABLE_COMPILER
                 let maxBytes = Encoding.UTF8.GetMaxByteCount(s.Length)
                 (x :> IByteWriter).Ensure(maxBytes)
-
-                let written =
-                    Encoding.UTF8.GetBytes(s, 0, s.Length, x.InternalData, x.InternalCount)
-
+                let written = Encoding.UTF8.GetBytes(s, 0, s.Length, x.InternalData, x.InternalCount)
                 x.InternalCount <- x.InternalCount + written
 #else
                 let bytes = Encoding.UTF8.GetBytes(s)
@@ -99,10 +106,12 @@ module Core =
 
 /// Abstract blueprint for serialization.
 type SchemaField =
-    { Name: string
-      Type: System.Type
-      GetValue: obj -> obj
-      Schema: ISchema }
+    {
+        Name: string
+        Type: System.Type
+        GetValue: obj -> obj
+        Schema: ISchema
+    }
 
 and ISchema =
     abstract member TargetType: System.Type
@@ -115,8 +124,7 @@ and SchemaDefinition =
     | Array of ISchema
     | Map of ISchema * (obj -> obj) * (obj -> obj)
 
-type Schema<'T> =
-    inherit ISchema
+type Schema<'T> = inherit ISchema
 
 module Schema =
     let unwrap (s: ISchema) = s
@@ -124,10 +132,12 @@ module Schema =
     let inline create<'T> def =
         { new Schema<'T> with
             member _.TargetType = typeof<'T>
-            member _.Definition = def }
+            member _.Definition = def
+        }
 
     let int: Schema<int> = create (Primitive typeof<int>)
     let string: Schema<string> = create (Primitive typeof<string>)
+    let bool: Schema<bool> = create (Primitive typeof<bool>)
 
     let inline map (wrap: 'U -> 'T) (unwrapFunc: 'T -> 'U) (inner: Schema<'U>) : Schema<'T> =
         create (Map(inner :> ISchema, (fun x -> box (wrap (unbox x))), (fun x -> box (unwrapFunc (unbox x)))))
@@ -141,6 +151,8 @@ module Schema =
             int :> ISchema
         elif t = typeof<string> then
             string :> ISchema
+        elif t = typeof<bool> then
+            bool :> ISchema
         elif
             t.IsGenericType
             && t.GetGenericTypeDefinition() = typeof<list<_>>.GetGenericTypeDefinition()
@@ -150,93 +162,93 @@ module Schema =
 
             { new ISchema with
                 member _.TargetType = t
-                member _.Definition = List(innerSchema) }
+                member _.Definition = List(innerSchema)
+            }
         else
             failwithf "Could not automatically resolve schema for type %O. Please provide it explicitly." t
 
-    let inline record<'T, 'Anon> (mapping: 'T -> 'Anon) : Schema<'T> =
-        let anonType = typeof<'Anon>
+type SchemaState<'T> =
+    {
+        Constructor: (obj[] -> 'T) option
+        Fields: SchemaField list
+    }
 
-        let fields =
-            FSharpType.GetRecordFields(anonType, allowAccessToPrivateRepresentation = true)
+type SchemaBuilder() =
+    member _.Yield(()) =
+        {
+            Constructor = None
+            Fields = []
+        }
 
-        let schemaFields =
-            fields
-            |> Array.map (fun f ->
-                { Name = f.Name
-                  Type = f.PropertyType
-                  GetValue = fun r -> f.GetValue(mapping (r :?> 'T))
-                  Schema = resolveSchema f.PropertyType })
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: obj[] -> 'T) = { state with Constructor = Some ctor }
 
-        let targetType = typeof<'T>
+    [<CustomOperation("construct")>]
+    member inline _.Construct(state: SchemaState<'T>, ctor: 'a -> 'T) =
+        { state with
+            Constructor = Some(fun args -> ctor (unbox args.[0]))
+        }
 
-        let targetFields =
-            FSharpType.GetRecordFields(targetType, allowAccessToPrivateRepresentation = true)
-#if !FABLE_COMPILER
-        let ctor =
-            FSharpValue.PreComputeRecordConstructor(targetType, allowAccessToPrivateRepresentation = true)
-#endif
-        let build (args: obj[]) =
-            let sortedArgs =
-                targetFields
-                |> Array.map (fun tf ->
-                    let idx =
-                        schemaFields
-                        |> Array.findIndex (fun sf ->
-                            sf.Name.Equals(tf.Name, System.StringComparison.OrdinalIgnoreCase))
+    [<CustomOperation("construct2")>]
+    member inline _.Construct2(state: SchemaState<'T>, ctor: 'a -> 'b -> 'T) =
+        { state with
+            Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]))
+        }
 
-                    args.[idx])
-#if !FABLE_COMPILER
-            ctor sortedArgs
-#else
-            FSharpValue.MakeRecord(targetType, sortedArgs, allowAccessToPrivateRepresentation = true)
-#endif
-        create (Record(targetType, schemaFields, build))
+    [<CustomOperation("construct3")>]
+    member inline _.Construct3(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'T) =
+        { state with
+            Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]) (unbox args.[2]))
+        }
 
-    let inline recordWith<'T, 'Anon> (mapping: 'T -> 'Anon) (fieldSchemas: Map<string, ISchema>) : Schema<'T> =
-        let anonType = typeof<'Anon>
+    [<CustomOperation("construct4")>]
+    member inline _.Construct4(state: SchemaState<'T>, ctor: 'a -> 'b -> 'c -> 'd -> 'T) =
+        { state with
+            Constructor = Some(fun args -> ctor (unbox args.[0]) (unbox args.[1]) (unbox args.[2]) (unbox args.[3]))
+        }
 
-        let fields =
-            FSharpType.GetRecordFields(anonType, allowAccessToPrivateRepresentation = true)
+    [<CustomOperation("field")>]
+    member inline _.Field(state: SchemaState<'T>, name: string, getter: 'T -> 'Field) =
+        let s = Schema.resolveSchema typeof<'Field>
 
-        let schemaFields =
-            fields
-            |> Array.map (fun f ->
-                let s =
-                    match fieldSchemas.TryFind f.Name with
-                    | Some s -> s
-                    | None -> resolveSchema f.PropertyType
+        let f =
+            {
+                Name = name
+                Type = typeof<'Field>
+                GetValue = (fun r -> box (getter (unbox r)))
+                Schema = s
+            }
 
-                { Name = f.Name
-                  Type = f.PropertyType
-                  GetValue = fun r -> f.GetValue(mapping (r :?> 'T))
-                  Schema = s })
+        { state with
+            Fields = f :: state.Fields
+        }
 
-        let targetType = typeof<'T>
+    [<CustomOperation("field")>]
+    member inline _.Field(state: SchemaState<'T>, name: string, getter: 'T -> 'Field, schema: Schema<'Field>) =
+        let f =
+            {
+                Name = name
+                Type = typeof<'Field>
+                GetValue = (fun r -> box (getter (unbox r)))
+                Schema = Schema.unwrap schema
+            }
 
-        let targetFields =
-            FSharpType.GetRecordFields(targetType, allowAccessToPrivateRepresentation = true)
-#if !FABLE_COMPILER
-        let ctor =
-            FSharpValue.PreComputeRecordConstructor(targetType, allowAccessToPrivateRepresentation = true)
-#endif
-        let build (args: obj[]) =
-            let sortedArgs =
-                targetFields
-                |> Array.map (fun tf ->
-                    let idx =
-                        schemaFields
-                        |> Array.findIndex (fun sf ->
-                            sf.Name.Equals(tf.Name, System.StringComparison.OrdinalIgnoreCase))
+        { state with
+            Fields = f :: state.Fields
+        }
 
-                    args.[idx])
-#if !FABLE_COMPILER
-            ctor sortedArgs
-#else
-            FSharpValue.MakeRecord(targetType, sortedArgs, allowAccessToPrivateRepresentation = true)
-#endif
-        create (Record(targetType, schemaFields, build))
+    member inline _.Run(state: SchemaState<'T>) : Schema<'T> =
+        match state.Constructor with
+        | None -> failwith "Schema must have a constructor. Use 'construct'."
+        | Some ctor ->
+            let targetType = typeof<'T>
+            let fields = state.Fields |> List.rev |> List.toArray
 
+            Schema.create<'T> (Record(targetType, fields, (fun args -> box (ctor args))))
+
+[<AutoOpen>]
+module SchemaExtensions =
+    let schema = SchemaBuilder()
 
 module Json =
     type JsonSource = ByteSource
@@ -246,16 +258,17 @@ module Json =
     type Encoder<'T> = JsonWriter -> 'T -> unit
 
     type Codec<'T> =
-        { Encode: Encoder<'T>
-          Decode: Decoder<'T> }
+        {
+            Encode: Encoder<'T>
+            Decode: Decoder<'T>
+        }
 
     module internal Runtime =
         let inline skipWhitespace (src: JsonSource) =
             let mutable i = src.Offset
             let data = src.Data
 
-            while i < data.Length
-                  && (let b = data.[i] in b = 32uy || b = 10uy || b = 13uy || b = 9uy) do
+            while i < data.Length && (data.[i] = 32uy || data.[i] = 10uy || data.[i] = 13uy || data.[i] = 9uy) do
                 i <- i + 1
 
             ByteSource(data, i)
@@ -390,21 +403,23 @@ module Json =
 #endif
 
     type CompiledCodec =
-        { Encode: JsonWriter -> obj -> unit
-          Decode: JsonSource -> struct (obj * JsonSource) }
+        {
+            Encode: JsonWriter -> obj -> unit
+            Decode: JsonSource -> struct (obj * JsonSource)
+        }
 
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
         | Primitive t when t = typeof<int> ->
-            { Encode = (fun w v -> w.WriteInt(unbox v))
-              Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s)) }
+            {
+                Encode = (fun w v -> w.WriteInt(unbox v))
+                Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
+            }
         | Primitive t when t = typeof<string> ->
-            { Encode =
-                (fun w v ->
-                    w.WriteByte(34uy)
-                    w.WriteString(unbox v)
-                    w.WriteByte(34uy))
-              Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s)) }
+            {
+                Encode = (fun w v -> w.WriteByte(34uy); w.WriteString(unbox v); w.WriteByte(34uy))
+                Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
+            }
         | Record(t, fields, ctor) ->
             let compiledFields =
                 fields
@@ -412,10 +427,12 @@ module Json =
                     let codec = compileUntyped f.Schema
                     let keyBytes = Encoding.UTF8.GetBytes(f.Name)
 
-                    {| Name = f.Name
-                       KeyBytes = keyBytes
-                       Index = i
-                       Codec = codec |})
+                    {|
+                        Name = f.Name
+                        KeyBytes = keyBytes
+                        Index = i
+                        Codec = codec
+                    |})
 
             let encoder (writer: JsonWriter) (vObj: obj) =
                 writer.WriteByte(123uy)
@@ -493,7 +510,10 @@ module Json =
 
                 struct (ctor args, current)
 
-            { Encode = encoder; Decode = decoder }
+            {
+                Encode = encoder
+                Decode = decoder
+            }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
@@ -541,19 +561,26 @@ module Json =
 
                 struct (Runtime.makeList (innerSchema.TargetType) (List.rev results |> List.toArray), src)
 
-            { Encode = encoder; Decode = decoder }
+            {
+                Encode = encoder
+                Decode = decoder
+            }
         | Map(inner, wrap, unwrapFunc) ->
             let innerCodec = compileUntyped inner
 
-            { Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
-              Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s)) }
+            {
+                Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
+                Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s))
+            }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
 
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
 
-        { Encode = (fun w v -> compiled.Encode w (box v))
-          Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s)) }
+        {
+            Encode = (fun w v -> compiled.Encode w (box v))
+            Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s))
+        }
 
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
@@ -562,11 +589,11 @@ module Json =
 
     let deserialize (codec: Codec<'T>) (json: string) =
         let bytes = Encoding.UTF8.GetBytes(json)
-        let struct (v, _) = codec.Decode(ByteSource(bytes, 0))
+        let struct (v, _) = codec.Decode (ByteSource(bytes, 0))
         v
 
     let deserializeBytes (codec: Codec<'T>) (bytes: byte[]) =
-        let struct (v, _) = codec.Decode(ByteSource(bytes, 0))
+        let struct (v, _) = codec.Decode (ByteSource(bytes, 0))
         v
 
 module Xml =
@@ -574,119 +601,133 @@ module Xml =
     type XmlWriter = IByteWriter
 
     type Codec<'T> =
-        { Encode: XmlWriter -> 'T -> unit
-          Decode: XmlSource -> struct ('T * XmlSource) }
+        {
+            Encode: XmlWriter -> 'T -> unit
+            Decode: XmlSource -> struct ('T * XmlSource)
+        }
 
     type CompiledCodec =
-        { Encode: XmlWriter -> string -> obj -> unit
-          Decode: XmlSource -> string -> struct (obj * XmlSource) }
+        {
+            Encode: XmlWriter -> string -> obj -> unit
+            Decode: XmlSource -> string -> struct (obj * XmlSource)
+        }
 
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
         | Primitive t when t = typeof<int> ->
-            { Encode =
-                (fun w tag v ->
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
-                    w.WriteInt(unbox v)
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let data = src.Data
-                    let mutable i = src.Offset
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteInt(unbox v)
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let data = src.Data
+                        let mutable i = src.Offset
 
-                    if data.[i] <> 60uy then
-                        failwith "Expected <"
+                        if data.[i] <> 60uy then
+                            failwith "Expected <"
 
-                    i <- i + tag.Length + 2
-                    let start = i
+                        i <- i + tag.Length + 2
+                        let start = i
 
-                    while data.[i] <> 60uy do
-                        i <- i + 1
+                        while data.[i] <> 60uy do
+                            i <- i + 1
 
-                    let valStr = Encoding.UTF8.GetString(data, start, i - start)
+                        let valStr = Encoding.UTF8.GetString(data, start, i - start)
 #if !FABLE_COMPILER
-                    let v = System.Int32.Parse(valStr)
+                        let v = System.Int32.Parse(valStr)
 #else
-                    let v = System.Int32.Parse(valStr)
+                        let v = System.Int32.Parse(valStr)
 #endif
-                    i <- i + tag.Length + 3
-                    struct (box v, ByteSource(data, i))) }
+                        i <- i + tag.Length + 3
+                        struct (box v, ByteSource(data, i)))
+            }
         | Primitive t when t = typeof<string> ->
-            { Encode =
-                (fun w tag v ->
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
-                    w.WriteString(unbox v)
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let data = src.Data
-                    let mutable i = src.Offset
-                    i <- i + tag.Length + 2
-                    let start = i
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString(unbox v)
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let data = src.Data
+                        let mutable i = src.Offset
+                        i <- i + tag.Length + 2
+                        let start = i
 
-                    while data.[i] <> 60uy do
-                        i <- i + 1
+                        while data.[i] <> 60uy do
+                            i <- i + 1
 
-                    let v = Encoding.UTF8.GetString(data, start, i - start)
-                    i <- i + tag.Length + 3
-                    struct (box v, ByteSource(data, i))) }
+                        let v = Encoding.UTF8.GetString(data, start, i - start)
+                        i <- i + tag.Length + 3
+                        struct (box v, ByteSource(data, i)))
+            }
         | Record(t, fields, ctor) ->
             let compiledFields =
                 fields
                 |> Array.map (fun f ->
-                    {| Name = f.Name
-                       Codec = compileUntyped f.Schema
-                       GetValue = f.GetValue |})
+                    {|
+                        Name = f.Name
+                        Codec = compileUntyped f.Schema
+                        GetValue = f.GetValue
+                    |})
 
-            { Encode =
-                (fun w tag vObj ->
-                    w.WriteByte(60uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy)
+            {
+                Encode =
+                    (fun w tag vObj ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
 
-                    for f in compiledFields do
-                        f.Codec.Encode w f.Name (f.GetValue vObj)
+                        for f in compiledFields do
+                            f.Codec.Encode w f.Name (f.GetValue vObj)
 
-                    w.WriteByte(60uy)
-                    w.WriteByte(47uy)
-                    w.WriteString(tag)
-                    w.WriteByte(62uy))
-              Decode =
-                (fun src tag ->
-                    let mutable current = src
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = src
 
-                    if current.Data.[current.Offset] <> 60uy then
-                        failwith "Expected <"
+                        if current.Data.[current.Offset] <> 60uy then
+                            failwith "Expected <"
 
-                    current <- current.Advance(tag.Length + 2)
+                        current <- current.Advance(tag.Length + 2)
 
-                    let args =
-                        compiledFields
-                        |> Array.map (fun f ->
-                            let struct (v, next) = f.Codec.Decode current f.Name
-                            current <- next
-                            v)
+                        let args =
+                            compiledFields
+                            |> Array.map (fun f ->
+                                let struct (v, next) = f.Codec.Decode current f.Name
+                                current <- next
+                                v)
 
-                    current <- current.Advance(tag.Length + 3)
-                    struct (ctor args, current)) }
+                        current <- current.Advance(tag.Length + 3)
+                        struct (ctor args, current))
+            }
         | _ -> failwithf "Unsupported XML schema type"
 
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
         let rootTag = schema.TargetType.Name.ToLower()
 
-        { Encode = (fun w v -> compiled.Encode w rootTag (box v))
-          Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s)) }
+        {
+            Encode = (fun w v -> compiled.Encode w rootTag (box v))
+            Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s))
+        }
 
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)

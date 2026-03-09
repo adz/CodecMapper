@@ -3,32 +3,39 @@ namespace cmap.AotTests
 open System
 open cmap
 
-type Address = { Street: string; City: string }
+[<AutoOpen>]
+module Domain =
+    type Address = { Street: string; City: string }
+    let makeAddress street city = { Street = street; City = city }
 
-type Person =
-    { Id: int; Name: string; Home: Address }
+    type Person = { Id: int; Name: string; Home: Address }
+    let makePerson id name home = { Id = id; Name = name; Home = home }
 
-type PersonId = PersonId of int
-type WrappedPerson = { Id: PersonId; Tags: string list }
+    type PersonId = PersonId of int
+    type WrappedPerson = { Id: PersonId; Tags: string list }
+    let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
 module Schemas =
-    let address =
-        Schema.record<Address, _> (fun a -> {| Street = a.Street; City = a.City |})
+    let address = schema {
+        construct2 makeAddress
+        field "street" (fun (a: Address) -> a.Street)
+        field "city" (fun (a: Address) -> a.City)
+    }
 
-    let person =
-        Schema.recordWith<Person, _>
-            (fun p ->
-                {| Id = p.Id
-                   Name = p.Name
-                   Home = p.Home |})
-            (Map.ofList [ "Home", address :> ISchema ])
+    let person = schema {
+        construct3 makePerson
+        field "id" (fun (p: Person) -> p.Id)
+        field "name" (fun (p: Person) -> p.Name)
+        field "home" (fun (p: Person) -> p.Home) address
+    }
 
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPerson =
-        Schema.recordWith<WrappedPerson, _>
-            (fun p -> {| Id = p.Id; Tags = p.Tags |})
-            (Map.ofList [ "Id", personId :> ISchema ])
+    let wrappedPerson = schema {
+        construct2 makeWrappedPerson
+        field "id" (fun (p: WrappedPerson) -> p.Id) personId
+        field "tags" (fun (p: WrappedPerson) -> p.Tags) (Schema.list Schema.string)
+    }
 
 module Program =
     let test name actual expected =

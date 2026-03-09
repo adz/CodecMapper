@@ -4,60 +4,32 @@ open Xunit
 open Swensen.Unquote
 open cmap
 
-type Address = { Street: string; City: string }
+[<AutoOpen>]
+module Domain =
+    type Address = { Street: string; City: string }
+    let makeAddress street city = { Street = street; City = city }
 
-type Person =
-    { Id: int; Name: string; Home: Address }
+    type Person = { Id: int; Name: string; Home: Address }
+    let makePerson id name home = { Id = id; Name = name; Home = home }
 
-type PersonId = PersonId of int
-type WrappedPerson = { Id: PersonId; Tags: string list }
-
-[<Fact>]
-let ``One schema, multiple formats (JSON and XML)`` () =
-    let addressSchema =
-        Schema.record<Address, _> (fun a -> {| Street = a.Street; City = a.City |})
-
-    let personSchema =
-        Schema.recordWith<Person, _>
-            (fun p ->
-                {| Id = p.Id
-                   Name = p.Name
-                   Home = p.Home |})
-            (Map.ofList [ "Home", addressSchema :> ISchema ])
-
-    let person =
-        { Id = 42
-          Name = "Adam"
-          Home =
-            { Street = "123 F# Lane"
-              City = "AOT City" } }
-
-    // JSON (Alphabetical order from anonymous record)
-    let jsonCodec = Json.compile personSchema
-    let json = Json.serialize jsonCodec person
-    test <@ json = "{\"Home\":{\"City\":\"AOT City\",\"Street\":\"123 F# Lane\"},\"Id\":42,\"Name\":\"Adam\"}" @>
-
-    // XML (Naive proof of concept, also alphabetical)
-    let xmlCodec = Xml.compile personSchema
-    let xml = Xml.serialize xmlCodec person
-
-    test
-        <@
-            xml = "<person><Home><City>AOT City</City><Street>123 F# Lane</Street></Home><Id>42</Id><Name>Adam</Name></person>"
-        @>
+    type PersonId = PersonId of int
+    type WrappedPerson = { Id: PersonId; Tags: string list }
+    let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
 [<Fact>]
-let ``Round-trip nested record JSON`` () =
-    let addressSchema =
-        Schema.record<Address, _> (fun a -> {| Street = a.Street; City = a.City |})
+let ``Round-trip using Fluent DSL (CE)`` () =
+    let addressSchema = schema {
+        construct2 makeAddress
+        field "street" (fun (a: Address) -> a.Street)
+        field "city" (fun (a: Address) -> a.City)
+    }
 
-    let personSchema =
-        Schema.recordWith<Person, _>
-            (fun p ->
-                {| Id = p.Id
-                   Name = p.Name
-                   Home = p.Home |})
-            (Map.ofList [ "Home", addressSchema :> ISchema ])
+    let personSchema = schema {
+        construct3 makePerson
+        field "id" (fun (p: Person) -> p.Id)
+        field "name" (fun (p: Person) -> p.Name)
+        field "home" (fun (p: Person) -> p.Home) addressSchema
+    }
 
     let codec = Json.compile personSchema
 
@@ -66,11 +38,48 @@ let ``Round-trip nested record JSON`` () =
           Name = "Adam"
           Home =
             { Street = "123 F# Lane"
-              City = "AOT City" } }
+              City = "Fluent City" } }
 
     let json = Json.serialize codec person
     let decoded = Json.deserialize codec json
     test <@ decoded = person @>
+
+[<Fact>]
+let ``One schema, multiple formats (JSON and XML)`` () =
+    let addressSchema = schema {
+        construct2 makeAddress
+        field "street" (fun (a: Address) -> a.Street)
+        field "city" (fun (a: Address) -> a.City)
+    }
+
+    let personSchema = schema {
+        construct3 makePerson
+        field "id" (fun (p: Person) -> p.Id)
+        field "name" (fun (p: Person) -> p.Name)
+        field "home" (fun (p: Person) -> p.Home) addressSchema
+    }
+
+    let person =
+        { Id = 42
+          Name = "Adam"
+          Home =
+            { Street = "123 F# Lane"
+              City = "AOT City" } }
+
+    // JSON 
+    let jsonCodec = Json.compile personSchema
+    let json = Json.serialize jsonCodec person
+    // Note: Order is now defined by 'field' calls, not alphabetical
+    test <@ json = "{\"id\":42,\"name\":\"Adam\",\"home\":{\"street\":\"123 F# Lane\",\"city\":\"AOT City\"}}" @>
+
+    // XML
+    let xmlCodec = Xml.compile personSchema
+    let xml = Xml.serialize xmlCodec person
+
+    test
+        <@
+            xml = "<person><id>42</id><name>Adam</name><home><street>123 F# Lane</street><city>AOT City</city></home></person>"
+        @>
 
 [<Fact>]
 let ``Round-trip list of strings JSON`` () =
@@ -88,10 +97,11 @@ let ``Round-trip list of strings JSON`` () =
 let ``Round-trip mapped type (PersonId) JSON`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPersonSchema =
-        Schema.recordWith<WrappedPerson, _>
-            (fun p -> {| Id = p.Id; Tags = p.Tags |})
-            (Map.ofList [ "Id", personIdSchema :> ISchema ])
+    let wrappedPersonSchema = schema {
+        construct2 makeWrappedPerson
+        field "id" (fun (p: WrappedPerson) -> p.Id) personIdSchema
+        field "tags" (fun (p: WrappedPerson) -> p.Tags) (Schema.list Schema.string)
+    }
 
     let codec = Json.compile wrappedPersonSchema
 
