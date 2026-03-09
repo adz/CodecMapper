@@ -6,6 +6,13 @@
   <img src="docs/logo-mark.png" alt="CodecMapper logo" width="72">
 </picture>
 
+[![CI](https://github.com/adz/CodecMapper/actions/workflows/ci.yml/badge.svg)](https://github.com/adz/CodecMapper/actions/workflows/ci.yml)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-0a7ea4)](https://adz.github.io/CodecMapper/)
+[![License](https://img.shields.io/github/license/adz/CodecMapper)](LICENSE.md)
+[![Issues](https://img.shields.io/github/issues/adz/CodecMapper)](https://github.com/adz/CodecMapper/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/adz/CodecMapper)](https://github.com/adz/CodecMapper/commits/main)
+[![Stars](https://img.shields.io/github/stars/adz/CodecMapper?style=social)](https://github.com/adz/CodecMapper/stargazers)
+
 `CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and AOT-friendly execution.
 
 It gives you one mapping model that can compile to JSON and XML codecs, with support for handwritten schemas in F# and migration paths from existing C# attribute-based contracts.
