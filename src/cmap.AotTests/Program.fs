@@ -16,26 +16,29 @@ module Domain =
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
 module Schemas =
-    let address = schema<Address> {
-        construct makeAddress
-        field "street" _.Street
-        field "city" _.City
-    }
+    let address = 
+        Schema.define<Address>
+        |> Schema.construct makeAddress
+        |> Schema.field "street" _.Street
+        |> Schema.field "city" _.City
+        |> Schema.build
 
-    let person = schema<Person> {
-        construct makePerson
-        field "id" _.Id
-        field "name" _.Name
-        field "home" _.Home address
-    }
+    let person = 
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith "home" _.Home address
+        |> Schema.build
 
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPerson = schema<WrappedPerson> {
-        construct makeWrappedPerson
-        field "id" _.Id personId
-        field "tags" _.Tags (Schema.list Schema.string)
-    }
+    let wrappedPerson = 
+        Schema.define<WrappedPerson>
+        |> Schema.construct makeWrappedPerson
+        |> Schema.fieldWith "id" _.Id personId
+        |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        |> Schema.build
 
 module Program =
     let test name actual expected =

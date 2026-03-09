@@ -17,20 +17,21 @@ A `Schema<'T>` is an abstract blueprint for a type `'T`. It defines how to build
 
 ### The DSL
 
-The `schema<'T>` computation expression (CE) is the primary tool for building record mappings.
+The pipeline builder is the primary tool for building record mappings.
 
 #### The Constructor Pattern
 
-Every `schema` block **must** begin with a `construct` line. We provide unified `construct` overloads for curried functions up to arity 16.
+Every schema starts with `Schema.define<'T>` and then pins a curried constructor with `Schema.construct`.
 
 ```fsharp
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema = schema<Person> {
-    construct makePerson
-    field "id" _.Id
-    field "name" _.Name
-}
+let personSchema =
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
 ```
 
 #### Field Definition
@@ -38,14 +39,13 @@ let personSchema = schema<Person> {
 The `field` operation maps a wire key to a record property.
 
 ```fsharp
-// [Op]  [Wire Key]  [Getter]
-field    "user_id"   _.UserId
+Schema.field "user_id" _.UserId
 ```
 
 For custom or nested types, provide the schema explicitly:
 
 ```fsharp
-field "home" _.Home addressSchema
+Schema.fieldWith "home" _.Home addressSchema
 ```
 
 ## Quick start
@@ -56,11 +56,12 @@ open cmap
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema = schema<Person> {
-    construct makePerson
-    field "id" _.Id
-    field "name" _.Name
-}
+let personSchema =
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
 
 // Compile to JSON
 let personCodec = Json.compile personSchema
@@ -78,11 +79,12 @@ Schemas are composable. You can use one schema inside another.
 type Team = { Name: string; Members: Person list }
 let makeTeam name members = { Name = name; Members = members }
 
-let teamSchema = schema<Team> {
-    construct makeTeam
-    field "team_name" _.Name
-    field "members" _.Members (Schema.list personSchema)
-}
+let teamSchema =
+    Schema.define<Team>
+    |> Schema.construct makeTeam
+    |> Schema.field "team_name" _.Name
+    |> Schema.fieldWith "members" _.Members (Schema.list personSchema)
+    |> Schema.build
 ```
 
 ## Multi-Format Support

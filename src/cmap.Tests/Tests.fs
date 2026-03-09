@@ -17,19 +17,21 @@ module Domain =
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
 [<Fact>]
-let ``Round-trip using Fluent DSL (CE)`` () =
-    let addressSchema = schema<Address> {
-        construct makeAddress
-        field "street" _.Street
-        field "city" _.City
-    }
+let ``Round-trip using Pipeline DSL`` () =
+    let addressSchema =
+        Schema.define<Address>
+        |> Schema.construct makeAddress
+        |> Schema.field "street" _.Street
+        |> Schema.field "city" _.City
+        |> Schema.build
 
-    let personSchema = schema<Person> {
-        construct makePerson
-        field "id" _.Id
-        field "name" _.Name
-        field "home" _.Home addressSchema
-    }
+    let personSchema =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith "home" _.Home addressSchema
+        |> Schema.build
 
     let codec = Json.compile personSchema
 
@@ -38,7 +40,7 @@ let ``Round-trip using Fluent DSL (CE)`` () =
           Name = "Adam"
           Home =
             { Street = "123 F# Lane"
-              City = "Fluent City" } }
+              City = "Pipeline City" } }
 
     let json = Json.serialize codec person
     let decoded = Json.deserialize codec json
@@ -46,18 +48,20 @@ let ``Round-trip using Fluent DSL (CE)`` () =
 
 [<Fact>]
 let ``One schema, multiple formats (JSON and XML)`` () =
-    let addressSchema = schema<Address> {
-        construct makeAddress
-        field "street" _.Street
-        field "city" _.City
-    }
+    let addressSchema =
+        Schema.define<Address>
+        |> Schema.construct makeAddress
+        |> Schema.field "street" _.Street
+        |> Schema.field "city" _.City
+        |> Schema.build
 
-    let personSchema = schema<Person> {
-        construct makePerson
-        field "id" _.Id
-        field "name" _.Name
-        field "home" _.Home addressSchema
-    }
+    let personSchema =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith "home" _.Home addressSchema
+        |> Schema.build
 
     let person =
         { Id = 42
@@ -66,7 +70,7 @@ let ``One schema, multiple formats (JSON and XML)`` () =
             { Street = "123 F# Lane"
               City = "AOT City" } }
 
-    // JSON 
+    // JSON
     let jsonCodec = Json.compile personSchema
     let json = Json.serialize jsonCodec person
     test <@ json = "{\"id\":42,\"name\":\"Adam\",\"home\":{\"street\":\"123 F# Lane\",\"city\":\"AOT City\"}}" @>
@@ -96,11 +100,12 @@ let ``Round-trip list of strings JSON`` () =
 let ``Round-trip mapped type (PersonId) JSON`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPersonSchema = schema<WrappedPerson> {
-        construct makeWrappedPerson
-        field "id" _.Id personIdSchema
-        field "tags" _.Tags (Schema.list Schema.string)
-    }
+    let wrappedPersonSchema =
+        Schema.define<WrappedPerson>
+        |> Schema.construct makeWrappedPerson
+        |> Schema.fieldWith "id" _.Id personIdSchema
+        |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        |> Schema.build
 
     let codec = Json.compile wrappedPersonSchema
 
@@ -117,31 +122,119 @@ let makeCollectionRecord l a = { List = l; Array = a }
 
 [<Fact>]
 let ``Round-trip collections with auto-resolution`` () =
-    let collectionSchema = schema<CollectionRecord> {
-        construct makeCollectionRecord
-        field "list" _.List
-        field "array" _.Array
-    }
+    let collectionSchema =
+        Schema.define<CollectionRecord>
+        |> Schema.construct makeCollectionRecord
+        |> Schema.field "list" _.List
+        |> Schema.field "array" _.Array
+        |> Schema.build
+
     let codec = Json.compile collectionSchema
     let value = { List = [1; 2]; Array = [|"a"; "b"|] }
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
     test <@ decoded = value @>
 
-type LargeRecord = { F1: int; F2: string; F3: int }
-let makeLargeRecord (args: obj[]) = 
-    { F1 = unbox args.[0]; F2 = unbox args.[1]; F3 = unbox args.[2] }
+type LargeRecord =
+    {
+        F1: int
+        F2: int
+        F3: int
+        F4: int
+        F5: int
+        F6: int
+        F7: int
+        F8: int
+        F9: int
+        F10: int
+        F11: int
+        F12: int
+        F13: int
+        F14: int
+        F15: int
+        F16: int
+        F17: int
+        F18: int
+        F19: int
+        F20: int
+    }
+
+let makeLargeRecord f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12 f13 f14 f15 f16 f17 f18 f19 f20 =
+    {
+        F1 = f1
+        F2 = f2
+        F3 = f3
+        F4 = f4
+        F5 = f5
+        F6 = f6
+        F7 = f7
+        F8 = f8
+        F9 = f9
+        F10 = f10
+        F11 = f11
+        F12 = f12
+        F13 = f13
+        F14 = f14
+        F15 = f15
+        F16 = f16
+        F17 = f17
+        F18 = f18
+        F19 = f19
+        F20 = f20
+    }
 
 [<Fact>]
-let ``Round-trip using obj array escape hatch (Unlimited Arity)`` () =
-    let largeSchema = schema<LargeRecord> {
-        construct makeLargeRecord
-        field "f1" _.F1
-        field "f2" _.F2
-        field "f3" _.F3
-    }
+let ``Round-trip using typed pipeline with 20 fields`` () =
+    let largeSchema =
+        Schema.define<LargeRecord>
+        |> Schema.construct makeLargeRecord
+        |> Schema.field "f1" _.F1
+        |> Schema.field "f2" _.F2
+        |> Schema.field "f3" _.F3
+        |> Schema.field "f4" _.F4
+        |> Schema.field "f5" _.F5
+        |> Schema.field "f6" _.F6
+        |> Schema.field "f7" _.F7
+        |> Schema.field "f8" _.F8
+        |> Schema.field "f9" _.F9
+        |> Schema.field "f10" _.F10
+        |> Schema.field "f11" _.F11
+        |> Schema.field "f12" _.F12
+        |> Schema.field "f13" _.F13
+        |> Schema.field "f14" _.F14
+        |> Schema.field "f15" _.F15
+        |> Schema.field "f16" _.F16
+        |> Schema.field "f17" _.F17
+        |> Schema.field "f18" _.F18
+        |> Schema.field "f19" _.F19
+        |> Schema.field "f20" _.F20
+        |> Schema.build
+
     let codec = Json.compile largeSchema
-    let value = { F1 = 1; F2 = "two"; F3 = 3 }
+    let value =
+        {
+            F1 = 1
+            F2 = 2
+            F3 = 3
+            F4 = 4
+            F5 = 5
+            F6 = 6
+            F7 = 7
+            F8 = 8
+            F9 = 9
+            F10 = 10
+            F11 = 11
+            F12 = 12
+            F13 = 13
+            F14 = 14
+            F15 = 15
+            F16 = 16
+            F17 = 17
+            F18 = 18
+            F19 = 19
+            F20 = 20
+        }
+
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
     test <@ decoded = value @>

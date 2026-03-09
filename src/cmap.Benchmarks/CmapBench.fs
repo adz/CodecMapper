@@ -9,15 +9,19 @@ type Person =
 
 module Schemas =
     let address =
-        Schema.record<Address, _> (fun a -> {| Street = a.Street; City = a.City |})
+        Schema.define<Address>
+        |> Schema.construct (fun street city -> { Street = street; City = city })
+        |> Schema.field "Street" _.Street
+        |> Schema.field "City" _.City
+        |> Schema.build
 
     let person =
-        Schema.recordWith<Person, _>
-            (fun p ->
-                {| Id = p.Id
-                   Name = p.Name
-                   Home = p.Home |})
-            (Map.ofList [ "Home", address :> ISchema ])
+        Schema.define<Person>
+        |> Schema.construct (fun id name home -> { Id = id; Name = name; Home = home })
+        |> Schema.field "Id" _.Id
+        |> Schema.field "Name" _.Name
+        |> Schema.fieldWith "Home" _.Home address
+        |> Schema.build
 
 module CmapBench =
     let codec = Json.compile Schemas.person
