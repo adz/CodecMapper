@@ -170,4 +170,4 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - old `CodecMapper decode stream` `2132364.1 ns/op`
 - To keep that harness buildable after the repo rename, the local archived clone under `benchmarks/CodecMapper/` is expected to be built as `CodecMapper.CPExperiment.dll` so it does not collide with the current `CodecMapper.dll`.
 - Current `CodecMapper` is slightly faster than the old repo on that shared payload, but the old repo allocates less. Do not frame the rename decision as a simple performance win for the old implementation.
-- Legacy branding assets from the archived experimental repo are preserved under `docs/legacy-codemapper/`.
+- Legacy branding assets from the archived experimental repo are preserved under `notes/legacy-codemapper/`.

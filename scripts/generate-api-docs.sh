@@ -21,4 +21,4 @@ dotnet "${FSDOCS_DLL}" build \
     --strict \
     --mdcomments \
     --sourcefolder "${ROOT_DIR}" \
-    --parameters root ./ fsdocs-logo-src img/logo.png fsdocs-logo-link index.html fsdocs-collection-name CodecMapper
+    --parameters root ./ fsdocs-logo-src img/logo.png fsdocs-logo-link index.html fsdocs-collection-name CodecMapper fsdocs-license-link https://github.com/adz/CodecMapper/blob/main/LICENSE.md fsdocs-release-notes-link https://github.com/adz/CodecMapper/blob/main/RELEASE_NOTES.md

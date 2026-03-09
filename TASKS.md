@@ -2,13 +2,13 @@
 
 This file tracks the active forward-looking queue for `CodecMapper`.
 
-Completed rename, benchmarking, parser, and first-pass C# bridge work now live in [docs/AGENT_NOTES.md](docs/AGENT_NOTES.md) and [AGENTS.md](AGENTS.md).
+Completed rename, benchmarking, parser, and first-pass C# bridge work now live in [notes/AGENT_NOTES.md](notes/AGENT_NOTES.md) and [AGENTS.md](AGENTS.md).
 
 - [x] **Task 15: Add extensive API documentation in code**
   - Add XML/API documentation at module and function level across the public surface.
   - Cover the schema DSL, JSON/XML compile and runtime functions, mapping helpers, and common built-in schemas.
   - Integrate the preserved CodecMapper logo into the primary docs surface so API docs and repository docs share the same branding.
-  - Keep the docs aligned with the actual supported behavior and edge cases already recorded in `docs/AGENT_NOTES.md`.
+  - Keep the docs aligned with the actual supported behavior and edge cases already recorded in `notes/AGENT_NOTES.md`.
   - *Done:* the core public surface now has inline XML/API docs across the structural schema types, byte/runtime primitives, schema DSL, built-in schemas, and JSON/XML compile and runtime entry points. The generated API docs now expose that coverage.
 
 - [x] **Task 16: Add an API documentation generator**

@@ -3,5 +3,7 @@
     <NuGetAudit>false</NuGetAudit>
     <RepositoryUrl>https://github.com/adz/CodecMapper</RepositoryUrl>
     <FsDocsCollectionName>CodecMapper</FsDocsCollectionName>
+    <FsDocsLicenseLink>https://github.com/adz/CodecMapper/blob/main/LICENSE.md</FsDocsLicenseLink>
+    <FsDocsReleaseNotesLink>https://github.com/adz/CodecMapper/blob/main/RELEASE_NOTES.md</FsDocsReleaseNotesLink>
   </PropertyGroup>
 </Project>
