@@ -114,3 +114,11 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - Its published benchmark snapshot is not directly comparable to `cmap`'s current README numbers because it benchmarks a 1000-record `Person list` payload, while `cmap` currently publishes a small single-object benchmark.
 - The old repo also fails to complete BenchmarkDotNet runs cleanly on this machine under `.NET SDK 10.0.103`; direct child-project builds still end with `Build FAILED` and `0 Error(s)`.
 - Any serious comparison between the old repo and current `cmap` needs a shared manual harness on the same payload, not a README-to-README comparison.
+- `src/cmap.CompareRunner/` is that shared harness. Latest local run on the 1000-record nested-list payload:
+  - `STJ encode` `674487.8 ns/op`
+  - `cmap encode` `769925.5 ns/op`
+  - old `CodecMapper encode` `781210.3 ns/op`
+  - `STJ decode` `1422827.2 ns/op`
+  - `cmap decode bytes` `1971350.4 ns/op`
+  - old `CodecMapper decode stream` `2132364.1 ns/op`
+- Current `cmap` is slightly faster than the old repo on that shared payload, but the old repo allocates less. Do not frame the rename decision as a simple performance win for the old implementation.
