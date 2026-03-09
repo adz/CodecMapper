@@ -507,11 +507,11 @@ module Json =
     type JsonWriter = IByteWriter
 
     type Decoder<'T> = JsonSource -> struct ('T * JsonSource)
-    type Encoder<'T> = JsonWriter -> 'T -> unit
+    type Encoder<'T> = JsonWriter -> IByteWriter -> 'T -> unit // Note: Placeholder for future unified writer
 
     type Codec<'T> =
         {
-            Encode: Encoder<'T>
+            Encode: IByteWriter -> 'T -> unit
             Decode: Decoder<'T>
         }
 
@@ -656,7 +656,7 @@ module Json =
 
     type CompiledCodec =
         {
-            Encode: JsonWriter -> obj -> unit
+            Encode: IByteWriter -> obj -> unit
             Decode: JsonSource -> struct (obj * JsonSource)
         }
 
@@ -686,7 +686,7 @@ module Json =
                         Codec = codec
                     |})
 
-            let encoder (writer: JsonWriter) (vObj: obj) =
+            let encoder (writer: IByteWriter) (vObj: obj) =
                 writer.WriteByte(123uy)
                 let mutable first = true
 
@@ -769,7 +769,7 @@ module Json =
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
-            let encoder (writer: JsonWriter) (vObj: obj) =
+            let encoder (writer: IByteWriter) (vObj: obj) =
                 let list = vObj :?> System.Collections.IEnumerable
                 writer.WriteByte(91uy)
                 let mutable first = true
@@ -820,7 +820,8 @@ module Json =
         | Array innerSchema ->
             let innerCodec = compileUntyped innerSchema
 
-            let encoder (writer: JsonWriter) (vObj: obj) =
+            let encoder (writer: IByteWriter) (vObj: obj) =
+#if !FABLE_COMPILER
                 let arr = vObj :?> System.Array
                 writer.WriteByte(91uy)
                 let mutable first = true
@@ -833,6 +834,20 @@ module Json =
                     first <- false
 
                 writer.WriteByte(93uy)
+#else
+                let arr = vObj :?> obj array
+                writer.WriteByte(91uy)
+                let mutable first = true
+
+                for i in 0 .. arr.Length - 1 do
+                    if not first then
+                        writer.WriteByte(44uy)
+
+                    innerCodec.Encode writer (arr.[i])
+                    first <- false
+
+                writer.WriteByte(93uy)
+#endif
 
             let decoder (src: JsonSource) =
                 let mutable src = Runtime.skipWhitespace src
@@ -862,12 +877,16 @@ module Json =
                     else
                         failwith "Expected , or ]"
 
+#if !FABLE_COMPILER
                 let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
 
                 for i in 0 .. results.Count - 1 do
                     targetArray.SetValue(results.[i], i)
 
                 struct (box targetArray, src)
+#else
+                struct (box (results.ToArray()), src)
+#endif
 
             {
                 Encode = encoder
