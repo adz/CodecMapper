@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+*.userosscache
+*.sln.doccache
+*.suo
+*.userprefs
+*.vsto
+*.manifest
+*.res
+*.cache
+*.pdb
+*.dll
+*.exe
+
+# Fable
+dist/
+fable_modules/
+node_modules/
+
+# Benchmarks
+BenchmarkDotNet.Artifacts/
+
+# IDEs
+.idea/
+.vs/
+.vscode/
+
+# Build and temp
+.gemini/
+.DS_Store
+*.log
