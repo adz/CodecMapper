@@ -61,6 +61,12 @@ let person' = Json.deserialize codec json
 
 This keeps compilation cost visible and avoids hidden recompilation or implicit caching.
 
+## Custom Mapping
+
+- `Schema.map` is the total-function customization hook.
+- `Schema.tryMap` is the validated customization hook for smart constructors that return `Result<'T, string>`.
+- Prefer `Schema.tryMap` over burying `failwith` inside a plain `Schema.map`, because it keeps decode-time validation explicit in the public API.
+
 ## Parser Notes
 
 - The JSON parser is handwritten and should be hardened with deterministic input coverage before deeper refactors.

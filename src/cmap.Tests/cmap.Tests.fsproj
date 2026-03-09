@@ -11,6 +11,7 @@
     <Compile Include="JsonParserTests.fs" />
     <Compile Include="XmlTests.fs" />
     <Compile Include="CommonTypeTests.fs" />
+    <Compile Include="CustomizationTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

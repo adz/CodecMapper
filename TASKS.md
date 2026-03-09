@@ -30,10 +30,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - *Done:* Added auto-resolved schemas for `int16`, `byte`, `sbyte`, `uint16`, `char`, `Guid`, `DateTime`, `DateTimeOffset`, and `TimeSpan`.
   - *Notes:* This keeps common domain identifiers and timestamps symmetric across JSON and XML without adding new parser branches beyond the integer core.
 
-- [ ] **Task 4: Richer Schema Customization**
+- [x] **Task 4: Richer Schema Customization**
   - Expand mapping/customization support for domain wrappers and special constructors such as `UserId`.
   - Prove encode/decode symmetry for these mappings.
   - Ensure the customization story remains explicit and discoverable in the public API.
+  - *Done:* Added `Schema.tryMap` for smart constructors that can reject decoded values with explicit error messages.
+  - *Notes:* `Schema.map` remains the total-function path, while `Schema.tryMap` covers validated wrappers such as positive `UserId` values.
 
 - [ ] **Task 5: Documentation Sweep**
   - Update `docs/GETTING_STARTED.md` to demonstrate the full supported feature set.

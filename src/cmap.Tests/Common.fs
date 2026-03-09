@@ -15,6 +15,20 @@ module Domain =
     type WrappedPerson = { Id: PersonId; Tags: string list }
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
+    type UserId = UserId of int
+
+    module UserId =
+        let create value =
+            if value > 0 then
+                Ok(UserId value)
+            else
+                Error "UserId must be positive"
+
+        let value (UserId value) = value
+
+    type Account = { Id: UserId; Name: string }
+    let makeAccount id name = { Id = id; Name = name }
+
     type CollectionRecord = { List: int list; Array: string array }
     let makeCollectionRecord l a = { List = l; Array = a }
 

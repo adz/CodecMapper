@@ -158,6 +158,21 @@ module Schema =
         create (Map(inner :> ISchema, (fun x -> box (wrap (unbox x))), (fun x -> box (unwrapFunc (unbox x)))))
 
     ///
+    /// Smart constructors need a way to reject decoded values without forcing
+    /// callers to smuggle exceptions through plain `map`.
+    let inline tryMap (wrap: 'U -> Result<'T, string>) (unwrapFunc: 'T -> 'U) (inner: Schema<'U>) : Schema<'T> =
+        create (
+            Map(
+                inner :> ISchema,
+                (fun x ->
+                    match wrap (unbox x) with
+                    | Ok value -> box value
+                    | Error message -> failwith message),
+                (fun x -> box (unwrapFunc (unbox x)))
+            )
+        )
+
+    ///
     /// Narrow numeric types can safely reuse the integer codec as long as the
     /// schema enforces range checks on decode.
     let private rangedInt<'T> (typeName: string) (minValue: int) (maxValue: int) (convert: int -> 'T) (toInt: 'T -> int) : Schema<'T> =

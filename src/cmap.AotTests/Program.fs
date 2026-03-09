@@ -15,6 +15,20 @@ module Domain =
     type WrappedPerson = { Id: PersonId; Tags: string list }
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
+    type UserId = UserId of int
+
+    module UserId =
+        let create value =
+            if value > 0 then
+                Ok(UserId value)
+            else
+                Error "UserId must be positive"
+
+        let value (UserId value) = value
+
+    type Account = { Id: UserId; Name: string }
+    let makeAccount id name = { Id = id; Name = name }
+
     type AuditRecord =
         {
             UserId: Guid
@@ -52,6 +66,15 @@ module Schemas =
         |> Schema.construct makeWrappedPerson
         |> Schema.fieldWith "id" _.Id personId
         |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        |> Schema.build
+
+    let userId = Schema.int |> Schema.tryMap UserId.create UserId.value
+
+    let account =
+        Schema.define<Account>
+        |> Schema.construct makeAccount
+        |> Schema.fieldWith "id" _.Id userId
+        |> Schema.field "name" _.Name
         |> Schema.build
 
     let auditRecord =
@@ -117,6 +140,13 @@ module Program =
         let auditJson = Json.serialize auditCodec audit
         let auditDecoded = Json.deserialize auditCodec auditJson
         test "Common type round-trip" auditDecoded audit
+
+        // 5. Smart-constructor mappings
+        let accountCodec = Json.compile Schemas.account
+        let account = { Id = UserId 7; Name = "AOT" }
+        let accountJson = Json.serialize accountCodec account
+        let accountDecoded = Json.deserialize accountCodec accountJson
+        test "Validated mapping round-trip" accountDecoded account
 
         printfn "All AOT tests passed successfully!"
         0
