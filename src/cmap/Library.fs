@@ -324,10 +324,16 @@ module Json =
             if src.Offset >= data.Length || data.[src.Offset] <> 34uy then
                 failwith "Expected \""
 
+            ///
+            /// Strings are also used while skipping unknown fields, so escaped
+            /// quotes must not terminate the scan early.
             let mutable i = src.Offset + 1
 
-            while i < data.Length && not (data.[i] = 34uy && data.[i - 1] <> 92uy) do
-                i <- i + 1
+            while i < data.Length && data.[i] <> 34uy do
+                if data.[i] = 92uy then
+                    i <- i + 2
+                else
+                    i <- i + 1
 
             if i >= data.Length then
                 failwith "Unterminated string"
@@ -336,12 +342,98 @@ module Json =
 
         let stringDecoder: Decoder<string> =
             fun src ->
-                let struct (offset, len, nextSrc) = stringRaw src
+                let src = skipWhitespace src
+                let data = src.Data
+
+                if src.Offset >= data.Length || data.[src.Offset] <> 34uy then
+                    failwith "Expected \""
+
+                let mutable i = src.Offset + 1
+                let mutable segmentStart = i
+                let mutable builder = null
+
+                let appendSegment startIdx endIdx =
+                    if endIdx > startIdx then
 #if !FABLE_COMPILER
-                struct (Encoding.UTF8.GetString(src.Data, offset, len), nextSrc)
+                        let segment = Encoding.UTF8.GetString(data, startIdx, endIdx - startIdx)
 #else
-                struct (Encoding.UTF8.GetString(src.Data.[offset .. offset + len - 1]), nextSrc)
+                        let segment = Encoding.UTF8.GetString(data.[startIdx .. endIdx - 1])
 #endif
+
+                        if isNull builder then
+                            builder <- StringBuilder()
+
+                        builder.Append(segment) |> ignore
+
+                let hexValue (b: byte) =
+                    if b >= 48uy && b <= 57uy then
+                        int b - int 48uy
+                    elif b >= 65uy && b <= 70uy then
+                        int b - int 65uy + 10
+                    elif b >= 97uy && b <= 102uy then
+                        int b - int 97uy + 10
+                    else
+                        failwith "Invalid unicode escape"
+
+                let mutable finished = false
+
+                while i < data.Length && not finished do
+                    match data.[i] with
+                    | 34uy ->
+                        finished <- true
+                    | 92uy ->
+                        appendSegment segmentStart i
+                        i <- i + 1
+
+                        if i >= data.Length then
+                            failwith "Unterminated escape sequence"
+
+                        if isNull builder then
+                            builder <- StringBuilder()
+
+                        match data.[i] with
+                        | 34uy -> builder.Append('"') |> ignore
+                        | 92uy -> builder.Append('\\') |> ignore
+                        | 47uy -> builder.Append('/') |> ignore
+                        | 98uy -> builder.Append('\b') |> ignore
+                        | 102uy -> builder.Append('\f') |> ignore
+                        | 110uy -> builder.Append('\n') |> ignore
+                        | 114uy -> builder.Append('\r') |> ignore
+                        | 116uy -> builder.Append('\t') |> ignore
+                        | 117uy ->
+                            if i + 4 >= data.Length then
+                                failwith "Unterminated unicode escape"
+
+                            let codePoint =
+                                ((hexValue data.[i + 1]) <<< 12)
+                                ||| ((hexValue data.[i + 2]) <<< 8)
+                                ||| ((hexValue data.[i + 3]) <<< 4)
+                                ||| (hexValue data.[i + 4])
+
+                            builder.Append(char codePoint) |> ignore
+                            i <- i + 4
+                        | _ -> failwith "Invalid escape sequence"
+
+                        i <- i + 1
+                        segmentStart <- i
+                    | _ ->
+                        i <- i + 1
+
+                if not finished then
+                    failwith "Unterminated string"
+
+                let value =
+                    if isNull builder then
+#if !FABLE_COMPILER
+                        Encoding.UTF8.GetString(data, segmentStart, i - segmentStart)
+#else
+                        Encoding.UTF8.GetString(data.[segmentStart .. i - 1])
+#endif
+                    else
+                        appendSegment segmentStart i
+                        builder.ToString()
+
+                struct (value, ByteSource(data, i + 1))
 
         let rec skipValue (src: JsonSource) : JsonSource =
             let src = skipWhitespace src
@@ -353,38 +445,65 @@ module Json =
 
                 match data.[src.Offset] with
                 | 123uy ->
-                    let mutable depth = 1
-                    let mutable i = src.Offset + 1
+                    let mutable current = skipWhitespace (src.Advance(1))
+                    let mutable continueLoop = true
 
-                    while depth > 0 && i < data.Length do
-                        if data.[i] = 123uy then
-                            depth <- depth + 1
-                        elif data.[i] = 125uy then
-                            depth <- depth - 1
+                    if current.Offset < data.Length && data.[current.Offset] = 125uy then
+                        current <- current.Advance(1)
+                        continueLoop <- false
 
-                        i <- i + 1
+                    while continueLoop do
+                        let struct (_, _, afterKey) = stringRaw current
+                        let afterColon = skipWhitespace afterKey
 
-                    ByteSource(data, i)
+                        if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
+                            failwith "Expected :"
+
+                        let afterValue = skipWhitespace (skipValue (afterColon.Advance(1)))
+
+                        if afterValue.Offset < data.Length && data.[afterValue.Offset] = 44uy then
+                            current <- skipWhitespace (afterValue.Advance(1))
+                        elif afterValue.Offset < data.Length && data.[afterValue.Offset] = 125uy then
+                            current <- afterValue.Advance(1)
+                            continueLoop <- false
+                        else
+                            failwith "Expected , or }"
+
+                    current
                 | 91uy ->
-                    let mutable depth = 1
-                    let mutable i = src.Offset + 1
+                    let mutable current = skipWhitespace (src.Advance(1))
+                    let mutable continueLoop = true
 
-                    while depth > 0 && i < data.Length do
-                        if data.[i] = 91uy then
-                            depth <- depth + 1
-                        elif data.[i] = 93uy then
-                            depth <- depth - 1
+                    if current.Offset < data.Length && data.[current.Offset] = 93uy then
+                        current <- current.Advance(1)
+                        continueLoop <- false
 
-                        i <- i + 1
+                    while continueLoop do
+                        let afterItem = skipWhitespace (skipValue current)
 
-                    ByteSource(data, i)
+                        if afterItem.Offset < data.Length && data.[afterItem.Offset] = 44uy then
+                            current <- skipWhitespace (afterItem.Advance(1))
+                        elif afterItem.Offset < data.Length && data.[afterItem.Offset] = 93uy then
+                            current <- afterItem.Advance(1)
+                            continueLoop <- false
+                        else
+                            failwith "Expected , or ]"
+
+                    current
                 | 34uy ->
                     let struct (_, _, nextSrc) = stringRaw src
                     nextSrc
                 | _ ->
                     let mutable i = src.Offset
 
-                    while i < data.Length && data.[i] <> 44uy && data.[i] <> 125uy && data.[i] <> 93uy do
+                    while i < data.Length
+                          && data.[i] <> 44uy
+                          && data.[i] <> 125uy
+                          && data.[i] <> 93uy
+                          && data.[i] <> 32uy
+                          && data.[i] <> 10uy
+                          && data.[i] <> 13uy
+                          && data.[i] <> 9uy do
                         i <- i + 1
 
                     ByteSource(data, i)
@@ -434,7 +553,60 @@ module Json =
             }
         | Primitive t when t = typeof<string> ->
             {
-                Encode = (fun w v -> w.WriteByte(34uy); w.WriteString(unbox v); w.WriteByte(34uy))
+                Encode =
+                    (fun w v ->
+                        let value: string = unbox v
+                        w.WriteByte(34uy)
+
+                        ///
+                        /// JSON strings must escape structural and control
+                        /// characters or round-trip behavior becomes accidental.
+                        let mutable segmentStart = 0
+
+                        let flushSegment endIdx =
+                            if endIdx > segmentStart then
+                                w.WriteString(value.Substring(segmentStart, endIdx - segmentStart))
+
+                        for i in 0 .. value.Length - 1 do
+                            match value.[i] with
+                            | '"' ->
+                                flushSegment i
+                                w.WriteString("\\\"")
+                                segmentStart <- i + 1
+                            | '\\' ->
+                                flushSegment i
+                                w.WriteString("\\\\")
+                                segmentStart <- i + 1
+                            | '\b' ->
+                                flushSegment i
+                                w.WriteString("\\b")
+                                segmentStart <- i + 1
+                            | '\f' ->
+                                flushSegment i
+                                w.WriteString("\\f")
+                                segmentStart <- i + 1
+                            | '\n' ->
+                                flushSegment i
+                                w.WriteString("\\n")
+                                segmentStart <- i + 1
+                            | '\r' ->
+                                flushSegment i
+                                w.WriteString("\\r")
+                                segmentStart <- i + 1
+                            | '\t' ->
+                                flushSegment i
+                                w.WriteString("\\t")
+                                segmentStart <- i + 1
+                            | c when int c < 32 ->
+                                flushSegment i
+                                w.WriteString(sprintf "\\u%04x" (int c))
+                                segmentStart <- i + 1
+                            | _ ->
+                                ()
+
+                        flushSegment value.Length
+
+                        w.WriteByte(34uy))
                 Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
             }
         | Record(t, fields, ctor) ->
@@ -442,11 +614,9 @@ module Json =
                 fields
                 |> Array.mapi (fun i f ->
                     let codec = compileUntyped f.Schema
-                    let keyBytes = Encoding.UTF8.GetBytes(f.Name)
 
                     {|
                         Name = f.Name
-                        KeyBytes = keyBytes
                         Index = i
                         Codec = codec
                     |})
@@ -485,7 +655,7 @@ module Json =
                     current <- current.Advance(1)
 
                 while looping do
-                    let struct (keyOffset, keyLen, afterKey) = Runtime.stringRaw current
+                    let struct (key, afterKey) = Runtime.stringDecoder current
                     let afterColon = Runtime.skipWhitespace afterKey
 
                     if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
@@ -498,7 +668,7 @@ module Json =
                     while i < compiledFields.Length && not found do
                         let f = compiledFields.[i]
 
-                        if Runtime.bytesEqual f.KeyBytes data keyOffset keyLen then
+                        if f.Name = key then
                             fieldSources.[f.Index] <- valSrc
                             found <- true
                         else

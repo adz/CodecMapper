@@ -16,6 +16,13 @@ module Domain =
     type WrappedPerson = { Id: PersonId; Tags: string list }
     let makeWrappedPerson id tags = { Id = id; Tags = tags }
 
+let expectFailure (expectedFragment: string) f =
+    try
+        f () |> ignore
+        failwith "Expected failure"
+    with ex ->
+        test <@ ex.Message.Contains(expectedFragment) @>
+
 [<Fact>]
 let ``Round-trip using Pipeline DSL`` () =
     let addressSchema =
@@ -117,6 +124,23 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
     let decoded = Json.deserialize codec json
     test <@ decoded = p @>
 
+[<Fact>]
+let ``Round-trip escaped strings JSON`` () =
+    let codec = Json.compile Schema.string
+    let value = "He said \"Hello\"\nC:\\temp\\file.txt"
+    let json = Json.serialize codec value
+
+    test <@ json = "\"He said \\\"Hello\\\"\\nC:\\\\temp\\\\file.txt\"" @>
+
+    let decoded = Json.deserialize codec json
+    test <@ decoded = value @>
+
+[<Fact>]
+let ``Decode unicode escape string JSON`` () =
+    let codec = Json.compile Schema.string
+    let decoded = Json.deserialize codec "\"Hello, Wor\\u006c\\u0064!\""
+    test <@ decoded = "Hello, World!" @>
+
 type CollectionRecord = { List: int list; Array: string array }
 let makeCollectionRecord l a = { List = l; Array = a }
 
@@ -134,6 +158,72 @@ let ``Round-trip collections with auto-resolution`` () =
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
     test <@ decoded = value @>
+
+type IdOnly = { Id: int }
+let makeIdOnly id = { Id = id }
+
+[<Fact>]
+let ``Unknown nested object with braces inside strings is skipped deterministically`` () =
+    let schema =
+        Schema.define<IdOnly>
+        |> Schema.construct makeIdOnly
+        |> Schema.field "id" _.Id
+        |> Schema.build
+
+    let codec = Json.compile schema
+    let value = Json.deserialize codec "{\"extra\":{\"text\":\"{[still text]}\"},\"id\":42}"
+    test <@ value = { Id = 42 } @>
+
+[<Fact>]
+let ``Duplicate keys keep the last value`` () =
+    let schema =
+        Schema.define<IdOnly>
+        |> Schema.construct makeIdOnly
+        |> Schema.field "id" _.Id
+        |> Schema.build
+
+    let codec = Json.compile schema
+    let value = Json.deserialize codec "{\"id\":1,\"id\":2}"
+    test <@ value = { Id = 2 } @>
+
+[<Fact>]
+let ``Reject trailing commas in objects and arrays`` () =
+    let idSchema =
+        Schema.define<IdOnly>
+        |> Schema.construct makeIdOnly
+        |> Schema.field "id" _.Id
+        |> Schema.build
+
+    let idCodec = Json.compile idSchema
+    let listCodec = Json.compile (Schema.list Schema.int)
+
+    expectFailure "Expected \"" (fun () -> Json.deserialize idCodec "{\"id\":1,}")
+    expectFailure "Expected digit" (fun () -> Json.deserialize listCodec "[1,2,]")
+
+[<Fact>]
+let ``Reject malformed object syntax`` () =
+    let schema =
+        Schema.define<IdOnly>
+        |> Schema.construct makeIdOnly
+        |> Schema.field "id" _.Id
+        |> Schema.build
+
+    let codec = Json.compile schema
+
+    expectFailure "Expected \"" (fun () -> Json.deserialize codec "{id:1}")
+    expectFailure "Expected :" (fun () -> Json.deserialize codec "{\"id\" 1}")
+    expectFailure "Expected , or }" (fun () -> Json.deserialize codec "{\"id\":1 \"x\":2}")
+
+[<Fact>]
+let ``Reject missing required keys`` () =
+    let schema =
+        Schema.define<IdOnly>
+        |> Schema.construct makeIdOnly
+        |> Schema.field "id" _.Id
+        |> Schema.build
+
+    let codec = Json.compile schema
+    expectFailure "Missing required key: id" (fun () -> Json.deserialize codec "{}")
 
 type LargeRecord =
     {
