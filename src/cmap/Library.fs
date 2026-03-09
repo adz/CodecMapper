@@ -928,6 +928,144 @@ module Xml =
             Decode: XmlSource -> string -> struct (obj * XmlSource)
         }
 
+    module internal Runtime =
+        let inline skipWhitespace (src: XmlSource) =
+            let mutable i = src.Offset
+            let data = src.Data
+
+            while i < data.Length && (data.[i] = 32uy || data.[i] = 10uy || data.[i] = 13uy || data.[i] = 9uy) do
+                i <- i + 1
+
+            ByteSource(data, i)
+
+        ///
+        /// The XML surface is intentionally small: element tags and escaped
+        /// text nodes, with no attributes or mixed content.
+        let expectOpenTag (tag: string) (src: XmlSource) =
+            let src = skipWhitespace src
+            let data = src.Data
+
+            if src.Offset >= data.Length || data.[src.Offset] <> 60uy then
+                failwith "Expected <"
+
+            let mutable i = src.Offset + 1
+
+            if i < data.Length && data.[i] = 47uy then
+                failwithf "Expected <%s>" tag
+
+            let start = i
+
+            while i < data.Length && data.[i] <> 62uy do
+                i <- i + 1
+
+            if i >= data.Length then
+                failwith "Unterminated tag"
+
+#if !FABLE_COMPILER
+            let actual = Encoding.UTF8.GetString(data, start, i - start)
+#else
+            let actual = Encoding.UTF8.GetString(data.[start .. i - 1])
+#endif
+
+            if actual <> tag then
+                failwithf "Expected <%s>" tag
+
+            ByteSource(data, i + 1)
+
+        let expectCloseTag (tag: string) (src: XmlSource) =
+            let src = skipWhitespace src
+            let data = src.Data
+
+            if src.Offset + 2 >= data.Length || data.[src.Offset] <> 60uy || data.[src.Offset + 1] <> 47uy then
+                failwithf "Expected </%s>" tag
+
+            let mutable i = src.Offset + 2
+            let start = i
+
+            while i < data.Length && data.[i] <> 62uy do
+                i <- i + 1
+
+            if i >= data.Length then
+                failwith "Unterminated tag"
+
+#if !FABLE_COMPILER
+            let actual = Encoding.UTF8.GetString(data, start, i - start)
+#else
+            let actual = Encoding.UTF8.GetString(data.[start .. i - 1])
+#endif
+
+            if actual <> tag then
+                failwithf "Expected </%s>" tag
+
+            ByteSource(data, i + 1)
+
+        let tryReadCloseTag (tag: string) (src: XmlSource) =
+            let src = skipWhitespace src
+            let data = src.Data
+
+            if src.Offset + tag.Length + 2 >= data.Length || data.[src.Offset] <> 60uy || data.[src.Offset + 1] <> 47uy then
+                None
+            else
+                let mutable i = src.Offset + 2
+                let start = i
+
+                while i < data.Length && data.[i] <> 62uy do
+                    i <- i + 1
+
+                if i >= data.Length then
+                    failwith "Unterminated tag"
+
+#if !FABLE_COMPILER
+                let actual = Encoding.UTF8.GetString(data, start, i - start)
+#else
+                let actual = Encoding.UTF8.GetString(data.[start .. i - 1])
+#endif
+
+                if actual = tag then
+                    Some(ByteSource(data, i + 1))
+                else
+                    None
+
+        ///
+        /// Text nodes must escape structural characters or the decoder cannot
+        /// distinguish content from markup.
+        let escapeText (value: string) =
+            let builder = StringBuilder()
+
+            for i in 0 .. value.Length - 1 do
+                match value.[i] with
+                | '&' -> builder.Append("&amp;") |> ignore
+                | '<' -> builder.Append("&lt;") |> ignore
+                | '>' -> builder.Append("&gt;") |> ignore
+                | '"' -> builder.Append("&quot;") |> ignore
+                | '\'' -> builder.Append("&apos;") |> ignore
+                | c -> builder.Append(c) |> ignore
+
+            builder.ToString()
+
+        let unescapeText (value: string) =
+            value
+                .Replace("&lt;", "<")
+                .Replace("&gt;", ">")
+                .Replace("&quot;", "\"")
+                .Replace("&apos;", "'")
+                .Replace("&amp;", "&")
+
+        let readTextNode (src: XmlSource) =
+            let data = src.Data
+            let mutable i = src.Offset
+
+            while i < data.Length && data.[i] <> 60uy do
+                i <- i + 1
+
+#if !FABLE_COMPILER
+            let raw = Encoding.UTF8.GetString(data, src.Offset, i - src.Offset)
+#else
+            let raw = Encoding.UTF8.GetString(data.[src.Offset .. i - 1])
+#endif
+
+            struct (unescapeText raw, ByteSource(data, i))
+
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
         | Primitive t when t = typeof<int> ->
@@ -944,26 +1082,11 @@ module Xml =
                         w.WriteByte(62uy))
                 Decode =
                     (fun src tag ->
-                        let data = src.Data
-                        let mutable i = src.Offset
-
-                        if data.[i] <> 60uy then
-                            failwith "Expected <"
-
-                        i <- i + tag.Length + 2
-                        let start = i
-
-                        while data.[i] <> 60uy do
-                            i <- i + 1
-
-                        let valStr = Encoding.UTF8.GetString(data, start, i - start)
-#if !FABLE_COMPILER
-                        let v = System.Int32.Parse(valStr)
-#else
-                        let v = System.Int32.Parse(valStr)
-#endif
-                        i <- i + tag.Length + 3
-                        struct (box v, ByteSource(data, i)))
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        let v = System.Int32.Parse(text.Trim())
+                        struct (box v, current))
             }
         | Primitive t when t = typeof<string> ->
             {
@@ -972,24 +1095,41 @@ module Xml =
                         w.WriteByte(60uy)
                         w.WriteString(tag)
                         w.WriteByte(62uy)
-                        w.WriteString(unbox v)
+                        w.WriteString(Runtime.escapeText (unbox v))
                         w.WriteByte(60uy)
                         w.WriteByte(47uy)
                         w.WriteString(tag)
                         w.WriteByte(62uy))
                 Decode =
                     (fun src tag ->
-                        let data = src.Data
-                        let mutable i = src.Offset
-                        i <- i + tag.Length + 2
-                        let start = i
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (v, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
+                        struct (box v, current))
+            }
+        | Primitive t when t = typeof<bool> ->
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+                        w.WriteString(if unbox<bool> v then "true" else "false")
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let struct (text, current) = Runtime.readTextNode current
+                        let current = Runtime.expectCloseTag tag current
 
-                        while data.[i] <> 60uy do
-                            i <- i + 1
-
-                        let v = Encoding.UTF8.GetString(data, start, i - start)
-                        i <- i + tag.Length + 3
-                        struct (box v, ByteSource(data, i)))
+                        match text.Trim() with
+                        | "true" -> struct (box true, current)
+                        | "false" -> struct (box false, current)
+                        | _ -> failwith "Expected true or false"
+                    )
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
@@ -1017,28 +1157,135 @@ module Xml =
                         w.WriteByte(62uy))
                 Decode =
                     (fun src tag ->
-                        let mutable current = src
-
-                        if current.Data.[current.Offset] <> 60uy then
-                            failwith "Expected <"
-
-                        current <- current.Advance(tag.Length + 2)
+                        let mutable current = Runtime.expectOpenTag tag src
 
                         let args =
                             compiledFields
                             |> Array.map (fun f ->
+                                current <- Runtime.skipWhitespace current
                                 let struct (v, next) = f.Codec.Decode current f.Name
                                 current <- next
                                 v)
 
-                        current <- current.Advance(tag.Length + 3)
+                        current <- Runtime.expectCloseTag tag current
                         struct (ctor args, current))
+            }
+        | List innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode =
+                    (fun w tag vObj ->
+                        let list = vObj :?> System.Collections.IEnumerable
+
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+
+                        for item in list do
+                            innerCodec.Encode w "item" item
+
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = Runtime.expectOpenTag tag src
+                        let results = ResizeArray<obj>()
+                        let mutable continueLoop = true
+
+                        while continueLoop do
+                            current <- Runtime.skipWhitespace current
+
+                            match Runtime.tryReadCloseTag tag current with
+                            | Some next ->
+                                current <- next
+                                continueLoop <- false
+                            | None ->
+                                let struct (item, next) = innerCodec.Decode current "item"
+                                results.Add(item)
+                                current <- next
+
+                        struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
+            }
+        | Array innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode =
+                    (fun w tag vObj ->
+#if !FABLE_COMPILER
+                        let arr = vObj :?> System.Array
+#else
+                        let arr = vObj :?> obj array
+#endif
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+
+#if !FABLE_COMPILER
+                        for i in 0 .. arr.Length - 1 do
+                            innerCodec.Encode w "item" (arr.GetValue(i))
+#else
+                        for i in 0 .. arr.Length - 1 do
+                            innerCodec.Encode w "item" arr.[i]
+#endif
+
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let mutable current = Runtime.expectOpenTag tag src
+                        let results = ResizeArray<obj>()
+                        let mutable continueLoop = true
+
+                        while continueLoop do
+                            current <- Runtime.skipWhitespace current
+
+                            match Runtime.tryReadCloseTag tag current with
+                            | Some next ->
+                                current <- next
+                                continueLoop <- false
+                            | None ->
+                                let struct (item, next) = innerCodec.Decode current "item"
+                                results.Add(item)
+                                current <- next
+
+#if !FABLE_COMPILER
+                        let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
+
+                        for i in 0 .. results.Count - 1 do
+                            targetArray.SetValue(results.[i], i)
+
+                        struct (box targetArray, current)
+#else
+                        struct (box (results.ToArray()), current)
+#endif
+                    )
+            }
+        | Map(inner, wrap, unwrapFunc) ->
+            let innerCodec = compileUntyped inner
+
+            {
+                Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
+                Decode = (fun src tag -> let struct (v, s) = innerCodec.Decode src tag in struct (wrap v, s))
             }
         | _ -> failwithf "Unsupported XML schema type"
 
     let compile (schema: Schema<'T>) : Codec<'T> =
         let compiled = compileUntyped (schema :> ISchema)
-        let rootTag = schema.TargetType.Name.ToLower()
+        let rootTag =
+            if schema.TargetType = typeof<int> then
+                "int"
+            elif schema.TargetType = typeof<string> then
+                "string"
+            elif schema.TargetType = typeof<bool> then
+                "bool"
+            else
+                schema.TargetType.Name.ToLowerInvariant()
 
         {
             Encode = (fun w v -> compiled.Encode w rootTag (box v))
@@ -1049,3 +1296,22 @@ module Xml =
         let writer = ResizableBuffer.Create(128)
         codec.Encode writer value
         Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
+
+    let deserialize (codec: Codec<'T>) (xml: string) =
+        let bytes = Encoding.UTF8.GetBytes(xml)
+        let struct (v, rest) = codec.Decode (ByteSource(bytes, 0))
+        let rest = Runtime.skipWhitespace rest
+
+        if rest.Offset <> bytes.Length then
+            failwith "Trailing content after top-level XML value"
+
+        v
+
+    let deserializeBytes (codec: Codec<'T>) (bytes: byte[]) =
+        let struct (v, rest) = codec.Decode (ByteSource(bytes, 0))
+        let rest = Runtime.skipWhitespace rest
+
+        if rest.Offset <> bytes.Length then
+            failwith "Trailing content after top-level XML value"
+
+        v

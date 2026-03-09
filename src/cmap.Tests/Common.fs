@@ -17,6 +17,9 @@ module Domain =
     type CollectionRecord = { List: int list; Array: string array }
     let makeCollectionRecord l a = { List = l; Array = a }
 
+    type BoolArrayRecord = { Enabled: bool; Aliases: string array }
+    let makeBoolArrayRecord enabled aliases = { Enabled = enabled; Aliases = aliases }
+
     type IdOnly = { Id: int }
     let makeIdOnly id = { Id = id }
 

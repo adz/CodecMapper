@@ -48,12 +48,16 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 ## Parser Notes
 
 - The JSON parser is handwritten and should be hardened with deterministic input coverage before deeper refactors.
-- The XML parser is intentionally narrower than the JSON support and needs dedicated expansion work rather than ad hoc fixes.
+- The XML parser now supports `int`, `string`, `bool`, records, `list`, `array`, and `Schema.map`, but it is still a deliberately small XML subset.
+- Supported XML is element-only: exact tags, escaped text nodes, repeated `<item>` children for collections, and ignorable inter-element whitespace.
+- Out of scope for now: attributes, self-closing tags, namespaces, mixed content, comments, CDATA, and processing instructions.
 - Parser work should prefer small state-machine steps plus exhaustive tests over “smart” generalized parsing.
 
 ## Test Coverage Notes
 
-- `src/cmap.Tests/Tests.fs` currently proves the typed pipeline with a 20-field round trip.
+- `src/cmap.Tests/SchemaDslTests.fs` proves the typed pipeline with a 20-field round trip.
+- `src/cmap.Tests/JsonParserTests.fs` holds the JSON compliance and adversarial cases.
+- `src/cmap.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
 - `src/cmap.AotTests/Program.fs` and `src/cmap.FableTests/Program.fs` are the compatibility sentinels. Keep them green when changing schema APIs.
 - `src/cmap.Benchmarks/CmapBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
 
@@ -61,7 +65,6 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 - Common built-in schemas are still minimal: primitives, `list`, `array`, and `map` are present, but the library does not yet expose a broad “common types” surface.
 - The docs show the main path but do not yet demonstrate all supported features in one place.
-- There is no current top-level `README.md`; benchmark summary and public positioning likely belong there next.
 
 ## Benchmarking Notes
 

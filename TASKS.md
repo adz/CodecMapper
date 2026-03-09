@@ -16,10 +16,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - *Done:* Coverage now lives in `src/cmap.Tests/JsonParserTests.fs`, with focused schema integration tests in `src/cmap.Tests/SchemaDslTests.fs`.
   - *Notes:* JSON now rejects trailing top-level content, leading-zero integers, malformed string escapes, incomplete bool literals, and over-depth unknown values. Unknown-field skipping is depth-bounded and deterministic, and `Schema.bool` is fully supported by `Json.compile`.
 
-- [ ] **Task 2: Expand XML Parsing**
+- [x] **Task 2: Expand XML Parsing**
   - Extend XML decode support beyond the current narrow subset.
   - Add symmetry tests for the expanded XML surface.
   - Document which XML constructs are intentionally supported and which are out of scope.
+  - *Done:* XML now supports `int`, `string`, `bool`, records, `list`, `array`, and mapped schemas on both encode and decode.
+  - *Notes:* The supported subset is element-only XML with exact tags, escaped text nodes, repeated `<item>` children for collections, and ignorable inter-element whitespace.
 
 - [ ] **Task 3: Common Schema Definitions**
   - Add first-class schema definitions or resolvers for common built-in types.

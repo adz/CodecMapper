@@ -9,6 +9,7 @@
     <Compile Include="Common.fs" />
     <Compile Include="SchemaDslTests.fs" />
     <Compile Include="JsonParserTests.fs" />
+    <Compile Include="XmlTests.fs" />
   </ItemGroup>
 
   <ItemGroup>
