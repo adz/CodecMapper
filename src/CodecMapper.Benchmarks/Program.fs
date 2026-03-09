@@ -2,7 +2,10 @@ namespace CodecMapper.Benchmarks
 
 open System
 open BenchmarkDotNet.Attributes
+open BenchmarkDotNet.Configs
+open BenchmarkDotNet.Jobs
 open BenchmarkDotNet.Running
+open BenchmarkDotNet.Toolchains.InProcess.Emit
 
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
@@ -42,5 +45,17 @@ type CompetitiveBenchmarks() =
 module Program =
     [<EntryPoint>]
     let main argv =
-        BenchmarkRunner.Run<CompetitiveBenchmarks>() |> ignore
+        ///
+        /// The archived experimental repo under `benchmarks/` contains another
+        /// benchmark project with the same filename, which breaks the default
+        /// child-project toolchain. Running in-process keeps BDN usable here
+        /// without depending on repo layout.
+        Environment.CurrentDirectory <- __SOURCE_DIRECTORY__
+
+        let config =
+            ManualConfig
+                .Create(DefaultConfig.Instance)
+                .AddJob(Job.Default.WithToolchain(InProcessEmitToolchain.Instance))
+
+        BenchmarkRunner.Run<CompetitiveBenchmarks>(config) |> ignore
         0
