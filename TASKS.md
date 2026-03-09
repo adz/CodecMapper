@@ -17,10 +17,12 @@ Completed migration and parser work was folded into [docs/AGENT_NOTES.md](docs/A
   - *Latest local comparison:* `CodecMapper` encode `769925.5 ns/op`, old `CodecMapper` encode `781210.3 ns/op`; `CodecMapper` decode bytes `1971350.4 ns/op`, old `CodecMapper` decode stream `2132364.1 ns/op`.
   - *Notes:* Current `CodecMapper` is slightly faster on this shared payload, but the old `CodecMapper` allocates less on both encode and decode.
 
-- [ ] **Task 12: Design a .NET-only C# attribute bridge**
+- [x] **Task 12: Design a .NET-only C# attribute bridge**
   - Support importing a conservative subset of `System.Text.Json` and `Newtonsoft.Json` attributes into `CodecMapper` schemas.
   - Keep this out of the core package; reflection/codegen tradeoffs should be explicit.
   - Define the supported attribute matrix and the unsupported cases up front.
+  - *Done:* Added [docs/CSHARP_ATTRIBUTE_BRIDGE.md](docs/CSHARP_ATTRIBUTE_BRIDGE.md) with the initial runtime-import API shape, supported attribute matrix, constructor policy, and explicit non-goals.
+  - *Notes:* The bridge should remain `.NET`-only and outside core. The first slice should import only conservative rename/ignore/required/constructor metadata and fail closed on converters, polymorphism, extension data, and serializer-specific runtime behavior.
 
 - [x] **Task 13: Rename `cmap` to `CodecMapper`**
   - Decide based on:

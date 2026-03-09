@@ -98,7 +98,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 ## Known Gaps
 
 - The common-type surface is broader now, but it still does not cover every .NET numeric or framework type a C# migration story might want.
-- There is no C# attribute bridge yet for `System.Text.Json` or `Newtonsoft.Json` contract metadata.
+- A bridge design now exists in `docs/CSHARP_ATTRIBUTE_BRIDGE.md`, but there is still no implementation yet for `System.Text.Json` or `Newtonsoft.Json` contract metadata.
 
 ## Benchmarking Notes
 
