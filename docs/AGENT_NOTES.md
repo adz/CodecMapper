@@ -142,6 +142,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - `dotnet run --project src/CodecMapper.AotTests/CodecMapper.AotTests.fsproj`
   - `dotnet run --project src/CodecMapper.FableTests/CodecMapper.FableTests.fsproj`
   - `bash scripts/generate-api-docs.sh`
+- That workflow now also deploys `output/` to GitHub Pages on pushes to `main`/`master`. The validation artifact (`api-docs`) and the Pages artifact should both come from the same generated `output/` tree.
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
 - `.githooks/pre-commit` runs the format check, so commits are expected to be `fantomas`-clean.
 - The active Fantomas policy is intentionally conservative:
