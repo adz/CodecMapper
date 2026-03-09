@@ -41,6 +41,6 @@ This file tracks the implementation of the "Schema-first" architecture for `cmap
   - Run a complete test run of all constructs inside this AOT-compiled binary.
   - *Success criteria:* Tests pass in a fully trimmed, Native AOT environment.
 
-- [ ] **Task 9: Fable Validation**
+- [x] **Task 9: Fable Validation**
   - Verify Fable compilation for JS target.
   - *Success criteria:* Library runs successfully in a Node.js test environment.
