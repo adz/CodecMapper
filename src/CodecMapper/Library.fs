@@ -1,7 +1,7 @@
-/// `CodecMapper` is a schema-first codec library for explicit wire contracts.
-///
-/// Start in `Schema` to describe the wire shape, then compile that schema in
-/// `Json` or `Xml` depending on the format boundary you need to talk to.
+// `CodecMapper` is a schema-first codec library for explicit wire contracts.
+//
+// Start in `Schema` to describe the wire shape, then compile that schema in
+// `Json` or `Xml` depending on the format boundary you need to talk to.
 namespace CodecMapper
 
 open System.Text
@@ -9,8 +9,8 @@ open System.Collections.Generic
 open Microsoft.FSharp.Reflection
 open System.Diagnostics.CodeAnalysis
 
-[<AutoOpen>]
 /// Low-level byte reading and writing primitives shared by the JSON and XML runtimes.
+[<AutoOpen>]
 module Core =
     /// A lightweight context for reading bytes.
     [<Struct>]
@@ -244,7 +244,7 @@ module Schema =
     ///
     /// Narrow numeric types can safely reuse the integer codec as long as the
     /// schema enforces range checks on decode.
-    let private rangedInt<'T>
+    let inline private rangedInt<'T>
         (typeName: string)
         (minValue: int)
         (maxValue: int)
@@ -507,7 +507,7 @@ module Schema =
         }
 
     /// Closes a fully-applied pipeline and returns the schema for `'T`.
-    let build (builder: Builder<'T, 'T>) : Schema<'T> =
+    let inline build (builder: Builder<'T, 'T>) : Schema<'T> =
         let fields = builder.Fields |> List.rev |> List.toArray
         let targetType = typeof<'T>
 

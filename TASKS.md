@@ -41,10 +41,15 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
   - Only add shapes that preserve symmetric encode/decode semantics cleanly.
 
-- [ ] **Task 20a: Surface and extend Fable compatibility**
+- [x] **Task 20a: Surface and extend Fable compatibility**
   - Document the existing compatibility story for Native AOT and Fable so it is visible in the README, getting-started docs, and API docs.
   - Explain that `tests/CodecMapper.FableTests/` is a sentinel compatibility app rather than a full JS runtime integration suite.
-  - Add an explicit `Fable 5` compatibility test path so upgrades do not silently regress the supported transpiler baseline.
+  - Add an explicit transpilation compatibility check so upgrades do not silently regress the supported Fable path.
+  - *Done:* Added `scripts/check-fable-compat.sh`, wired it into CI, and surfaced the AOT/Fable compatibility story in the README and docs. The current pinned Fable path is now exercised as an actual transpilation check.
+
+- [ ] **Task 20b: Add an explicit Fable 5 compatibility baseline**
+  - Decide whether the repo should pin `Fable 5` directly or run a second compatibility lane against that version.
+  - Add a stable `Fable 5` transpilation check once the version choice is deliberate and repeatable in CI.
 
 - [x] **Task 24: Split product, tests, and benchmarks into top-level folders**
   - Move runtime libraries under a dedicated top-level `src/` root.

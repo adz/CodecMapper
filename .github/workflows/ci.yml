@@ -45,6 +45,9 @@ jobs:
       - name: Run Fable sentinel
         run: dotnet run --project tests/CodecMapper.FableTests/CodecMapper.FableTests.fsproj --nologo
 
+      - name: Check Fable transpilation
+        run: bash scripts/check-fable-compat.sh
+
       - name: Build API docs
         run: bash scripts/generate-api-docs.sh
 

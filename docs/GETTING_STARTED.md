@@ -2,6 +2,8 @@
 
 `CodecMapper` lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
+The portable core in `CodecMapper` is intended to stay usable from Native AOT and Fable-oriented targets. The separate `CodecMapper.Bridge` assembly is `.NET`-only because it imports CLR serializer metadata through reflection.
+
 ## Core shape
 
 The stable schema DSL is:

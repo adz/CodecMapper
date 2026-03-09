@@ -14,7 +14,7 @@
 [![Last Commit](https://img.shields.io/github/last-commit/adz/CodecMapper)](https://github.com/adz/CodecMapper/commits/main)
 [![Stars](https://img.shields.io/github/stars/adz/CodecMapper?style=social)](https://github.com/adz/CodecMapper/stargazers)
 
-`CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and AOT-friendly execution.
+`CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and execution that stays friendly to Native AOT and Fable-style targets.
 
 It gives you one mapping model that can compile to JSON and XML codecs, with support for handwritten schemas in F# and migration paths from existing C# attribute-based contracts.
 
@@ -54,6 +54,12 @@ let codec = Json.compile personSchema
 - common built-in primitives, options, collections, and time-based types
 - validated mappings via `Schema.tryMap`
 - bridge importers for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
+
+## Compatibility
+
+- The core library is exercised by dedicated Native AOT and Fable sentinel apps under [tests/CodecMapper.AotTests](/home/adam/projects/cmap/tests/CodecMapper.AotTests) and [tests/CodecMapper.FableTests](/home/adam/projects/cmap/tests/CodecMapper.FableTests).
+- CI runs both the .NET sentinel app and a real Fable transpilation check of the Fable sentinel project.
+- The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/cmap/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/cmap/src/CodecMapper).
 
 ## Docs
 

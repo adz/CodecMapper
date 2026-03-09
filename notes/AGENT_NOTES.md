@@ -98,6 +98,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `tests/CodecMapper.Tests/XmlTests.fs` holds the XML subset round-trip and malformed-input coverage.
 - `tests/CodecMapper.Tests/CSharpBridgeTests.fs` covers the first runtime import path from C# classes and serializer attributes.
 - `tests/CodecMapper.AotTests/Program.fs` and `tests/CodecMapper.FableTests/Program.fs` are the compatibility sentinels. They now cover JSON and XML nested-record paths plus selected option/mapping/common-type cases.
+- `scripts/check-fable-compat.sh` now transpiles `tests/CodecMapper.FableTests/` through the pinned Fable CLI, so the repo has a real transpilation smoke test instead of only a .NET-shaped sentinel.
 - `benchmarks/CodecMapper.Benchmarks/CodecMapperBench.fs` now uses the pipeline DSL. Keep benchmark schemas aligned with public examples.
 
 ## Known Gaps
@@ -134,6 +135,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 - The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
 - The repo also has `scripts/generate-api-docs.sh`, which builds `fsdocs` output from the checked-in `docs/` content plus the public library XML comments under `src/`.
+- The repo also has `scripts/check-fable-compat.sh`, which runs the pinned Fable CLI against `tests/CodecMapper.FableTests/`.
 - GitHub Actions CI now lives in `.github/workflows/ci.yml` and is expected to stay aligned with those scripts:
   - `dotnet tool restore`
   - `dotnet restore CodecMapper.sln`
@@ -141,6 +143,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - `dotnet test tests/CodecMapper.Tests/CodecMapper.Tests.fsproj`
   - `dotnet run --project tests/CodecMapper.AotTests/CodecMapper.AotTests.fsproj`
   - `dotnet run --project tests/CodecMapper.FableTests/CodecMapper.FableTests.fsproj`
+  - `bash scripts/check-fable-compat.sh`
   - `bash scripts/generate-api-docs.sh`
 - That workflow now also deploys `output/` to GitHub Pages on pushes to `main`/`master`. The validation artifact (`api-docs`) and the Pages artifact should both come from the same generated `output/` tree.
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
