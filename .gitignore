@@ -22,6 +22,7 @@ node_modules/
 # Benchmarks
 BenchmarkDotNet.Artifacts/
 benchmarks/CodecMapper/
+.fsdocs/
 
 # IDEs
 .idea/
@@ -32,3 +33,4 @@ benchmarks/CodecMapper/
 .gemini/
 .DS_Store
 *.log
+output/

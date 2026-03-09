@@ -133,6 +133,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 ## Formatting
 
 - The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
+- The repo also has `scripts/generate-api-docs.sh`, which builds `fsdocs` output from the checked-in `docs/` content plus the core `CodecMapper` project XML comments.
 - `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
 - `.githooks/pre-commit` runs the format check, so commits are expected to be `fantomas`-clean.
 - The active Fantomas policy is intentionally conservative:
@@ -141,6 +142,8 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - `fsharp_newline_before_multiline_computation_expression = true`
   - `fsharp_keep_max_number_of_blank_lines = 1`
 - Keep formatter changes small and policy-driven. If you change `.editorconfig`, rerun the formatter across the repo and review the resulting DSL/test readability before committing.
+- The preserved CodecMapper logo now lives at `docs/logo.png` and is referenced from both `README.md` and `docs/index.md`. Treat that as the canonical branding asset path.
+- `fsdocs` output is treated as a generated artifact, not checked-in source. Build it into `output/`, which is ignored by Git.
 
 ## Legacy CodecMapper Comparison
 

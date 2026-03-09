@@ -1,5 +1,7 @@
 <Project>
   <PropertyGroup>
     <NuGetAudit>false</NuGetAudit>
+    <RepositoryUrl>https://github.com/adz/CodecMapper</RepositoryUrl>
+    <FsDocsCollectionName>CodecMapper</FsDocsCollectionName>
   </PropertyGroup>
 </Project>

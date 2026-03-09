@@ -7,12 +7,16 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 - [ ] **Task 15: Add extensive API documentation in code**
   - Add XML/API documentation at module and function level across the public surface.
   - Cover the schema DSL, JSON/XML compile and runtime functions, mapping helpers, and common built-in schemas.
+  - Integrate the preserved CodecMapper logo into the primary docs surface so API docs and repository docs share the same branding.
   - Keep the docs aligned with the actual supported behavior and edge cases already recorded in `docs/AGENT_NOTES.md`.
+  - *Progress:* public docs now cover the main schema DSL, built-in schema helpers, and JSON/XML compile and runtime entry points. More type- and module-level coverage is still needed deeper in the core surface.
 
-- [ ] **Task 16: Add an API documentation generator**
+- [x] **Task 16: Add an API documentation generator**
   - Choose and wire an API doc tool that works well for F# and checked-in docs output.
   - Make generation reproducible and easy to run locally.
+  - Ensure the generated docs can pick up the main repo branding assets, including the preserved logo.
   - Decide whether generated API docs should be committed or treated as build artifacts.
+  - *Done:* `fsdocs` is now wired through `scripts/generate-api-docs.sh`, the landing page lives in `docs/index.md`, the preserved logo is part of the main docs tree, and generated output stays uncommitted under `output/`.
 
 - [x] **Task 17: Expand the contract bridge surface**
   - Add `DataContract` / `DataMember` import support as another explicit bridge flavor.
@@ -37,6 +41,12 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
   - Only add shapes that preserve symmetric encode/decode semantics cleanly.
 
+- [ ] **Task 24: Split product, tests, and benchmarks into top-level folders**
+  - Move runtime libraries under a dedicated top-level `src/` root.
+  - Move test projects under a dedicated top-level `tests/` root.
+  - Move benchmark and comparison runners under a dedicated top-level `benchmarks/` root.
+  - Update solution/project references, scripts, hooks, and docs to match the new layout.
+
 - [x] **Task 21: Add a config contracts migration guide**
   - Write a guide for treating configuration as an explicit schema contract rather than an incidental serializer shape.
   - Show JSON as the canonical config format and XML as deprecated migration input only.
@@ -54,3 +64,8 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Decide whether missing/null/empty handling should grow beyond `Schema.missingAsNone` and `Schema.emptyStringAsNone`.
   - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
   - Keep strict message-contract behavior as the default.
+
+- [ ] **Task 25: Remove legacy comparison shims**
+  - Remove `CodecMapper.LegacyShim` and any remaining compatibility glue for the archived experimental repo.
+  - Decide whether old-vs-new comparison stays as a standalone manual benchmark or is retired entirely.
+  - Clean up docs and benchmark notes that still describe the shim path.

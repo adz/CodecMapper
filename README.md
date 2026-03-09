@@ -1,5 +1,7 @@
 # CodecMapper
 
+![CodecMapper logo](docs/logo.png)
+
 `CodecMapper` is a high-performance, AOT-friendly serialization library for F# built around explicit schemas and handwritten parsers. The current public DSL is pipeline-based and keeps encode/decode symmetry in one place.
 
 ## Schema DSL
@@ -55,4 +57,5 @@ They are machine-specific and should be read mainly as relative comparisons on t
 ## More
 
 - Getting started: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- API docs landing page source: [docs/index.md](docs/index.md)
 - Agent and maintenance notes: [docs/AGENT_NOTES.md](docs/AGENT_NOTES.md)
