@@ -29,6 +29,18 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
+    type OptionalRecord =
+        {
+            Nickname: string option
+            Age: int option
+        }
+
+    let makeOptionalRecord nickname age =
+        {
+            Nickname = nickname
+            Age = age
+        }
+
     type CollectionRecord = { List: int list; Array: string array }
     let makeCollectionRecord l a = { List = l; Array = a }
 

@@ -11,6 +11,9 @@ module Domain =
     type Person = { Id: int; Name: string; Home: Address }
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
+    type OptionalRecord = { Nickname: string option; Age: int option }
+    let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
+
 module Schemas =
     let address = 
         Schema.define<Address>
@@ -25,6 +28,13 @@ module Schemas =
         |> Schema.field "id" _.Id
         |> Schema.field "name" _.Name
         |> Schema.fieldWith "home" _.Home address
+        |> Schema.build
+
+    let optionalRecord =
+        Schema.define<OptionalRecord>
+        |> Schema.construct makeOptionalRecord
+        |> Schema.field "nickname" _.Nickname
+        |> Schema.field "age" _.Age
         |> Schema.build
 
 module Program =
@@ -51,6 +61,12 @@ module Program =
             let lJson = Json.serialize listCodec l
             let lDecoded = Json.deserialize listCodec lJson
             test "List round-trip" lDecoded l
+
+            let optionalCodec = Json.compile Schemas.optionalRecord
+            let optionalValue = { Nickname = Some "Fable"; Age = None }
+            let optionalJson = Json.serialize optionalCodec optionalValue
+            let optionalDecoded = Json.deserialize optionalCodec optionalJson
+            test "Option round-trip" optionalDecoded optionalValue
             
             printfn "Fable tests execution finished."
         with

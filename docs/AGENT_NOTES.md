@@ -34,6 +34,13 @@ The library now auto-resolves these additional schema helpers:
 
 The narrower numeric types are range-checked wrappers over `Schema.int`. The identity and time-based types are string-backed so JSON and XML remain symmetric without extra handwritten token parsers.
 
+## Option Semantics
+
+- `Schema.option inner` is now first-class and `option<'T>` auto-resolves inside record fields.
+- JSON uses `null` for `None`.
+- XML uses an empty wrapper element for `None` and a nested `<some>...</some>` element for `Some`.
+- Missing fields are still errors; option support is explicit-value semantics, not omit-on-missing semantics.
+
 ## Pipeline Findings
 
 - `Schema.define` currently returns `Builder<'T, unit>`.

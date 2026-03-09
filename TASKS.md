@@ -48,10 +48,12 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - Update the top-level README benchmark table with the latest machine-local numbers.
   - *Done:* README numbers were refreshed from the March 9, 2026 rerun of `src/cmap.Benchmarks.Runner`.
 
-- [ ] **Task 7: Add `null` and option support**
+- [x] **Task 7: Add `null` and option support**
   - Teach JSON to parse and emit `null` deterministically.
   - Add `Schema.option` and auto-resolution for `option<'T>` where feasible.
   - Define the XML representation for optional values explicitly and test encode/decode symmetry.
+  - *Done:* Added `Schema.option`, JSON `null` handling, and auto-resolution for `option<'T>`.
+  - *Notes:* `None` is `null` in JSON and an empty wrapper element in XML. Missing fields still remain errors; option support is explicit-value based.
 
 - [ ] **Task 8: Broaden numeric support deliberately**
   - Decide which additional numeric shapes should be first-class: likely `int64`, `uint32`, `uint64`, `float`, and `decimal`.

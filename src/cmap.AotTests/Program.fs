@@ -29,6 +29,9 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
+    type OptionalRecord = { Nickname: string option; Age: int option }
+    let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
+
     type AuditRecord =
         {
             UserId: Guid
@@ -75,6 +78,13 @@ module Schemas =
         |> Schema.construct makeAccount
         |> Schema.fieldWith "id" _.Id userId
         |> Schema.field "name" _.Name
+        |> Schema.build
+
+    let optionalRecord =
+        Schema.define<OptionalRecord>
+        |> Schema.construct makeOptionalRecord
+        |> Schema.field "nickname" _.Nickname
+        |> Schema.field "age" _.Age
         |> Schema.build
 
     let auditRecord =
@@ -147,6 +157,19 @@ module Program =
         let accountJson = Json.serialize accountCodec account
         let accountDecoded = Json.deserialize accountCodec accountJson
         test "Validated mapping round-trip" accountDecoded account
+
+        // 6. Option support
+        let optionalCodec = Json.compile Schemas.optionalRecord
+
+        let optionalValue =
+            {
+                Nickname = Some "AOT"
+                Age = None
+            }
+
+        let optionalJson = Json.serialize optionalCodec optionalValue
+        let optionalDecoded = Json.deserialize optionalCodec optionalJson
+        test "Option round-trip" optionalDecoded optionalValue
 
         printfn "All AOT tests passed successfully!"
         0

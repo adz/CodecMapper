@@ -95,6 +95,34 @@ let namesSchema = Schema.list Schema.string
 let aliasesSchema = Schema.array Schema.string
 ```
 
+## Options
+
+Options are explicit schemas too:
+
+```fsharp
+let maybeAgeSchema = Schema.option Schema.int
+```
+
+Inside records, `option<'T>` auto-resolves:
+
+```fsharp
+type Profile = { Nickname: string option; Age: int option }
+let makeProfile nickname age = { Nickname = nickname; Age = age }
+
+let profileSchema =
+    Schema.define<Profile>
+    |> Schema.construct makeProfile
+    |> Schema.field "nickname" _.Nickname
+    |> Schema.field "age" _.Age
+    |> Schema.build
+```
+
+Current wire representation is explicit rather than omitted:
+
+- JSON `None` encodes as `null`
+- XML `None` encodes as an empty element such as `<age></age>`
+- missing fields are still treated as errors
+
 ## Common built-in types
 
 These helpers are available directly and also auto-resolve inside records:

@@ -122,6 +122,7 @@ and SchemaDefinition =
     | Record of System.Type * SchemaField[] * (obj[] -> obj)
     | List of ISchema
     | Array of ISchema
+    | Option of ISchema
     | Map of ISchema * (obj -> obj) * (obj -> obj)
 
 type Schema<'T> = inherit ISchema
@@ -262,6 +263,8 @@ module Schema =
 
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))
 
+    let inline option (inner: Schema<'T>) : Schema<'T option> = create (Option(inner :> ISchema))
+
     let rec resolveSchema (t: System.Type) : ISchema =
         if t = typeof<int> then
             int :> ISchema
@@ -287,6 +290,17 @@ module Schema =
             dateTimeOffset :> ISchema
         elif t = typeof<System.TimeSpan> then
             timeSpan :> ISchema
+        elif
+            t.IsGenericType
+            && t.GetGenericTypeDefinition() = typedefof<option<_>>
+        then
+            let innerType = t.GetGenericArguments().[0]
+            let innerSchema = resolveSchema innerType
+
+            { new ISchema with
+                member _.TargetType = t
+                member _.Definition = Option(innerSchema)
+            }
         elif
             t.IsGenericType
             && t.GetGenericTypeDefinition() = typeof<list<_>>.GetGenericTypeDefinition()
@@ -455,6 +469,19 @@ module Json =
                     struct (false, ByteSource(data, src.Offset + 5))
                 else
                     failwith "Expected true or false"
+
+        let nullDecoder (src: JsonSource) =
+            let src = skipWhitespace src
+            let data = src.Data
+
+            if src.Offset + 3 < data.Length
+               && data.[src.Offset] = 110uy
+               && data.[src.Offset + 1] = 117uy
+               && data.[src.Offset + 2] = 108uy
+               && data.[src.Offset + 3] = 108uy then
+                ByteSource(data, src.Offset + 4)
+            else
+                failwith "Expected null"
 
         let stringRaw (src: JsonSource) : struct (int * int * JsonSource) =
             let src = skipWhitespace src
@@ -771,6 +798,33 @@ module Json =
                         else
                             w.WriteString("false"))
                 Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
+            }
+        | Option innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+            let cases = FSharpType.GetUnionCases(optionType)
+            let noneCase = cases |> Array.find (fun c -> c.Name = "None")
+            let someCase = cases |> Array.find (fun c -> c.Name = "Some")
+
+            {
+                Encode =
+                    (fun w v ->
+                        if isNull v then
+                            w.WriteString("null")
+                        else
+                            let _, fields = FSharpValue.GetUnionFields(v, optionType)
+                            innerCodec.Encode w fields.[0])
+                Decode =
+                    (fun src ->
+                        let src = Runtime.skipWhitespace src
+                        let data = src.Data
+
+                        if src.Offset < data.Length && data.[src.Offset] = 110uy then
+                            let next = Runtime.nullDecoder src
+                            struct (FSharpValue.MakeUnion(noneCase, [||]), next)
+                        else
+                            let struct (value, next) = innerCodec.Decode src
+                            struct (FSharpValue.MakeUnion(someCase, [| value |]), next))
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
@@ -1185,6 +1239,20 @@ module Xml =
 
             struct (unescapeText raw, ByteSource(data, i))
 
+        let makeOptionNone (optionType: System.Type) =
+            let noneCase =
+                FSharpType.GetUnionCases(optionType)
+                |> Array.find (fun c -> c.Name = "None")
+
+            FSharpValue.MakeUnion(noneCase, [||])
+
+        let makeOptionSome (optionType: System.Type) (value: obj) =
+            let someCase =
+                FSharpType.GetUnionCases(optionType)
+                |> Array.find (fun c -> c.Name = "Some")
+
+            FSharpValue.MakeUnion(someCase, [| value |])
+
     let rec compileUntyped (schema: ISchema) : CompiledCodec =
         match schema.Definition with
         | Primitive t when t = typeof<int> ->
@@ -1249,6 +1317,38 @@ module Xml =
                         | "false" -> struct (box false, current)
                         | _ -> failwith "Expected true or false"
                     )
+            }
+        | Option innerSchema ->
+            let innerCodec = compileUntyped innerSchema
+            let optionType = schema.TargetType
+
+            {
+                Encode =
+                    (fun w tag v ->
+                        w.WriteByte(60uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy)
+
+                        if not (isNull v) then
+                            innerCodec.Encode w "some" (FSharpValue.GetUnionFields(v, optionType) |> snd |> Array.item 0)
+
+                        w.WriteByte(60uy)
+                        w.WriteByte(47uy)
+                        w.WriteString(tag)
+                        w.WriteByte(62uy))
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let current = Runtime.skipWhitespace current
+
+                        match Runtime.tryReadCloseTag tag current with
+                        | Some next ->
+                            struct (Runtime.makeOptionNone optionType, next)
+                        | None ->
+                            let struct (value, current) = innerCodec.Decode current "some"
+                            let current = Runtime.skipWhitespace current
+                            let current = Runtime.expectCloseTag tag current
+                            struct (Runtime.makeOptionSome optionType value, current))
             }
         | Record(t, fields, ctor) ->
             let compiledFields =
