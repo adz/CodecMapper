@@ -129,6 +129,12 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - A manual Release runner was added in `src/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
 - Keep the manual Release runner for fast local snapshots and README updates; use BenchmarkDotNet when you specifically want richer statistical output.
 
+## Formatting
+
+- The repo now has `scripts/format.sh` and `scripts/format-check.sh`, both backed by the local `fantomas` tool manifest.
+- `scripts/install-git-hooks.sh` configures Git to use the versioned `.githooks` directory.
+- `.githooks/pre-commit` runs the format check, so commits are expected to be `fantomas`-clean.
+
 ## Legacy CodecMapper Comparison
 
 - The previous `CodecMapper` repo is cloned locally at `benchmarks/CodecMapper/` for reference only and is ignored by this repo's Git metadata.

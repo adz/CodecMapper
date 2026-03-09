@@ -9,9 +9,7 @@ open CodecMapper
 type Address = { Street: string; City: string }
 
 type Person =
-    { Id: int
-      Name: string
-      Home: Address }
+    { Id: int; Name: string; Home: Address }
 
 module Schemas =
     let address =
@@ -45,28 +43,30 @@ module Bench =
 
     let jsonBytes = Encoding.UTF8.GetBytes(json)
 
-    let stjSerialize () = System.Text.Json.JsonSerializer.Serialize(person, stjOptions)
+    let stjSerialize () =
+        System.Text.Json.JsonSerializer.Serialize(person, stjOptions)
+
     let cmapSerialize () = Json.serialize cmapCodec person
     let newtonsoftSerialize () = JsonConvert.SerializeObject(person)
 
-    let stjDeserialize () = System.Text.Json.JsonSerializer.Deserialize<Person>(json, stjOptions)
-    let cmapDeserializeBytes () = Json.deserializeBytes cmapCodec jsonBytes
-    let newtonsoftDeserialize () = JsonConvert.DeserializeObject<Person>(json)
+    let stjDeserialize () =
+        System.Text.Json.JsonSerializer.Deserialize<Person>(json, stjOptions)
+
+    let cmapDeserializeBytes () =
+        Json.deserializeBytes cmapCodec jsonBytes
+
+    let newtonsoftDeserialize () =
+        JsonConvert.DeserializeObject<Person>(json)
 
 type Measurement =
-    {
-        MeanNs: float
-        MeanAllocBytes: float
-    }
+    { MeanNs: float; MeanAllocBytes: float }
 
 module Runner =
     let private measure iterations rounds action guard =
         let rec loop round timeTotal allocTotal sinkSeed =
             if round = rounds then
-                {
-                    MeanNs = timeTotal / float rounds
-                    MeanAllocBytes = allocTotal / float rounds
-                }
+                { MeanNs = timeTotal / float rounds
+                  MeanAllocBytes = allocTotal / float rounds }
             else
                 GC.Collect()
                 GC.WaitForPendingFinalizers()
@@ -76,24 +76,24 @@ module Runner =
                 let sw = Stopwatch.StartNew()
                 let mutable sink = sinkSeed
 
-                for _ in 1 .. iterations do
+                for _ in 1..iterations do
                     sink <- sink ^^^ guard (action ())
 
                 sw.Stop()
                 let afterAlloc = GC.GetAllocatedBytesForCurrentThread()
 
-                let elapsedNs =
-                    sw.Elapsed.TotalMilliseconds * 1_000_000.0 / float iterations
+                let elapsedNs = sw.Elapsed.TotalMilliseconds * 1_000_000.0 / float iterations
 
-                let allocBytes =
-                    float (afterAlloc - beforeAlloc) / float iterations
+                let allocBytes = float (afterAlloc - beforeAlloc) / float iterations
 
                 loop (round + 1) (timeTotal + elapsedNs) (allocTotal + allocBytes) sink
 
         loop 0 0.0 0.0 0
 
     let private hashString (value: string) = value.Length
-    let private hashPerson (value: Person) = value.Id ^^^ value.Name.Length ^^^ value.Home.City.Length
+
+    let private hashPerson (value: Person) =
+        value.Id ^^^ value.Name.Length ^^^ value.Home.City.Length
 
     let run () =
         printfn "Manual Release benchmark summary"

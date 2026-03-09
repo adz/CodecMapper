@@ -7,27 +7,23 @@ open CodecMapper.Core
 type LegacyAddress = { City: string; PostCode: string }
 
 type LegacyPerson =
-    {
-        Id: int
-        Name: string
-        IsActive: bool
-        Score: float
-        Home: LegacyAddress
-        Tags: string array
-    }
+    { Id: int
+      Name: string
+      IsActive: bool
+      Score: float
+      Home: LegacyAddress
+      Tags: string array }
 
 module private LegacySchemas =
     let private makeAddress city postCode : LegacyAddress = { City = city; PostCode = postCode }
 
     let private makePerson id name isActive score home tags : LegacyPerson =
-        {
-            Id = id
-            Name = name
-            IsActive = isActive
-            Score = score
-            Home = home
-            Tags = tags
-        }
+        { Id = id
+          Name = name
+          IsActive = isActive
+          Score = score
+          Home = home
+          Tags = tags }
 
     let address =
         codec {
@@ -64,18 +60,14 @@ module LegacyJson =
 
 module Fixtures =
     let createPeople count : LegacyPerson list =
-        [ for i in 1 .. count ->
-              {
-                  Id = i
-                  Name = $"User-{i}"
-                  IsActive = i % 2 = 0
-                  Score = float i * 1.25
-                  Home =
-                    {
-                        City = "Adelaide"
-                        PostCode = sprintf "50%02d" (i % 100)
-                    }
-                  Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |]
-              } ]
+        [ for i in 1..count ->
+              { Id = i
+                Name = $"User-{i}"
+                IsActive = i % 2 = 0
+                Score = float i * 1.25
+                Home =
+                  { City = "Adelaide"
+                    PostCode = sprintf "50%02d" (i % 100) }
+                Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |] } ]
 
     let toUtf8Bytes (json: string) = Encoding.UTF8.GetBytes(json)

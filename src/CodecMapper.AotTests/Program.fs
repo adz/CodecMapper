@@ -8,7 +8,9 @@ module Domain =
     type Address = { Street: string; City: string }
     let makeAddress street city = { Street = street; City = city }
 
-    type Person = { Id: int; Name: string; Home: Address }
+    type Person =
+        { Id: int; Name: string; Home: Address }
+
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
     type PersonId = PersonId of int
@@ -29,50 +31,45 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
-    type OptionalRecord = { Nickname: string option; Age: int option }
+    type OptionalRecord =
+        { Nickname: string option
+          Age: int option }
+
     let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
 
     type NumericRecord =
-        {
-            Total: int64
-            Count: uint32
-            Capacity: uint64
-            Ratio: float
-            Price: decimal
-        }
+        { Total: int64
+          Count: uint32
+          Capacity: uint64
+          Ratio: float
+          Price: decimal }
 
     let makeNumericRecord total count capacity ratio price =
-        {
-            Total = total
-            Count = count
-            Capacity = capacity
-            Ratio = ratio
-            Price = price
-        }
+        { Total = total
+          Count = count
+          Capacity = capacity
+          Ratio = ratio
+          Price = price }
 
     type AuditRecord =
-        {
-            UserId: Guid
-            CreatedAt: DateTime
-            Duration: TimeSpan
-        }
+        { UserId: Guid
+          CreatedAt: DateTime
+          Duration: TimeSpan }
 
     let makeAuditRecord userId createdAt duration =
-        {
-            UserId = userId
-            CreatedAt = createdAt
-            Duration = duration
-        }
+        { UserId = userId
+          CreatedAt = createdAt
+          Duration = duration }
 
 module Schemas =
-    let address = 
+    let address =
         Schema.define<Address>
         |> Schema.construct makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
-    let person = 
+    let person =
         Schema.define<Person>
         |> Schema.construct makePerson
         |> Schema.field "id" _.Id
@@ -82,7 +79,7 @@ module Schemas =
 
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
-    let wrappedPerson = 
+    let wrappedPerson =
         Schema.define<WrappedPerson>
         |> Schema.construct makeWrappedPerson
         |> Schema.fieldWith "id" _.Id personId
@@ -174,11 +171,9 @@ module Program =
         let auditCodec = Json.compile Schemas.auditRecord
 
         let audit =
-            {
-                UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
-                CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
-                Duration = TimeSpan.FromMinutes(95.0)
-            }
+            { UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
+              CreatedAt = DateTime(2024, 10, 12, 8, 30, 45, DateTimeKind.Utc)
+              Duration = TimeSpan.FromMinutes(95.0) }
 
         let auditJson = Json.serialize auditCodec audit
         let auditDecoded = Json.deserialize auditCodec auditJson
@@ -194,11 +189,7 @@ module Program =
         // 6. Option support
         let optionalCodec = Json.compile Schemas.optionalRecord
 
-        let optionalValue =
-            {
-                Nickname = Some "AOT"
-                Age = None
-            }
+        let optionalValue = { Nickname = Some "AOT"; Age = None }
 
         let optionalJson = Json.serialize optionalCodec optionalValue
         let optionalDecoded = Json.deserialize optionalCodec optionalJson
@@ -213,13 +204,11 @@ module Program =
         let numericCodec = Json.compile Schemas.numericRecord
 
         let numeric =
-            {
-                Total = 9_223_372_036_854_775_000L
-                Count = 4_294_967_000u
-                Capacity = 18_446_744_073_709_551_000UL
-                Ratio = -12.5e3
-                Price = 12345.6789M
-            }
+            { Total = 9_223_372_036_854_775_000L
+              Count = 4_294_967_000u
+              Capacity = 18_446_744_073_709_551_000UL
+              Ratio = -12.5e3
+              Price = 12345.6789M }
 
         let numericJson = Json.serialize numericCodec numeric
         let numericDecoded = Json.deserialize numericCodec numericJson

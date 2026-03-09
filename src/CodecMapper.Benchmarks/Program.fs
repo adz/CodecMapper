@@ -36,7 +36,8 @@ type CompetitiveBenchmarks() =
     member _.STJ_Json_Deserialize() = StjBench.deserialize<Person> (json)
 
     [<Benchmark>]
-    member _.CodecMapper_Json_Deserialize_Bytes() = CodecMapperBench.deserializeBytes jsonBytes
+    member _.CodecMapper_Json_Deserialize_Bytes() =
+        CodecMapperBench.deserializeBytes jsonBytes
 
     [<Benchmark>]
     member _.Newtonsoft_Json_Deserialize() =

@@ -43,6 +43,36 @@ let json = Json.serialize jsonCodec person
 let decoded = Json.deserialize jsonCodec json
 ```
 
+If you prefer a shorter-looking DSL, open `CodecMapper.Schema` and call the schema steps directly:
+
+```fsharp
+open CodecMapper
+open CodecMapper.Schema
+
+type Person = { Id: int; Name: string }
+let makePerson id name = { Id = id; Name = name }
+
+let personSchema =
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> build
+```
+
+If you want a shorter qualified style without opening the module for the whole file, use a module alias:
+
+```fsharp
+module S = CodecMapper.Schema
+
+let personSchema =
+    S.define<Person>
+    |> S.construct makePerson
+    |> S.field "id" _.Id
+    |> S.field "name" _.Name
+    |> S.build
+```
+
 ## Nested records and explicit child schemas
 
 Use `Schema.fieldWith` when the nested type has its own schema:

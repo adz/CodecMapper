@@ -8,7 +8,9 @@ module Domain =
     type Address = { Street: string; City: string }
     let makeAddress street city = { Street = street; City = city }
 
-    type Person = { Id: int; Name: string; Home: Address }
+    type Person =
+        { Id: int; Name: string; Home: Address }
+
     let makePerson id name home = { Id = id; Name = name; Home = home }
 
     type UserId = UserId of int
@@ -25,18 +27,21 @@ module Domain =
     type Account = { Id: UserId; Name: string }
     let makeAccount id name = { Id = id; Name = name }
 
-    type OptionalRecord = { Nickname: string option; Age: int option }
+    type OptionalRecord =
+        { Nickname: string option
+          Age: int option }
+
     let makeOptionalRecord nickname age = { Nickname = nickname; Age = age }
 
 module Schemas =
-    let address = 
+    let address =
         Schema.define<Address>
         |> Schema.construct makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
-    let person = 
+    let person =
         Schema.define<Person>
         |> Schema.construct makePerson
         |> Schema.field "id" _.Id
@@ -74,7 +79,12 @@ module Program =
 
         try
             let pCodec = Json.compile Schemas.person
-            let p = { Id = 42; Name = "Fable"; Home = { Street = "Street"; City = "City" } }
+
+            let p =
+                { Id = 42
+                  Name = "Fable"
+                  Home = { Street = "Street"; City = "City" } }
+
             let pJson = Json.serialize pCodec p
             let pDecoded = Json.deserialize pCodec pJson
             test "Nested record round-trip" pDecoded p
@@ -85,7 +95,7 @@ module Program =
             test "Nested record XML round-trip" pXmlDecoded p
 
             let listCodec = Json.compile (Schema.list Schema.string)
-            let l = ["hello"; "fable"]
+            let l = [ "hello"; "fable" ]
             let lJson = Json.serialize listCodec l
             let lDecoded = Json.deserialize listCodec lJson
             test "List round-trip" lDecoded l
@@ -101,8 +111,9 @@ module Program =
             let accountJson = Json.serialize accountCodec accountValue
             let accountDecoded = Json.deserialize accountCodec accountJson
             test "Validated mapping round-trip" accountDecoded accountValue
-            
+
             printfn "Fable tests execution finished."
-        with
-        | ex -> printfn "[ERROR] %s" ex.Message
+        with ex ->
+            printfn "[ERROR] %s" ex.Message
+
         0

@@ -57,16 +57,22 @@ let ``Reject trailing content after top-level JSON value`` () =
     let stringCodec = Json.compile Schema.string
 
     expectFailure "Trailing content after top-level JSON value" (fun () -> Json.deserialize intCodec "1 2")
-    expectFailure "Trailing content after top-level JSON value" (fun () -> Json.deserialize stringCodec (quoted "ok" + "[]"))
+
+    expectFailure "Trailing content after top-level JSON value" (fun () ->
+        Json.deserialize stringCodec (quoted "ok" + "[]"))
 
 [<Fact>]
 let ``Unknown nested object with braces inside strings is skipped deterministically`` () =
-    let value = Json.deserialize idCodec """{"extra":{"text":"{[still text]}"},"id":42}"""
+    let value =
+        Json.deserialize idCodec """{"extra":{"text":"{[still text]}"},"id":42}"""
+
     test <@ value = { Id = 42 } @>
 
 [<Fact>]
 let ``Unknown nested array with delimiter-like strings is skipped deterministically`` () =
-    let json = """{"extra":["}","]","comma,inside",{"inner":"[{still text}]"}],"id":42}"""
+    let json =
+        """{"extra":["}","]","comma,inside",{"inner":"[{still text}]"}],"id":42}"""
+
     let value = Json.deserialize idCodec json
     test <@ value = { Id = 42 } @>
 
@@ -152,9 +158,7 @@ let ``Reject incomplete and invalid bool literals`` () =
 [<Fact>]
 let ``Skip deeply nested unknown values and still decode target field`` () =
     let nestedUnknown =
-        String.replicate 256 """{"x":"""
-        + "0"
-        + String.replicate 256 "}"
+        String.replicate 256 """{"x":""" + "0" + String.replicate 256 "}"
 
     let json = $"""{{"extra":{nestedUnknown},"id":42}}"""
     let value = Json.deserialize idCodec json
@@ -163,12 +167,8 @@ let ``Skip deeply nested unknown values and still decode target field`` () =
 [<Fact>]
 let ``Reject unknown values beyond the maximum JSON nesting depth`` () =
     let nestedUnknown =
-        String.replicate 300 """{"x":"""
-        + "0"
-        + String.replicate 300 "}"
+        String.replicate 300 """{"x":""" + "0" + String.replicate 300 "}"
 
     let json = $"""{{"extra":{nestedUnknown},"id":42}}"""
 
-    expectFailure
-        "Maximum JSON nesting depth exceeded"
-        (fun () -> Json.deserialize idCodec json)
+    expectFailure "Maximum JSON nesting depth exceeded" (fun () -> Json.deserialize idCodec json)

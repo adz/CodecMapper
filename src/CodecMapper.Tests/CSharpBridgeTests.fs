@@ -13,18 +13,16 @@ let ``System.Text.Json bridge imports constructor-bound classes`` () =
     let codec = Json.compile schema
 
     let value =
-        StjUser(
-            7,
-            "Ada",
-            StjAddress("Adelaide", "5000"),
-            [| "fsharp"; "json" |],
-            System.Nullable 42
-        )
+        StjUser(7, "Ada", StjAddress("Adelaide", "5000"), [| "fsharp"; "json" |], System.Nullable 42)
 
     let json = Json.serialize codec value
     let roundTrip = Json.deserialize codec json
 
-    test <@ json = """{"user_id":7,"display_name":"Ada","home":{"city":"Adelaide","post_code":"5000"},"tags":["fsharp","json"],"age":42}""" @>
+    test
+        <@
+            json = """{"user_id":7,"display_name":"Ada","home":{"city":"Adelaide","post_code":"5000"},"tags":["fsharp","json"],"age":42}"""
+        @>
+
     test <@ roundTrip.Id = 7 @>
     test <@ roundTrip.DisplayName = "Ada" @>
     test <@ roundTrip.Home.City = "Adelaide" @>
@@ -58,17 +56,16 @@ let ``Newtonsoft bridge imports constructor-bound classes`` () =
     let codec = Json.compile schema
 
     let value =
-        NewtonsoftUser(
-            9,
-            "Lin",
-            NewtonsoftAddress("Perth", "6000"),
-            new List<string>([ "bridge"; "newtonsoft" ])
-        )
+        NewtonsoftUser(9, "Lin", NewtonsoftAddress("Perth", "6000"), new List<string>([ "bridge"; "newtonsoft" ]))
 
     let json = Json.serialize codec value
     let roundTrip = Json.deserialize codec json
 
-    test <@ json = """{"user_id":9,"display_name":"Lin","home":{"city":"Perth","post_code":"6000"},"labels":["bridge","newtonsoft"]}""" @>
+    test
+        <@
+            json = """{"user_id":9,"display_name":"Lin","home":{"city":"Perth","post_code":"6000"},"labels":["bridge","newtonsoft"]}"""
+        @>
+
     test <@ roundTrip.Id = 9 @>
     test <@ roundTrip.DisplayName = "Lin" @>
     test <@ roundTrip.Home.City = "Perth" @>
@@ -80,12 +77,7 @@ let ``DataContract bridge imports constructor-bound classes`` () =
     let schema = DataContracts.import<DataContractUser> BridgeOptions.defaults
     let codec = Json.compile schema
 
-    let value =
-        DataContractUser(
-            11,
-            "Quinn",
-            DataContractAddress("Melbourne", "3000")
-        )
+    let value = DataContractUser(11, "Quinn", DataContractAddress("Melbourne", "3000"))
 
     let json = Json.serialize codec value
     let roundTrip = Json.deserialize codec json

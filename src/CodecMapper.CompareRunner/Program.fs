@@ -14,38 +14,32 @@ module CurrentJson = CodecMapper.Json
 type CurrentAddress = { City: string; PostCode: string }
 
 type CurrentPerson =
-    {
-        Id: int
-        Name: string
-        IsActive: bool
-        Score: float
-        Home: CurrentAddress
-        Tags: string array
-    }
+    { Id: int
+      Name: string
+      IsActive: bool
+      Score: float
+      Home: CurrentAddress
+      Tags: string array }
 
 type SharedAddress = { City: string; PostCode: string }
 
 type SharedPerson =
-    {
-        Id: int
-        Name: string
-        IsActive: bool
-        Score: float
-        Home: SharedAddress
-        Tags: string array
-    }
+    { Id: int
+      Name: string
+      IsActive: bool
+      Score: float
+      Home: SharedAddress
+      Tags: string array }
 
 let makeCurrentAddress city postCode : CurrentAddress = { City = city; PostCode = postCode }
 
 let makeCurrentPerson id name isActive score home tags : CurrentPerson =
-    {
-        Id = id
-        Name = name
-        IsActive = isActive
-        Score = score
-        Home = home
-        Tags = tags
-    }
+    { Id = id
+      Name = name
+      IsActive = isActive
+      Score = score
+      Home = home
+      Tags = tags }
 
 module CurrentSchemas =
     let address =
@@ -70,74 +64,75 @@ module CurrentSchemas =
 
 module Payload =
     let sharedPeople: SharedPerson list =
-        [ for i in 1 .. 1000 ->
-              {
-                  Id = i
-                  Name = $"User-{i}"
-                  IsActive = i % 2 = 0
-                  Score = float i * 1.25
-                  Home =
-                    {
-                        City = "Adelaide"
-                        PostCode = sprintf "50%02d" (i % 100)
-                    }
-                  Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |]
-              } ]
+        [ for i in 1..1000 ->
+              { Id = i
+                Name = $"User-{i}"
+                IsActive = i % 2 = 0
+                Score = float i * 1.25
+                Home =
+                  { City = "Adelaide"
+                    PostCode = sprintf "50%02d" (i % 100) }
+                Tags = [| "alpha"; "beta"; $"tag-{i % 10}" |] } ]
 
     let currentPeople: CurrentPerson list =
         sharedPeople
         |> List.map (fun person ->
-            {
-                Id = person.Id
-                Name = person.Name
-                IsActive = person.IsActive
-                Score = person.Score
-                Home =
-                    {
-                        City = person.Home.City
-                        PostCode = person.Home.PostCode
-                    }
-                Tags = Array.copy person.Tags
-            })
+            { Id = person.Id
+              Name = person.Name
+              IsActive = person.IsActive
+              Score = person.Score
+              Home =
+                { City = person.Home.City
+                  PostCode = person.Home.PostCode }
+              Tags = Array.copy person.Tags })
 
     let legacyPeople = Fixtures.createPeople 1000
 
     let stjOptions = JsonSerializerOptions()
-    let json : string = System.Text.Json.JsonSerializer.Serialize(sharedPeople, stjOptions)
-    let jsonBytes : byte[] = Encoding.UTF8.GetBytes(json)
+
+    let json: string =
+        System.Text.Json.JsonSerializer.Serialize(sharedPeople, stjOptions)
+
+    let jsonBytes: byte[] = Encoding.UTF8.GetBytes(json)
 
 module Bench =
     let private currentCodec = CurrentJson.compile CurrentSchemas.people
 
-    let currentEncode () = CurrentJson.serialize currentCodec Payload.currentPeople
-    let currentDecodeBytes () = CurrentJson.deserializeBytes currentCodec Payload.jsonBytes
+    let currentEncode () =
+        CurrentJson.serialize currentCodec Payload.currentPeople
 
-    let legacyEncode () = LegacyJson.encodePeople Payload.legacyPeople
+    let currentDecodeBytes () =
+        CurrentJson.deserializeBytes currentCodec Payload.jsonBytes
+
+    let legacyEncode () =
+        LegacyJson.encodePeople Payload.legacyPeople
+
     let legacyDecodeDoc () = LegacyJson.decodePeopleDoc Payload.json
-    let legacyDecodeStream () = LegacyJson.decodePeopleStream Payload.jsonBytes
 
-    let stjEncode () = System.Text.Json.JsonSerializer.Serialize(Payload.sharedPeople, Payload.stjOptions)
+    let legacyDecodeStream () =
+        LegacyJson.decodePeopleStream Payload.jsonBytes
+
+    let stjEncode () =
+        System.Text.Json.JsonSerializer.Serialize(Payload.sharedPeople, Payload.stjOptions)
 
     let stjDecode () =
         System.Text.Json.JsonSerializer.Deserialize<SharedPerson list>(Payload.json, Payload.stjOptions)
 
-    let newtonsoftEncode () = JsonConvert.SerializeObject(Payload.sharedPeople)
-    let newtonsoftDecode () = JsonConvert.DeserializeObject<SharedPerson list>(Payload.json)
+    let newtonsoftEncode () =
+        JsonConvert.SerializeObject(Payload.sharedPeople)
+
+    let newtonsoftDecode () =
+        JsonConvert.DeserializeObject<SharedPerson list>(Payload.json)
 
 type Measurement =
-    {
-        MeanNs: float
-        MeanAllocBytes: float
-    }
+    { MeanNs: float; MeanAllocBytes: float }
 
 module Runner =
     let private measure iterations rounds action guard =
         let rec loop round timeTotal allocTotal sinkSeed =
             if round = rounds then
-                {
-                    MeanNs = timeTotal / float rounds
-                    MeanAllocBytes = allocTotal / float rounds
-                }
+                { MeanNs = timeTotal / float rounds
+                  MeanAllocBytes = allocTotal / float rounds }
             else
                 GC.Collect()
                 GC.WaitForPendingFinalizers()
@@ -147,7 +142,7 @@ module Runner =
                 let sw = Stopwatch.StartNew()
                 let mutable sink = sinkSeed
 
-                for _ in 1 .. iterations do
+                for _ in 1..iterations do
                     sink <- sink ^^^ guard (action ())
 
                 sw.Stop()

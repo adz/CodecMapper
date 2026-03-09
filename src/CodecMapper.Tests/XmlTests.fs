@@ -56,12 +56,11 @@ let ``Decode XML with inter-element whitespace`` () =
 
     test
         <@
-            decoded =
-                { Id = 42
-                  Name = "Adam"
-                  Home =
-                    { Street = "123 F# Lane"
-                      City = "AOT City" } }
+            decoded = { Id = 42
+                        Name = "Adam"
+                        Home =
+                          { Street = "123 F# Lane"
+                            City = "AOT City" } }
         @>
 
 [<Fact>]
@@ -99,14 +98,18 @@ let ``Round-trip collections and mapped wrappers XML`` () =
 [<Fact>]
 let ``Round-trip bool and arrays XML`` () =
     let codec =
-        Xml.compile
-            (Schema.define<BoolArrayRecord>
-             |> Schema.construct makeBoolArrayRecord
-             |> Schema.field "enabled" _.Enabled
-             |> Schema.field "aliases" _.Aliases
-             |> Schema.build)
+        Xml.compile (
+            Schema.define<BoolArrayRecord>
+            |> Schema.construct makeBoolArrayRecord
+            |> Schema.field "enabled" _.Enabled
+            |> Schema.field "aliases" _.Aliases
+            |> Schema.build
+        )
 
-    let value = { Enabled = true; Aliases = [| "one"; "two" |] }
+    let value =
+        { Enabled = true
+          Aliases = [| "one"; "two" |] }
+
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml
 
@@ -116,11 +119,14 @@ let ``Round-trip bool and arrays XML`` () =
 let ``Reject mismatched XML tags deterministically`` () =
     let codec = Xml.compile personSchema
 
-    expectFailure
-        "Expected <name>"
-        (fun () -> Xml.deserialize codec "<person><id>42</id><title>Adam</title><home><street>123 F# Lane</street><city>AOT City</city></home></person>")
+    expectFailure "Expected <name>" (fun () ->
+        Xml.deserialize
+            codec
+            "<person><id>42</id><title>Adam</title><home><street>123 F# Lane</street><city>AOT City</city></home></person>")
 
 [<Fact>]
 let ``Reject trailing XML content after the root value`` () =
     let codec = Xml.compile Schema.int
-    expectFailure "Trailing content after top-level XML value" (fun () -> Xml.deserialize codec "<int>1</int><int>2</int>")
+
+    expectFailure "Trailing content after top-level XML value" (fun () ->
+        Xml.deserialize codec "<int>1</int><int>2</int>")

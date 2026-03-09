@@ -3,6 +3,7 @@ module SchemaDslTests
 open Xunit
 open Swensen.Unquote
 open CodecMapper
+open CodecMapper.Schema
 open TestCommon
 
 [<Fact>]
@@ -114,7 +115,11 @@ let ``Round-trip collections with auto-resolution`` () =
         |> Schema.build
 
     let codec = Json.compile collectionSchema
-    let value = { List = [ 1; 2 ]; Array = [| "a"; "b" |] }
+
+    let value =
+        { List = [ 1; 2 ]
+          Array = [| "a"; "b" |] }
+
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
     test <@ decoded = value @>
@@ -149,29 +154,53 @@ let ``Round-trip using typed pipeline with 20 fields`` () =
     let codec = Json.compile largeSchema
 
     let value =
-        {
-            F1 = 1
-            F2 = 2
-            F3 = 3
-            F4 = 4
-            F5 = 5
-            F6 = 6
-            F7 = 7
-            F8 = 8
-            F9 = 9
-            F10 = 10
-            F11 = 11
-            F12 = 12
-            F13 = 13
-            F14 = 14
-            F15 = 15
-            F16 = 16
-            F17 = 17
-            F18 = 18
-            F19 = 19
-            F20 = 20
-        }
+        { F1 = 1
+          F2 = 2
+          F3 = 3
+          F4 = 4
+          F5 = 5
+          F6 = 6
+          F7 = 7
+          F8 = 8
+          F9 = 9
+          F10 = 10
+          F11 = 11
+          F12 = 12
+          F13 = 13
+          F14 = 14
+          F15 = 15
+          F16 = 16
+          F17 = 17
+          F18 = 18
+          F19 = 19
+          F20 = 20 }
 
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
     test <@ decoded = value @>
+
+[<Fact>]
+let ``Pipeline DSL can use opened Schema module at file scope`` () =
+    let addressSchema =
+        define<Address>
+        |> construct makeAddress
+        |> field "street" _.Street
+        |> field "city" _.City
+        |> build
+
+    let personSchema =
+        define<Person>
+        |> construct makePerson
+        |> field "id" _.Id
+        |> field "name" _.Name
+        |> fieldWith "home" _.Home addressSchema
+        |> build
+
+    let codec = Json.compile personSchema
+
+    let person =
+        { Id = 12
+          Name = "Open"
+          Home = { Street = "Short"; City = "DSL" } }
+
+    test <@ Json.deserialize codec (Json.serialize codec person) = person @>
