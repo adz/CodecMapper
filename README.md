@@ -1,11 +1,11 @@
-# cmap
+# CodecMapper
 
-`cmap` is a high-performance, AOT-friendly serialization library for F# built around explicit schemas and handwritten parsers. The current public DSL is pipeline-based and keeps encode/decode symmetry in one place.
+`CodecMapper` is a high-performance, AOT-friendly serialization library for F# built around explicit schemas and handwritten parsers. The current public DSL is pipeline-based and keeps encode/decode symmetry in one place.
 
 ## Schema DSL
 
 ```fsharp
-open cmap
+open CodecMapper
 
 type Address = { Street: string; City: string }
 let makeAddress street city = { Street = street; City = city }
@@ -33,17 +33,17 @@ let codec = Json.compile personSchema
 
 ## Latest Benchmarks
 
-These numbers were rerun on March 9, 2026 with the manual Release harness in [src/cmap.Benchmarks.Runner/Program.fs](/home/adam/projects/cmap/src/cmap.Benchmarks.Runner/Program.fs).
+These numbers were rerun on March 9, 2026 with the manual Release harness in [src/CodecMapper.Benchmarks.Runner/Program.fs](src/CodecMapper.Benchmarks.Runner/Program.fs).
 
 They are machine-specific and should be read mainly as relative comparisons on this machine, not universal claims.
 
 | Operation | Mean ns/op | Alloc B/op |
 | --- | ---: | ---: |
 | `System.Text.Json` serialize | 866.9 | 504.2 |
-| `cmap` serialize | 520.8 | 512.0 |
+| `CodecMapper` serialize | 520.8 | 512.0 |
 | `Newtonsoft.Json` serialize | 1162.0 | 1664.8 |
 | `System.Text.Json` deserialize | 1107.9 | 896.0 |
-| `cmap` deserialize bytes | 863.4 | 944.0 |
+| `CodecMapper` deserialize bytes | 863.4 | 944.0 |
 | `Newtonsoft.Json` deserialize | 1766.8 | 3560.0 |
 
 ## Notes
@@ -54,5 +54,5 @@ They are machine-specific and should be read mainly as relative comparisons on t
 
 ## More
 
-- Getting started: [docs/GETTING_STARTED.md](/home/adam/projects/cmap/docs/GETTING_STARTED.md)
-- Agent and maintenance notes: [docs/AGENT_NOTES.md](/home/adam/projects/cmap/docs/AGENT_NOTES.md)
+- Getting started: [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)
+- Agent and maintenance notes: [docs/AGENT_NOTES.md](docs/AGENT_NOTES.md)

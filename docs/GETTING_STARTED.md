@@ -1,6 +1,6 @@
-# Getting Started with `cmap`
+# Getting Started with `CodecMapper`
 
-`cmap` lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
+`CodecMapper` lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
 ## Core shape
 
@@ -24,7 +24,7 @@ let roundTripped = Json.deserialize codec json
 ## Quick start
 
 ```fsharp
-open cmap
+open CodecMapper
 
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
