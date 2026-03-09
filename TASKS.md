@@ -37,7 +37,8 @@ Completed migration notes and DSL findings were moved into [docs/AGENT_NOTES.md]
   - *Done:* Added `Schema.tryMap` for smart constructors that can reject decoded values with explicit error messages.
   - *Notes:* `Schema.map` remains the total-function path, while `Schema.tryMap` covers validated wrappers such as positive `UserId` values.
 
-- [ ] **Task 5: Documentation Sweep**
+- [x] **Task 5: Documentation Sweep**
   - Update `docs/GETTING_STARTED.md` to demonstrate the full supported feature set.
   - Include nested records, lists/arrays, mapped wrapper types, explicit nested schemas, multi-format compilation, and any new common-type support.
   - Keep examples aligned with the actual public DSL.
+  - *Done:* `docs/GETTING_STARTED.md` now covers the stable pipeline DSL, nested schemas, collections, common built-in helpers, `Schema.map`, `Schema.tryMap`, explicit JSON/XML compilation, and the current XML subset.
