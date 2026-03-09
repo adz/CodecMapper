@@ -113,6 +113,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
   - extension data
   - converter attributes
   - mixed constructor-plus-setter binding
+- `docs/CONFIG_CONTRACTS.md` now records the recommended config migration direction: explicit schema contracts, JSON as the canonical write format, XML as migration input only, explicit version envelopes, and a separation between wire contracts and richer domain models.
 
 ## Benchmarking Notes
 
