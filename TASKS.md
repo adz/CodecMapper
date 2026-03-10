@@ -21,16 +21,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Support both C# and F# records/classes as generator inputs.
   - Prefer readable checked-in output over opaque build-only generation.
 
-- [ ] **Task 19a: Finish JSON Schema import boundary and fallback story**
-  - Keep the current structural-lowering-first design: deterministic shapes lower into normal schemas; branch-heavy or dynamic shapes stay on `Schema<JsonValue>`.
-  - Preserve the fast path for authored schemas and normal imported record/array/primitive contracts.
-  - Convert the remaining open questions into explicit policy:
-    `dependentSchemas` and `not` remain unsupported and therefore stay on raw `JsonValue` fallback with `importWithReport` diagnostics rather than partial enforcement.
-  - Document that recursive references and any future deeper composition semantics also remain outside the lowered-schema subset unless there is a deterministic normalization story.
-  - Capture the acceptance criteria in docs and tests so the fallback boundary is deliberate:
-    unsupported keywords must appear in `FallbackKeywords`, supported keywords must stay in `EnforcedKeywords` or `NormalizedKeywords`, and unsupported keywords must not silently alter the fast path for authored schemas.
-  - Current baseline:
-    `Schema.jsonValue`, `JsonSchema.import`, `JsonSchema.importWithReport`, format validators, local `$ref` normalization, object-shaped `allOf`, `oneOf`, `anyOf`, `if` / `then` / `else`, `type`, `properties`, `required`, `items`, schema-valued `additionalProperties`, `patternProperties`, `propertyNames`, `prefixItems`, `contains`, `enum`, `const`, string and numeric bounds, collection/property count bounds, `pattern`, and configured `format` validation are already implemented and covered.
+- [x] **Task 19a:** JSON Schema import now has an explicit structural-lowering boundary, raw `Schema<JsonValue>` fallback for dynamic shapes, diagnostics through `importWithReport`, and docs/tests that keep unsupported keywords such as `dependentSchemas`, `not`, and deeper recursive composition clearly out of scope for now.
 
 - [ ] **Task 20: Broaden common collection and interop type support**
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
@@ -50,11 +41,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
   - Keep strict message-contract behavior as the default.
 
-- [ ] **Task 26: Reorganize docs around Diataxis**
-  - Classify each user-facing document as a tutorial, how-to guide, technical reference, or explanation.
-  - Restructure the docs landing page and README links around that purpose-based navigation.
-  - Add missing JSON Schema docs in the right categories rather than treating all prose as a single getting-started guide.
-  - Keep API docs as the reference anchor and ensure new feature work adds docs in the appropriate category.
+- [x] **Task 26:** Docs are now organized around Diataxis: the core tutorial stays in `GETTING_STARTED`, JSON Schema docs are split across how-to/reference/explanation, C# contract import has its own how-to, and the docs landing page plus README now navigate by tutorial/how-to/reference/explanation with API docs as the reference anchor.
 
 - [ ] **Task 27: Automate benchmark snapshot publishing**
   - Add a script that runs the stable benchmark path and emits a docs-friendly summary format.

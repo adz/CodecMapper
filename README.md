@@ -91,6 +91,40 @@ The result is not hidden serializer behavior. It is the contract itself, written
 - Versioned message and config contracts stay deliberate because the wire shape is authored directly instead of inferred from whatever the current model happens to look like.
 - Migration is easier to stage: keep the external contract stable, refine the in-memory domain behind `map` / `tryMap`, and only introduce DTOs when you genuinely need a separate transport model.
 
+## Where it fits well
+
+`CodecMapper` is strongest when the wire contract matters and you want it to stay explicit.
+
+For message contracts:
+
+- Define the exact payload shape once.
+- Compile it into reusable codecs.
+- Keep version changes visible in the schema instead of relying on serializer conventions.
+
+For configuration contracts:
+
+- Treat config as a real contract rather than as incidental object serialization.
+- Keep migration and versioning logic deliberate.
+- Use the schema as the stable boundary even if the in-memory domain gets richer over time.
+
+For domain models:
+
+- Keep the domain type close to the wire contract when that is useful.
+- Use `Schema.map` and `Schema.tryMap` when the runtime model should be stronger than the serialized shape.
+- Introduce separate DTOs only when the transport model genuinely needs to diverge.
+
+## How JSON Schema fits in
+
+JSON Schema is a useful companion, but it is not the center of the library.
+
+- Author normal `Schema<'T>` values first when you control the contract.
+- Export JSON Schema from those authored contracts when other systems need a formal schema document.
+- Import external JSON Schema into `Schema<JsonValue>` when you are receiving a dynamic or externally-owned contract.
+
+That keeps the normal authored path simple while still giving you an integration story for external schema-driven systems.
+
+For exact JSON Schema capabilities and fallback boundaries, see [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md) and [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md).
+
 ## When models evolve
 
 One of the main benefits over convention-based serializers is that model evolution becomes explicit.
@@ -185,6 +219,7 @@ Tutorials:
 How-to guides:
 
 - [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md)
+- [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md)
 - [Configuration contracts guide](docs/CONFIG_CONTRACTS.md)
 
 Reference:
