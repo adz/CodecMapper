@@ -42,3 +42,21 @@ let ``Smart-constructor wrapper rejects invalid decoded values`` () =
 
     expectFailure "XML decode error at $/id: Validation failed: UserId must be positive" (fun () ->
         Xml.deserialize xmlCodec "<account><id>0</id><name>Ada</name></account>")
+
+[<Fact>]
+let ``Opt-in validated helpers reject invalid scalar values`` () =
+    expectFailure "Validation failed: string must not be empty" (fun () ->
+        Json.deserialize (Json.compile Schema.nonEmptyString) "\"\"")
+
+    expectFailure "Validation failed: int must be positive" (fun () ->
+        Json.deserialize (Json.compile Schema.positiveInt) "0")
+
+    expectFailure "Validation failed: list must contain at least one item" (fun () ->
+        Json.deserialize (Json.compile (Schema.nonEmptyList Schema.int)) "[]")
+
+[<Fact>]
+let ``Trimmed string helper normalizes on encode and decode`` () =
+    let codec = Json.compile Schema.trimmedString
+
+    test <@ Json.deserialize codec "\"  Ada  \"" = "Ada" @>
+    test <@ Json.serialize codec "  Ada  " = "\"Ada\"" @>

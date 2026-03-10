@@ -139,6 +139,32 @@ module Schema =
         )
 
     ///
+    /// Empty strings are often accidental placeholders rather than meaningful
+    /// values. This helper keeps that validation explicit and reusable.
+    let nonEmptyString: Schema<string> =
+        string
+        |> tryMap
+            (fun value ->
+                if System.String.IsNullOrEmpty(value) then
+                    Error "string must not be empty"
+                else
+                    Ok value)
+            id
+
+    ///
+    /// Some contracts normalize surrounding whitespace at the boundary rather
+    /// than making every caller remember to trim before encode and after decode.
+    let trimmedString: Schema<string> =
+        string |> map (fun value -> value.Trim()) (fun value -> value.Trim())
+
+    ///
+    /// Positive identifiers and counters are a common wire-level constraint,
+    /// and `tryMap` keeps that rule opt-in rather than global.
+    let positiveInt: Schema<int> =
+        int
+        |> tryMap (fun value -> if value > 0 then Ok value else Error "int must be positive") id
+
+    ///
     /// Narrow numeric types can safely reuse the integer codec as long as the
     /// schema enforces range checks on decode.
     let inline private rangedInt<'T>
@@ -245,6 +271,18 @@ module Schema =
 
     /// Builds a schema for an F# list.
     let inline list (inner: Schema<'T>) : Schema<'T list> = create (List(inner :> ISchema))
+
+    ///
+    /// Some wire contracts require at least one item, but keeping that rule in
+    /// the schema is still clearer than scattering ad hoc list checks elsewhere.
+    let inline nonEmptyList (inner: Schema<'T>) : Schema<'T list> =
+        list inner
+        |> tryMap
+            (fun values ->
+                match values with
+                | [] -> Error "list must contain at least one item"
+                | _ -> Ok values)
+            id
 
     /// Builds a schema for an array.
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))

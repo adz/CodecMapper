@@ -280,6 +280,17 @@ let userIdSchema =
 
 Read `Schema.tryMap` as "decode the wire value first, then validate/refine it into a stronger domain type."
 
+For common opt-in boundary rules, `Schema` also exposes small validated helpers:
+
+```fsharp
+let userNameSchema = Schema.nonEmptyString
+let retryCountSchema = Schema.positiveInt
+let tagsSchema = Schema.nonEmptyList Schema.string
+let normalizedLabelSchema = Schema.trimmedString
+```
+
+These stay explicit authoring choices. They do not weaken the normal `Schema.string`, `Schema.int`, or `Schema.list` defaults.
+
 That schema can then be used inside larger records:
 
 ```fsharp
@@ -361,6 +372,7 @@ Still out of scope:
 - Prefer `Schema.field` when the type auto-resolves cleanly.
 - Use `Schema.fieldWith` when the nested or wrapped type has an explicit schema.
 - Use `Schema.tryMap` when decode needs validation.
+- Reach for `Schema.nonEmptyString`, `Schema.trimmedString`, `Schema.positiveInt`, and `Schema.nonEmptyList` when those boundary rules are part of the contract.
 - Keep schemas in one place so JSON and XML stay aligned.
 - Use [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md) when you need external schema documents.
 - Use [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md) when you are importing existing C# contracts instead of authoring schemas directly.

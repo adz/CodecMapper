@@ -17,11 +17,7 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
 
 - [x] **Task 29:** Split `src/CodecMapper/Library.fs` into explicit dependency-ordered files (`Core.fs`, `Schema.fs`, `Json.fs`, `JsonSchema.fs`, `Xml.fs`, `KeyValue.fs`, and `Yaml.fs`) and updated `CodecMapper.fsproj` to preserve the existing no-behavior-change compilation order.
 
-- [ ] **Task 31: Ergonomics without reflection**
-  - Keep the runtime DSL explicit and AOT/Fable-safe; do not introduce a second magic authoring path.
-  - Add small authoring helpers where they make the current DSL read smaller, such as compile aliases and more built-in validated/domain combinators.
-  - Prefer expanding safe static auto-resolution over making `fieldWith` implicit through runtime metadata.
-  - Keep `fieldWith` for true schema boundaries such as validated wrappers, imported contracts, and explicit child schemas.
+- [x] **Task 31:** Improved explicit authoring ergonomics without adding reflection or a competing magic DSL by shipping compile aliases plus opt-in validated helpers such as `Schema.nonEmptyString`, `Schema.trimmedString`, `Schema.positiveInt`, and `Schema.nonEmptyList`, with matching docs and regression coverage.
 
 - [x] **Task 32:** Added path-aware decode diagnostics across `Json`, `Xml`, `KeyValue`, and `Yaml`, including missing-field paths, collection indices/items, and `Schema.tryMap` validation context, with matching regression coverage in the unit test suite.
 
