@@ -491,3 +491,106 @@ module DataContracts =
     /// Imports a `Schema<'T>` from a `[DataContract]` CLR type.
     let import<'T> options =
         Runtime.import<'T> Flavor.DataContract options
+
+type private SetterFieldBinding<'T> = {
+    Name: string
+    FieldType: Type
+    GetValue: obj -> obj
+    Setter: 'T -> obj -> unit
+    Schema: ISchema
+}
+
+/// Mutable fluent builder for authoring setter-bound schemas from C#.
+///
+/// This is intentionally a thin wrapper over the existing `SchemaDefinition`
+/// model rather than a second schema system. It is best suited to new
+/// parameterless C# classes with settable properties.
+[<Sealed>]
+type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
+    let fields = ResizeArray<SetterFieldBinding<'T>>()
+
+    do
+        if isNull factory then
+            nullArg (nameof factory)
+
+    member private _.AddField<'Field>
+        (name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>, schema: ISchema)
+        =
+        if String.IsNullOrWhiteSpace(name) then
+            invalidArg (nameof name) "Field name must not be empty."
+
+        if isNull getter then
+            nullArg (nameof getter)
+
+        if isNull setter then
+            nullArg (nameof setter)
+
+        fields.Add(
+            {
+                Name = name
+                FieldType = typeof<'Field>
+                GetValue = (fun value -> box (getter.Invoke(unbox<'T> value)))
+                Setter = (fun target value -> setter.Invoke(target, unbox<'Field> value))
+                Schema = schema
+            }
+        )
+
+        this
+
+    /// Adds a field that can be resolved automatically from its CLR type.
+    member this.Field<'Field>(name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>) =
+        let schema = Schema.resolveSchema typeof<'Field>
+        this.AddField(name, getter, setter, schema)
+
+    /// Adds a field with an explicit child schema.
+    member this.FieldWith<'Field>
+        (name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>, schema: Schema<'Field>)
+        =
+        if isNull (box schema) then
+            nullArg (nameof schema)
+
+        this.AddField(name, getter, setter, schema :> ISchema)
+
+    /// Closes the fluent builder and returns a normal `Schema<'T>`.
+    member _.Build() : Schema<'T> =
+        let schemaFields =
+            fields
+            |> Seq.map (fun field -> {
+                Name = field.Name
+                Type = field.FieldType
+                GetValue = field.GetValue
+                Schema = field.Schema
+            })
+            |> Seq.toArray
+
+        let buildFunc (args: obj[]) : obj =
+            let instance = factory.Invoke()
+
+            for i = 0 to schemaFields.Length - 1 do
+                fields.[i].Setter instance args.[i]
+
+            box instance
+
+        Schema.create<'T> (Record(typeof<'T>, schemaFields, buildFunc))
+
+/// C#-friendly entry points for schema authoring and codec compilation.
+///
+/// The canonical authoring style remains the F# `Schema` DSL. This wrapper is
+/// for the cases where writing that schema directly from C# is preferable to
+/// bridge import or future code generation.
+[<AbstractClass; Sealed>]
+type CSharpSchema =
+    /// Starts a fluent builder for a setter-bound C# class.
+    static member Record<'T when 'T: not struct>(factory: Func<'T>) = SetterRecordBuilder<'T>(factory)
+
+    /// Compiles a schema into a JSON codec.
+    static member Json<'T>(schema: Schema<'T>) = Json.compile schema
+
+    /// Compiles a schema into an XML codec.
+    static member Xml<'T>(schema: Schema<'T>) = Xml.compile schema
+
+    /// Compiles a schema into a flat key/value codec.
+    static member KeyValue<'T>(schema: Schema<'T>) = KeyValue.compile schema
+
+    /// Compiles a schema into a YAML codec.
+    static member Yaml<'T>(schema: Schema<'T>) = Yaml.compile schema

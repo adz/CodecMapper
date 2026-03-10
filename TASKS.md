@@ -29,10 +29,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 
 - [x] **Task 20c:** Added flat `KeyValue` projection for flattened record/scalar config and environment-style contracts, plus a small YAML codec for config-style mappings, sequences, scalars, and `null`, all driven from the same authored `Schema<'T>` model with docs/tests/sentinel coverage. Full YAML feature parity and broader lossy normalization remain out of scope.
 
-- [ ] **Task 22: Add a thin C# facade over schema authoring and execution**
-  - Explore a fluent builder-pattern facade for C# over the existing schema model.
-  - Keep the F# DSL canonical; the C# facade should be a wrapper, not a second implementation.
-  - Evaluate where the facade helps and where bridge/codegen remains the better path.
+- [x] **Task 22:** Added a thin C# facade over schema authoring and execution for setter-bound classes via `CSharpSchema.Record(...)`, with `Field` / `FieldWith` bindings, normal JSON/XML/KeyValue/Yaml compile helpers, C#-authored test coverage, and docs that keep the F# DSL canonical while pointing constructor-bound or attribute-heavy models back to the bridge/codegen path.
 
 - [ ] **Task 23: Broaden field-policy controls for config-style contracts**
   - Decide whether missing/null/empty handling should grow beyond `Schema.missingAsNone` and `Schema.emptyStringAsNone`.

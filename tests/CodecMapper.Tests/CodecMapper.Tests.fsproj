@@ -22,6 +22,7 @@
     <Compile Include="JsonValueTests.fs" />
     <Compile Include="JsonSchemaImportTests.fs" />
     <Compile Include="CSharpBridgeTests.fs" />
+    <Compile Include="CSharpFacadeTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

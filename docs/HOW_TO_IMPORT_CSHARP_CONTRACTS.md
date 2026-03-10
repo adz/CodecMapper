@@ -4,6 +4,48 @@ Use the bridge when you already have C# models annotated for `System.Text.Json`,
 
 This is a migration path, not the canonical authoring style. For new F#-first contracts, prefer a handwritten `Schema<'T>`.
 
+If you are authoring a new C# contract and want an explicit `CodecMapper` schema without serializer attributes, use the thin `CSharpSchema` facade instead of the bridge.
+
+## Author a schema directly from C#
+
+For setter-bound classes, the facade wraps the normal `Schema<'T>` model with a mutable fluent builder:
+
+```csharp
+using CodecMapper;
+using CodecMapper.Bridge;
+
+public sealed class Address
+{
+    public string Street { get; set; } = "";
+    public string City { get; set; } = "";
+}
+
+public sealed class User
+{
+    public int Id { get; set; }
+    public string DisplayName { get; set; } = "";
+    public Address Home { get; set; } = new();
+}
+
+var addressSchema =
+    CSharpSchema.Record(() => new Address())
+        .Field("street", value => value.Street, (value, field) => value.Street = field)
+        .Field("city", value => value.City, (value, field) => value.City = field)
+        .Build();
+
+var userSchema =
+    CSharpSchema.Record(() => new User())
+        .Field("id", value => value.Id, (value, field) => value.Id = field)
+        .Field("display_name", value => value.DisplayName, (value, field) => value.DisplayName = field)
+        .FieldWith("home", value => value.Home, (value, field) => value.Home = field, addressSchema)
+        .Build();
+
+var jsonCodec = CSharpSchema.Json(userSchema);
+var keyValueCodec = CSharpSchema.KeyValue(userSchema);
+```
+
+This is still a normal `Schema<T>` under the hood. The facade is just a thin wrapper over record-field definitions and the usual compile functions.
+
 ## Import a `System.Text.Json` contract
 
 F#:
@@ -91,6 +133,12 @@ Prefer handwritten schemas when:
 - you want the contract to stay obvious in F#
 - you want to avoid reflection in the authoring path
 
+Prefer the C# facade when:
+
+- you are defining a new setter-bound C# contract directly
+- you want explicit `CodecMapper` schemas without serializer attributes
+- you want the bridge and codegen paths to stay optional rather than foundational
+
 ## Supported bridge surface
 
 Current support is intentionally conservative:
@@ -110,5 +158,13 @@ These fail closed instead of being partially emulated:
 - polymorphic contracts
 - recursive graphs
 - classes that mix constructor-bound and setter-bound members
+
+For the C# facade specifically, current support is narrower:
+
+- parameterless setter-bound classes
+- explicit `Field` and `FieldWith` bindings
+- normal JSON/XML/KeyValue/YAML compile helpers after `Build()`
+
+Constructor-bound C# authoring is still better served by the bridge or future code generation.
 
 For the reasoning behind those boundaries, see [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md).

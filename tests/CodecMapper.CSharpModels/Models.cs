@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Runtime.Serialization;
 using System.Text.Json;
+using CodecMapper;
+using CodecMapper.Bridge;
 namespace CodecMapper.CSharpModels;
 
 public sealed class StjUppercaseStringConverter : System.Text.Json.Serialization.JsonConverter<string>
@@ -294,4 +296,36 @@ public sealed class DataContractAnimalDog : DataContractAnimal
 {
     [DataMember(Name = "name", IsRequired = true)]
     public string Name { get; set; } = "";
+}
+
+public sealed class FluentAddress
+{
+    public string Street { get; set; } = "";
+
+    public string City { get; set; } = "";
+}
+
+public sealed class FluentUser
+{
+    public int Id { get; set; }
+
+    public string DisplayName { get; set; } = "";
+
+    public FluentAddress Home { get; set; } = new();
+}
+
+public static class FluentSchemas
+{
+    public static Schema<FluentAddress> Address { get; } =
+        CSharpSchema.Record(() => new FluentAddress())
+            .Field("street", value => value.Street, (value, field) => value.Street = field)
+            .Field("city", value => value.City, (value, field) => value.City = field)
+            .Build();
+
+    public static Schema<FluentUser> User { get; } =
+        CSharpSchema.Record(() => new FluentUser())
+            .Field("id", value => value.Id, (value, field) => value.Id = field)
+            .Field("display_name", value => value.DisplayName, (value, field) => value.DisplayName = field)
+            .FieldWith("home", value => value.Home, (value, field) => value.Home = field, Address)
+            .Build();
 }

@@ -233,6 +233,7 @@ Compared with DTO-heavy designs, the difference is:
 - Reusable JSON and XML codecs compiled from the same schema
 - Flat key/value projection for config and environment-style contracts
 - A small YAML codec for config-style mappings, sequences, and scalars
+- A thin C# facade for setter-bound schema authoring and codec compilation
 - A handwritten parser/runtime in the core library rather than a thin wrapper over `System.Text.Json`
 - Built-in support for common numeric, enum, string, boolean, GUID, time-based, and collection interop types
 - Explicit field-policy helpers such as `Schema.missingAsNone` and `Schema.emptyStringAsNone`
