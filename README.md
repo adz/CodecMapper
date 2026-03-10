@@ -91,6 +91,28 @@ The result is not hidden serializer behavior. It is the contract itself, written
 - Versioned message and config contracts stay deliberate because the wire shape is authored directly instead of inferred from whatever the current model happens to look like.
 - Migration is easier to stage: keep the external contract stable, refine the in-memory domain behind `map` / `tryMap`, and only introduce DTOs when you genuinely need a separate transport model.
 
+## Why not just use X?
+
+`CodecMapper` is not trying to replace every serializer. It is for the cases where explicit contracts matter more than convention-driven convenience.
+
+| Option | Contract style | AOT | Fable | Performance | Ease of use | Best fit |
+| --- | --- | --- | --- | --- | --- | --- |
+| `System.Text.Json` | CLR-shape and attribute driven | Good with source generation | No | Strong | Easy | General-purpose .NET serialization |
+| `Newtonsoft.Json` | CLR-shape and attribute driven | Weaker | No | Moderate | Easy | Flexible JSON-heavy .NET apps |
+| `Thoth.Json` | Explicit JSON encoders/decoders | N/A | Strong | Good | Moderate | F# apps that want explicit JSON-only codecs |
+| `Fleece` / `Chiron`-style JSON mapping | F#-native JSON mapping | Varies | Limited | Varies | Moderate | F#-first JSON mapping without mainstream serializer attributes |
+| DTOs plus manual mapping | Fully explicit, but duplicated in transport types | Strong | Strong | Varies | Harder | Strict transport/domain separation when duplication is intentional |
+| JSON Schema-first workflows | External schema as source of truth | Varies | Varies | Varies | Moderate | Integrating with schema-owned external systems |
+| `CodecMapper` | Authored schema as source of truth | Strong | Strong | Strong | Moderate | Explicit message/config contracts with shared JSON/XML codecs |
+
+Other dimensions that matter:
+
+- Format symmetry: `CodecMapper` is centered on one contract driving both JSON and XML, while most alternatives are JSON-only or serializer-specific.
+- Model evolution: `CodecMapper` keeps contract edits explicit and supports domain refinement with `Schema.map` / `Schema.tryMap` before you reach for DTO duplication.
+- Tooling relationship: `CodecMapper` can export JSON Schema from the authored contract and also import external JSON Schema when you are adapting to another system.
+
+If your question is "why not just use `System.Text.Json`?", the short answer is: use it when convention-based object serialization is enough. Use `CodecMapper` when you want the contract itself to be visible, reviewable, reusable, and stable across model evolution.
+
 ## Where it fits well
 
 `CodecMapper` is strongest when the wire contract matters and you want it to stay explicit.
@@ -116,6 +138,22 @@ For domain models:
 ## How JSON Schema fits in
 
 JSON Schema is a useful companion, but it is not the center of the library.
+
+```text
+                 external schema docs
+                        ^
+                        |
+                 JsonSchema.generate
+                        |
+running app <-> Schema<'T> <-> Json.compile / Xml.compile
+                        |
+                 JsonSchema.import
+                        |
+                        v
+             external schema-owned inputs
+```
+
+The authored `Schema<'T>` is the source of truth. You do not generate app code from JSON Schema in the normal path, and JSON Schema does not replace the schema DSL. CodecMapper sits in the middle: it drives the running codecs you use in the app, and it can also project outward to formal schema documents or receive external schema-owned contracts.
 
 - Author normal `Schema<'T>` values first when you control the contract.
 - Export JSON Schema from those authored contracts when other systems need a formal schema document.
