@@ -496,13 +496,8 @@ module Schema =
         string
         |> map
             (fun value ->
-                System.DateTime.ParseExact(
-                    value,
-                    "O",
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.RoundtripKind
-                ))
-            (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
+                System.DateTime.ParseExact(value, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind))
+            (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
 
     /// A schema for `DateTimeOffset` using the round-trippable `"O"` string format.
     let dateTimeOffset: Schema<System.DateTimeOffset> =
@@ -512,17 +507,16 @@ module Schema =
                 System.DateTimeOffset.ParseExact(
                     value,
                     "O",
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.RoundtripKind
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind
                 ))
-            (fun value -> value.ToString("O", System.Globalization.CultureInfo.InvariantCulture))
+            (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
 
     /// A schema for `TimeSpan` using the invariant `"c"` format.
     let timeSpan: Schema<System.TimeSpan> =
         string
-        |> map
-            (fun value -> System.TimeSpan.ParseExact(value, "c", System.Globalization.CultureInfo.InvariantCulture))
-            (fun value -> value.ToString("c", System.Globalization.CultureInfo.InvariantCulture))
+        |> map (fun value -> System.TimeSpan.ParseExact(value, "c", CultureInfo.InvariantCulture)) (fun value ->
+            value.ToString("c", CultureInfo.InvariantCulture))
 
     ///
     /// Keep the .NET path using round-trip float formatting, but let Fable use
@@ -531,7 +525,7 @@ module Schema =
 #if FABLE_COMPILER
         value.ToString()
 #else
-        value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+        value.ToString("R", CultureInfo.InvariantCulture)
 #endif
 
     /// Builds a schema for an F# list.
@@ -1301,7 +1295,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: int64 = unbox v
-                    w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
             Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -1309,7 +1303,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: uint32 = unbox v
-                    w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
             Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -1317,7 +1311,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: uint64 = unbox v
-                    w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
             Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -1333,7 +1327,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: decimal = unbox v
-                    w.WriteString(value.ToString(System.Globalization.CultureInfo.InvariantCulture)))
+                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
             Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
             MissingValue = None
           }
@@ -1896,11 +1890,7 @@ module JsonSchema =
                 | false, _ -> Error "String did not match the uuid format")
             |> withFormat "date-time" (fun value ->
                 match
-                    System.DateTimeOffset.TryParse(
-                        value,
-                        System.Globalization.CultureInfo.InvariantCulture,
-                        System.Globalization.DateTimeStyles.RoundtripKind
-                    )
+                    System.DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
                 with
                 | true, _ -> Ok()
                 | false, _ -> Error "String did not match the date-time format")
@@ -1930,7 +1920,7 @@ module JsonSchema =
         | AnyOfNode of Node array
 
     let private escapeJsonString (value: string) =
-        let builder = System.Text.StringBuilder(value.Length + 8)
+        let builder = StringBuilder(value.Length + 8)
 
         for ch in value do
             match ch with
@@ -1948,12 +1938,12 @@ module JsonSchema =
 
         builder.ToString()
 
-    let private appendQuoted (builder: System.Text.StringBuilder) (value: string) =
+    let private appendQuoted (builder: StringBuilder) (value: string) =
         builder.Append('"') |> ignore
         builder.Append(escapeJsonString value) |> ignore
         builder.Append('"') |> ignore
 
-    let rec private appendNode (builder: System.Text.StringBuilder) (node: Node) =
+    let rec private appendNode (builder: StringBuilder) (node: Node) =
         let appendTypeObject typeName =
             builder.Append("{\"type\":") |> ignore
             appendQuoted builder typeName
@@ -2052,7 +2042,7 @@ module JsonSchema =
 
             ObjectNode(Some targetType.Name, properties, required)
 
-    let private appendRootNode (builder: System.Text.StringBuilder) (node: Node) =
+    let private appendRootNode (builder: StringBuilder) (node: Node) =
         match node with
         | Any -> ()
         | Null -> builder.Append(",\"type\":\"null\"") |> ignore
@@ -2218,18 +2208,14 @@ module JsonSchema =
         |> List.tryFind (fun (name, _) -> name = formatName)
         |> Option.map snd
 
-    let private addDistinct
-        (values: ResizeArray<string>)
-        (seen: System.Collections.Generic.HashSet<string>)
-        (value: string)
-        =
+    let private addDistinct (values: ResizeArray<string>) (seen: HashSet<string>) (value: string) =
         if seen.Add(value) then
             values.Add(value)
 
     let rec private collectSchemaKeywordsInto
         (value: JsonValue)
         (keywords: ResizeArray<string>)
-        (seen: System.Collections.Generic.HashSet<string>)
+        (seen: HashSet<string>)
         =
         match value with
         | JObject properties ->
@@ -2243,7 +2229,7 @@ module JsonSchema =
 
     let private collectSchemaKeywords (value: JsonValue) =
         let keywords = ResizeArray<string>()
-        let seen = System.Collections.Generic.HashSet<string>()
+        let seen = HashSet<string>()
         collectSchemaKeywordsInto value keywords seen
         List.ofSeq keywords
 
@@ -2333,7 +2319,7 @@ module JsonSchema =
     let private normalizeSchemaRefs (schemaNode: JsonValue) =
         let warnings = ResizeArray<string>()
         let normalizedKeywords = ResizeArray<string>()
-        let normalizedKeywordSet = System.Collections.Generic.HashSet<string>()
+        let normalizedKeywordSet = HashSet<string>()
 
         let addNormalized keyword =
             if normalizedKeywordSet.Add(keyword) then
@@ -2972,7 +2958,7 @@ module JsonSchema =
     /// representable here and therefore export as the underlying wire form.
     let generate (schema: Schema<'T>) =
         let rootNode = exportNode schema
-        let builder = System.Text.StringBuilder()
+        let builder = StringBuilder()
         let title = schema.TargetType.Name
 
         builder.Append("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\"")
@@ -3244,7 +3230,7 @@ module Xml =
                     w.WriteByte(60uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy)
-                    w.WriteString((unbox<int64> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    w.WriteString((unbox<int64> v).ToString(CultureInfo.InvariantCulture))
                     w.WriteByte(60uy)
                     w.WriteByte(47uy)
                     w.WriteString(tag)
@@ -3266,7 +3252,7 @@ module Xml =
                     w.WriteByte(60uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy)
-                    w.WriteString((unbox<uint32> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    w.WriteString((unbox<uint32> v).ToString(CultureInfo.InvariantCulture))
                     w.WriteByte(60uy)
                     w.WriteByte(47uy)
                     w.WriteString(tag)
@@ -3288,7 +3274,7 @@ module Xml =
                     w.WriteByte(60uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy)
-                    w.WriteString((unbox<uint64> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    w.WriteString((unbox<uint64> v).ToString(CultureInfo.InvariantCulture))
                     w.WriteByte(60uy)
                     w.WriteByte(47uy)
                     w.WriteString(tag)
@@ -3332,7 +3318,7 @@ module Xml =
                     w.WriteByte(60uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy)
-                    w.WriteString((unbox<decimal> v).ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    w.WriteString((unbox<decimal> v).ToString(CultureInfo.InvariantCulture))
                     w.WriteByte(60uy)
                     w.WriteByte(47uy)
                     w.WriteString(tag)
