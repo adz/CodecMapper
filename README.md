@@ -14,18 +14,9 @@
 [![Last Commit](https://img.shields.io/github/last-commit/adz/CodecMapper)](https://github.com/adz/CodecMapper/commits/main)
 [![Stars](https://img.shields.io/github/stars/adz/CodecMapper?style=social)](https://github.com/adz/CodecMapper/stargazers)
 
-`CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and execution that stays friendly to Native AOT and Fable-style targets.
+`CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and portability to Native AOT and Fable-style targets.
 
-It is for the cases where serializer attributes and implicit conventions stop being helpful: you want the wire shape to be visible in code, you want encode and decode to stay in sync, and you want the contract to read like the data it describes.
-
-The core idea is simple: define one schema that mirrors your record shape, then compile it into reusable codecs.
-
-That sits between two common extremes:
-
-- Put serializer attributes directly on domain types and let wire concerns leak into the model.
-- Introduce separate DTOs and mapping layers so the wire contract stays explicit, but now maintain extra types and conversion code.
-
-`CodecMapper` keeps the useful part of the DTO approach, explicit contracts, without forcing a duplicate object model for every message shape. The schema is the contract, and it sits next to the data instead of behind a second translation layer.
+It is for cases where serializer attributes and implicit conventions stop being helpful. You define one schema that mirrors the wire shape, then compile it into reusable codecs.
 
 ## Why the schema feels different
 
@@ -84,16 +75,13 @@ The result is not hidden serializer behavior. It is the contract itself, written
 
 If you want the compile step to read a bit smaller in samples, the format modules also expose `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` as direct aliases for `compile`.
 
-## Why this is useful
+## Why use it
 
 - The schema mirrors the data, so changes to the wire contract are visible in one place.
 - Encode and decode come from the same definition, so drift is harder to introduce accidentally.
 - `Json.compile` / `Json.codec` and `Xml.compile` / `Xml.codec` reuse the same schema instead of making you maintain separate mappings.
 - Domain refinement stays explicit through `Schema.map` and `Schema.tryMap` instead of being buried in serializer settings.
-- Versioned message and config contracts stay deliberate because the wire shape is authored directly instead of inferred from whatever the current model happens to look like.
-- Migration is easier to stage: keep the external contract stable, refine the in-memory domain behind `map` / `tryMap`, and only introduce DTOs when you genuinely need a separate transport model.
-
-See [When models evolve](#when-models-evolve) for the concrete version of this tradeoff.
+- Versioned message and config contracts stay deliberate because the wire shape is authored directly.
 
 ## Why not just use X?
 
@@ -109,35 +97,15 @@ See [When models evolve](#when-models-evolve) for the concrete version of this t
 | JSON Schema-first | Varies | Varies | External schema owned | Integrating with schema-owned systems |
 | `CodecMapper` | Strong | Strong | Authored schema contract | Explicit message/config contracts across JSON/XML |
 
-Other dimensions that matter:
-
-- Format symmetry: `CodecMapper` is centered on one contract driving both JSON and XML, while most alternatives are JSON-only or serializer-specific.
-- Model evolution: `CodecMapper` keeps contract edits explicit and supports domain refinement with `Schema.map` / `Schema.tryMap` before you reach for DTO duplication. See [When models evolve](#when-models-evolve).
-- Tooling relationship: `CodecMapper` can export JSON Schema from the authored contract and also import external JSON Schema when you are adapting to another system.
-
-If your question is "why not just use `System.Text.Json`?", the short answer is: use it when convention-based object serialization is enough. Use `CodecMapper` when you want the contract itself to be visible, reviewable, reusable, and stable across model evolution.
+Use `System.Text.Json` when convention-based object serialization is enough. Use `CodecMapper` when you want the contract itself to be visible, reviewable, reusable, and stable across model evolution.
 
 ## Where it fits well
 
 `CodecMapper` is strongest when the wire contract matters and you want it to stay explicit.
 
-For message contracts:
-
-- Define the exact payload shape once.
-- Compile it into reusable codecs.
-- Keep version changes visible in the schema instead of relying on serializer conventions.
-
-For configuration contracts:
-
-- Treat config as a real contract rather than as incidental object serialization.
-- Keep migration and versioning logic deliberate.
-- Use the schema as the stable boundary even if the in-memory domain gets richer over time.
-
-For domain models:
-
-- Keep the domain type close to the wire contract when that is useful.
-- Use `Schema.map` and `Schema.tryMap` when the runtime model should be stronger than the serialized shape.
-- Introduce separate DTOs only when the transport model genuinely needs to diverge.
+- Message contracts: define the payload shape once and keep changes visible in the schema.
+- Config contracts: treat configuration as a versioned boundary instead of incidental object serialization.
+- Domain refinement: use `Schema.map` and `Schema.tryMap` when the runtime model should be stronger than the serialized shape.
 
 ## How JSON Schema fits in
 
@@ -252,31 +220,14 @@ Compared with DTO-heavy designs, the difference is:
 - The shared sentinel now includes selected invalid and out-of-range numeric cases, so the portability story covers failure behavior as well as happy-path round-trips.
 - The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/CodecMapper/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/CodecMapper/src/CodecMapper).
 
-## Start here
+## Docs
 
-- Read [Getting started](docs/GETTING_STARTED.md) for the core mental model and schema DSL.
-
-## More docs
-
-Tutorials:
-
-- [Getting started](docs/GETTING_STARTED.md)
-
-How-to guides:
-
-- [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md)
-- [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md)
-- [Configuration contracts guide](docs/CONFIG_CONTRACTS.md)
-
-Reference:
-
-- [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md)
-- [API docs](https://adz.github.io/CodecMapper/)
-
-Explanations:
-
-- [JSON Schema in CodecMapper](docs/JSON_SCHEMA_EXPLANATION.md)
-- [C# attribute bridge design](docs/CSHARP_ATTRIBUTE_BRIDGE.md)
+- Start with [Getting started](docs/GETTING_STARTED.md).
+- Copy from [How to model common contract patterns](docs/HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md).
+- Use [Configuration contracts guide](docs/CONFIG_CONTRACTS.md) for versioned config shapes.
+- Use [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md) and [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md) for schema interchange.
+- Use [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md) and [C# attribute bridge design](docs/CSHARP_ATTRIBUTE_BRIDGE.md) for the bridge/facade story.
+- Browse the [API docs](https://adz.github.io/CodecMapper/).
 
 ## Benchmarks
 

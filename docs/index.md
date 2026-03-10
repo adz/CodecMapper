@@ -19,6 +19,8 @@ Use how-to guides when you already know what you want to accomplish.
   Generate JSON Schema documents or import external JSON Schema contracts.
 - [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md)
   Bring `System.Text.Json`, `Newtonsoft.Json`, or `DataContract` models into `CodecMapper`.
+- [How To Model Common Contract Patterns](HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md)
+  Start from copy-pasteable patterns for basic records, validated wrappers, config contracts, and bridge scenarios.
 - [Config Contracts Guide](CONFIG_CONTRACTS.md)
   Treat application configuration as an explicit versioned wire contract.
 

@@ -25,10 +25,7 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
 
 - [x] **Task 32:** Added path-aware decode diagnostics across `Json`, `Xml`, `KeyValue`, and `Yaml`, including missing-field paths, collection indices/items, and `Schema.tryMap` validation context, with matching regression coverage in the unit test suite.
 
-- [ ] **Task 33: Ship canonical pattern docs**
-  - Add copy-pasteable reference patterns for basic records, nested records, validated wrappers, versioned contracts, config contracts, JSON Schema import, and the C# bridge.
-  - Keep the examples aligned with the stable `Schema.define |> Schema.construct |> ... |> Schema.build` DSL.
-  - Make the “small explicit DSL” and compile-once workflow easy to discover from README and docs landing pages.
+- [x] **Task 33:** Added a canonical contract-pattern guide covering basic records, nested records, validated wrappers, versioned contracts, config contracts, JSON Schema import, and the C# bridge, and linked it from the README and docs landing pages so the copy-paste patterns are easy to find.
 
 - [ ] **Task 34: Keep Task 18 focused on build-time code generation**
   - Generate ordinary checked-in F# schema code rather than introducing a second runtime schema system.
