@@ -47,6 +47,159 @@ module Core =
         else
             false
 
+    let private isDigitsOnly (text: string) =
+        let mutable valid = text.Length > 0
+        let mutable index = 0
+
+        while valid && index < text.Length do
+            let ch = text.[index]
+
+            if ch < '0' || ch > '9' then
+                valid <- false
+            else
+                index <- index + 1
+
+        valid
+
+    type private NumericTokenState =
+        | InvalidToken
+        | OutOfRangeToken
+
+    ///
+    /// Integer parsing only needs ASCII digit validation, so we can classify
+    /// invalid text versus range overflow without relying on exception types.
+    let private classifyIntegerToken (allowMinus: bool) (text: string) =
+        if text = "" then
+            InvalidToken
+        elif allowMinus && text.[0] = '-' then
+            if text.Length = 1 then InvalidToken
+            elif isDigitsOnly (text.Substring(1)) then OutOfRangeToken
+            else InvalidToken
+        elif isDigitsOnly text then
+            OutOfRangeToken
+        else
+            InvalidToken
+
+    let tryParseInt32Invariant (text: string) =
+        match System.Int32.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseInt64Invariant (text: string) =
+        match System.Int64.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseUInt32Invariant (text: string) =
+        match System.UInt32.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseUInt64Invariant (text: string) =
+        match System.UInt64.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseInt16Invariant (text: string) =
+        match System.Int16.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseByteInvariant (text: string) =
+        match System.Byte.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseSByteInvariant (text: string) =
+        match System.SByte.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let tryParseUInt16Invariant (text: string) =
+        match System.UInt16.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+
+    let private tryParseFloatPlatformInvariant (text: string) =
+#if FABLE_COMPILER
+        match System.Double.TryParse(text) with
+        | true, value when not (System.Double.IsInfinity(value) || System.Double.IsNaN(value)) -> Some value
+        | _ -> None
+#else
+        match System.Double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture) with
+        | true, value when not (System.Double.IsInfinity(value) || System.Double.IsNaN(value)) -> Some value
+        | _ -> None
+#endif
+
+    let private tryParseDecimalPlatformInvariant (text: string) =
+#if FABLE_COMPILER
+        match System.Decimal.TryParse(text) with
+        | true, value -> Some value
+        | false, _ -> None
+#else
+        match System.Decimal.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture) with
+        | true, value -> Some value
+        | false, _ -> None
+#endif
+
+    let tryParseFloatInvariant = tryParseFloatPlatformInvariant
+    let tryParseDecimalInvariant = tryParseDecimalPlatformInvariant
+
+    let private failIntegerToken typeName allowMinus token =
+        match classifyIntegerToken allowMinus token with
+        | OutOfRangeToken -> failwithf "%s value out of range: %s" typeName token
+        | InvalidToken -> failwithf "Invalid %s value: %s" typeName token
+
+    let parseInt32Invariant typeName token =
+        match tryParseInt32Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName true token
+
+    let parseInt64Invariant typeName token =
+        match tryParseInt64Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName true token
+
+    let parseUInt32Invariant typeName token =
+        match tryParseUInt32Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName false token
+
+    let parseUInt64Invariant typeName token =
+        match tryParseUInt64Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName false token
+
+    let parseInt16Invariant typeName token =
+        match tryParseInt16Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName true token
+
+    let parseByteInvariant typeName token =
+        match tryParseByteInvariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName false token
+
+    let parseSByteInvariant typeName token =
+        match tryParseSByteInvariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName true token
+
+    let parseUInt16Invariant typeName token =
+        match tryParseUInt16Invariant token with
+        | Some value -> value
+        | None -> failIntegerToken typeName false token
+
+    let parseFloatInvariant typeName token =
+        match tryParseFloatInvariant token with
+        | Some value -> value
+        | None -> failwithf "Invalid %s value: %s" typeName token
+
+    let parseDecimalInvariant typeName token =
+        match tryParseDecimalInvariant token with
+        | Some value -> value
+        | None -> failwithf "Invalid %s value: %s" typeName token
+
     /// Abstraction for writing bytes, to be implemented per target platform.
     type IByteWriter =
         /// Ensures that at least `n` more bytes can be written without reallocating.
@@ -746,88 +899,32 @@ module Json =
         let intDecoder: Decoder<int> =
             fun src ->
                 let struct (token, next) = numberToken false src
-
-                try
-                    struct (System.Int32.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Integer,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with :? System.OverflowException ->
-                    failwithf "int value out of range: %s" token
+                struct (Core.parseInt32Invariant "int" token, next)
 
         let int64Decoder: Decoder<int64> =
             fun src ->
                 let struct (token, next) = numberToken false src
-
-                try
-                    struct (System.Int64.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Integer,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with :? System.OverflowException ->
-                    failwithf "int64 value out of range: %s" token
+                struct (Core.parseInt64Invariant "int64" token, next)
 
         let uint32Decoder: Decoder<uint32> =
             fun src ->
                 let struct (token, next) = numberToken false src
-
-                try
-                    struct (System.UInt32.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Integer,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with :? System.OverflowException ->
-                    failwithf "uint32 value out of range: %s" token
+                struct (Core.parseUInt32Invariant "uint32" token, next)
 
         let uint64Decoder: Decoder<uint64> =
             fun src ->
                 let struct (token, next) = numberToken false src
-
-                try
-                    struct (System.UInt64.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Integer,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with :? System.OverflowException ->
-                    failwithf "uint64 value out of range: %s" token
+                struct (Core.parseUInt64Invariant "uint64" token, next)
 
         let floatDecoder: Decoder<float> =
             fun src ->
                 let struct (token, next) = numberToken true src
-
-                try
-                    struct (System.Double.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with
-                | :? System.FormatException -> failwithf "Invalid float value: %s" token
-                | :? System.OverflowException -> failwithf "float value out of range: %s" token
+                struct (Core.parseFloatInvariant "float" token, next)
 
         let decimalDecoder: Decoder<decimal> =
             fun src ->
                 let struct (token, next) = numberToken true src
-
-                try
-                    struct (System.Decimal.Parse(
-                                token,
-                                System.Globalization.NumberStyles.Float,
-                                System.Globalization.CultureInfo.InvariantCulture
-                            ),
-                            next)
-                with
-                | :? System.FormatException -> failwithf "Invalid decimal value: %s" token
-                | :? System.OverflowException -> failwithf "decimal value out of range: %s" token
+                struct (Core.parseDecimalInvariant "decimal" token, next)
 
         let boolDecoder: Decoder<bool> =
             fun src ->
@@ -2020,28 +2117,12 @@ module JsonSchema =
 
     let private tryGetIntProperty (name: string) (properties: (string * JsonValue) list) =
         match tryFindProperty name properties with
-        | Some(JNumber token) ->
-            match
-                System.Int32.TryParse(
-                    token,
-                    System.Globalization.NumberStyles.Integer,
-                    System.Globalization.CultureInfo.InvariantCulture
-                )
-            with
-            | true, value -> Some value
-            | false, _ -> None
+        | Some(JNumber token) -> Core.tryParseInt32Invariant token
         | _ -> None
 
     let private tryGetDecimalProperty (name: string) (properties: (string * JsonValue) list) =
         match tryFindProperty name properties with
-        | Some(JNumber token) ->
-            Some(
-                System.Decimal.Parse(
-                    token,
-                    System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture
-                )
-            )
+        | Some(JNumber token) -> Core.tryParseDecimalInvariant token
         | _ -> None
 
     let private tryGetArrayProperty (name: string) (properties: (string * JsonValue) list) =
@@ -2118,16 +2199,7 @@ module JsonSchema =
 
     let private equalJsonValue left right = left = right
 
-    let private tryParseDecimalToken (token: string) =
-        match
-            System.Decimal.TryParse(
-                token,
-                System.Globalization.NumberStyles.Float,
-                System.Globalization.CultureInfo.InvariantCulture
-            )
-        with
-        | true, value -> Some value
-        | false, _ -> None
+    let private tryParseDecimalToken (token: string) = Core.tryParseDecimalInvariant token
 
     let private combineImportRules (rules: (JsonValue -> Result<JsonValue, string>) list) =
         fun value ->
@@ -2191,8 +2263,8 @@ module JsonSchema =
                 |> List.tryFind (fun (name, _) -> name = segment)
                 |> Option.bind (fun (_, next) -> loop next rest)
             | segment :: rest, JArray items ->
-                match System.Int32.TryParse(segment, System.Globalization.CultureInfo.InvariantCulture) with
-                | true, index when index >= 0 && index < items.Length -> loop items.[index] rest
+                match Core.tryParseInt32Invariant segment with
+                | Some index when index >= 0 && index < items.Length -> loop items.[index] rest
                 | _ -> None
             | _ -> None
 
@@ -3166,7 +3238,7 @@ module Xml =
                     let current = Runtime.expectOpenTag tag src
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
-                    let v = System.Int32.Parse(text.Trim())
+                    let v = Core.parseInt32Invariant "int" (text.Trim())
                     struct (box v, current))
             MissingValue = None
           }
@@ -3187,12 +3259,7 @@ module Xml =
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
 
-                    let value =
-                        System.Int64.Parse(
-                            text.Trim(),
-                            System.Globalization.NumberStyles.Integer,
-                            System.Globalization.CultureInfo.InvariantCulture
-                        )
+                    let value = Core.parseInt64Invariant "int64" (text.Trim())
 
                     struct (box value, current))
             MissingValue = None
@@ -3214,12 +3281,7 @@ module Xml =
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
 
-                    let value =
-                        System.UInt32.Parse(
-                            text.Trim(),
-                            System.Globalization.NumberStyles.Integer,
-                            System.Globalization.CultureInfo.InvariantCulture
-                        )
+                    let value = Core.parseUInt32Invariant "uint32" (text.Trim())
 
                     struct (box value, current))
             MissingValue = None
@@ -3241,12 +3303,7 @@ module Xml =
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
 
-                    let value =
-                        System.UInt64.Parse(
-                            text.Trim(),
-                            System.Globalization.NumberStyles.Integer,
-                            System.Globalization.CultureInfo.InvariantCulture
-                        )
+                    let value = Core.parseUInt64Invariant "uint64" (text.Trim())
 
                     struct (box value, current))
             MissingValue = None
@@ -3268,12 +3325,7 @@ module Xml =
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
 
-                    let value =
-                        System.Double.Parse(
-                            text.Trim(),
-                            System.Globalization.NumberStyles.Float,
-                            System.Globalization.CultureInfo.InvariantCulture
-                        )
+                    let value = Core.parseFloatInvariant "float" (text.Trim())
 
                     struct (box value, current))
             MissingValue = None
@@ -3295,12 +3347,7 @@ module Xml =
                     let struct (text, current) = Runtime.readTextNode current
                     let current = Runtime.expectCloseTag tag current
 
-                    let value =
-                        System.Decimal.Parse(
-                            text.Trim(),
-                            System.Globalization.NumberStyles.Float,
-                            System.Globalization.CultureInfo.InvariantCulture
-                        )
+                    let value = Core.parseDecimalInvariant "decimal" (text.Trim())
 
                     struct (box value, current))
             MissingValue = None
@@ -3700,35 +3747,32 @@ module KeyValue =
         values |> Map.tryFind (keyName options segments)
 
     let private parsePrimitive (targetType: System.Type) (text: string) =
-        try
-            if targetType = typeof<int> then
-                box (System.Int32.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<int64> then
-                box (System.Int64.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<uint32> then
-                box (System.UInt32.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<uint64> then
-                box (System.UInt64.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<float> then
-                box (System.Double.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture))
-            elif targetType = typeof<decimal> then
-                box (System.Decimal.Parse(text, NumberStyles.Float, CultureInfo.InvariantCulture))
-            elif targetType = typeof<string> then
-                box text
-            elif targetType = typeof<bool> then
-                box (System.Boolean.Parse(text))
-            elif targetType = typeof<int16> then
-                box (System.Int16.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<byte> then
-                box (System.Byte.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<sbyte> then
-                box (System.SByte.Parse(text, CultureInfo.InvariantCulture))
-            elif targetType = typeof<uint16> then
-                box (System.UInt16.Parse(text, CultureInfo.InvariantCulture))
-            else
-                failwithf "KeyValue does not support primitive type %O" targetType
-        with error ->
-            failwithf "Could not parse key/value text '%s' as %s: %s" text targetType.Name error.Message
+        if targetType = typeof<int> then
+            box (Core.parseInt32Invariant "int" text)
+        elif targetType = typeof<int64> then
+            box (Core.parseInt64Invariant "int64" text)
+        elif targetType = typeof<uint32> then
+            box (Core.parseUInt32Invariant "uint32" text)
+        elif targetType = typeof<uint64> then
+            box (Core.parseUInt64Invariant "uint64" text)
+        elif targetType = typeof<float> then
+            box (Core.parseFloatInvariant "float" text)
+        elif targetType = typeof<decimal> then
+            box (Core.parseDecimalInvariant "decimal" text)
+        elif targetType = typeof<string> then
+            box text
+        elif targetType = typeof<bool> then
+            box (System.Boolean.Parse(text))
+        elif targetType = typeof<int16> then
+            box (Core.parseInt16Invariant "int16" text)
+        elif targetType = typeof<byte> then
+            box (Core.parseByteInvariant "byte" text)
+        elif targetType = typeof<sbyte> then
+            box (Core.parseSByteInvariant "sbyte" text)
+        elif targetType = typeof<uint16> then
+            box (Core.parseUInt16Invariant "uint16" text)
+        else
+            failwithf "KeyValue does not support primitive type %O" targetType
 
     let private formatPrimitive (targetType: System.Type) (value: obj) =
         if targetType = typeof<int> then

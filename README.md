@@ -247,6 +247,7 @@ Compared with DTO-heavy designs, the difference is:
 
 - Shared compatibility coverage lives in [tests/CodecMapper.CompatibilitySentinel](/home/adam/projects/CodecMapper/tests/CodecMapper.CompatibilitySentinel), with thin Native AOT and Fable shell apps under [tests/CodecMapper.AotTests](/home/adam/projects/CodecMapper/tests/CodecMapper.AotTests) and [tests/CodecMapper.FableTests](/home/adam/projects/CodecMapper/tests/CodecMapper.FableTests).
 - CI runs both the .NET sentinel app and a real Fable transpilation check of the Fable sentinel project.
+- The shared sentinel now includes selected invalid and out-of-range numeric cases, so the portability story covers failure behavior as well as happy-path round-trips.
 - The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/CodecMapper/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/CodecMapper/src/CodecMapper).
 
 ## Start here

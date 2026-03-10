@@ -181,6 +181,18 @@ module Sentinel =
             printfn "[FAIL] %s: Expected %A, got %A" name expected (Seq.toList actual)
             failwithf "Compatibility sentinel failed: %s" name
 
+    let private expectFailureContains name expectedError action =
+        try
+            action () |> ignore
+            printfn "[FAIL] %s: Expected failure containing %s" name expectedError
+            failwithf "Compatibility sentinel failed: %s" name
+        with error ->
+            if error.Message.Contains(expectedError) then
+                printfn "[PASS] %s" name
+            else
+                printfn "[FAIL] %s: Expected error containing %s, got %s" name expectedError error.Message
+                failwithf "Compatibility sentinel failed: %s" name
+
     let run platformLabel =
         printfn "Running %s Compatibility Tests..." platformLabel
 
@@ -265,6 +277,18 @@ module Sentinel =
         let numericJson = Json.serialize numericCodec numeric
         let numericDecoded = Json.deserialize numericCodec numericJson
         test "Extended numeric round-trip" numericDecoded numeric
+
+        expectFailureContains "Out-of-range int64 rejected" "int64 value out of range" (fun () ->
+            Json.deserialize (Json.compile Schema.int64) "9223372036854775808")
+
+        expectFailureContains "Out-of-range uint32 rejected" "uint32 value out of range" (fun () ->
+            Json.deserialize (Json.compile Schema.uint32) "4294967296")
+
+        expectFailureContains "Oversized float rejected" "Invalid float value" (fun () ->
+            Json.deserialize (Json.compile Schema.float) "1e10000")
+
+        expectFailureContains "Oversized decimal rejected" "Invalid decimal value" (fun () ->
+            Json.deserialize (Json.compile Schema.decimal) "1e1000")
 
         let interopCodec = Json.compile Schemas.interopCollectionRecord
 

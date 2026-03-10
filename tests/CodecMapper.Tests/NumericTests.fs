@@ -66,3 +66,9 @@ let ``Float and decimal support JSON fractional and exponent forms`` () =
 
     test <@ Json.deserialize floatCodec "1.25e2" = 125.0 @>
     test <@ Json.deserialize decimalCodec "-12.50" = -12.50M @>
+
+[<Fact>]
+let ``Float and decimal decoders reject oversized values`` () =
+    expectFailure "Invalid float value" (fun () -> Json.deserialize (Json.compile Schema.float) "1e10000")
+
+    expectFailure "Invalid decimal value" (fun () -> Json.deserialize (Json.compile Schema.decimal) "1e1000")
