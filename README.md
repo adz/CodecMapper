@@ -295,27 +295,31 @@ The benchmark suite compares `CodecMapper` JSON encode/decode against `System.Te
 
 Latest local manual snapshot, measured on March 10, 2026.
 
+<!-- benchmark-snapshot:start -->
+Latest local manual snapshot, measured on March 10, 2026.
+
 Encode, fastest to slowest:
 
 | Library | Mean ns/op | Mean B/op |
 | --- | ---: | ---: |
-| CodecMapper | 512.9 | 512.0 |
-| System.Text.Json | 862.9 | 504.2 |
-| Newtonsoft.Json | 1260.7 | 1664.8 |
+| CodecMapper | 489.2 | 512.0 |
+| System.Text.Json | 830.1 | 504.2 |
+| Newtonsoft.Json | 1137.9 | 1664.8 |
 
 Decode, fastest to slowest:
 
 | Library | Mean ns/op | Mean B/op |
 | --- | ---: | ---: |
-| CodecMapper deserialize bytes | 951.5 | 944.0 |
-| System.Text.Json | 1071.1 | 896.0 |
-| Newtonsoft.Json | 2123.5 | 3560.0 |
+| CodecMapper deserialize bytes | 867.3 | 944.0 |
+| System.Text.Json | 1073.7 | 896.0 |
+| Newtonsoft.Json | 1742.7 | 3560.0 |
 
 These numbers came from:
 
 ```bash
 dotnet run -c Release --project benchmarks/CodecMapper.Benchmarks.Runner/CodecMapper.Benchmarks.Runner.fsproj
 ```
+<!-- benchmark-snapshot:end -->
 
 ## Notes
 
