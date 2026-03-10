@@ -73,6 +73,8 @@ They do not lower cleanly into the normal authored `Schema<'T>` record/list mode
 
 That is why the advanced JSON Schema importer lives alongside the normal schema DSL instead of replacing it. For contracts you control, prefer explicit authored schemas. For external contracts with dynamic or branch-selected shapes, use the importer and treat the result as an advanced receive-side boundary.
 
+For now, keywords such as `dependentSchemas`, `not`, and recursive-schema shapes stay explicitly outside the lowered authored-schema subset. They are reported as fallback or unsupported areas rather than being partially modeled.
+
 ## Practical guidance
 
 When publishing messages:
@@ -88,6 +90,7 @@ When receiving messages:
 - use `JsonSchema.importWithReport` when you need to audit enforced versus fallback keywords
 - read `NormalizedKeywords` when schema preprocessing such as `$ref` or `allOf` composition has been applied before import rules are built
 - add custom `format` validators through `JsonSchema.ImportOptions.withFormat` when the schema relies on application-specific string semantics
+- treat currently unsupported keywords such as `dependentSchemas` and `not` as explicit fallback diagnostics rather than as partially enforced rules
 - refine semantic rules with smart constructors
 - only use a validation or raw-JSON escape hatch when the schema itself prevents one deterministic parse model
 

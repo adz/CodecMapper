@@ -80,10 +80,14 @@ Currently enforced during import:
 - `pattern`
 - `format` when a validator is configured
 
-Currently not enforced and treated as raw-fallback areas:
+Currently not enforced directly and intentionally out of scope for now:
 
 - `dependentSchemas`
 - `not`
+
+These keywords are still reported through `JsonSchema.importWithReport().FallbackKeywords`.
+If they appear alongside supported keywords in the same schema object, the supported sibling
+rules still apply; only the unsupported keyword itself remains unenforced.
 
 ## Raw JSON fallback
 
@@ -136,9 +140,15 @@ These shapes do not fit the current `Schema<'T>` model directly:
 - ambiguous unions without a deterministic discriminator
 - composition that must be normalized before a single parse shape is known
 
+These remain out of scope for lowering into the normal authored schema subset for now.
+
 The intended fallback for those cases is:
 
 - a pre-validation or normalization step for branch-shaping schema logic
 - or `Schema.jsonValue` when the payload cannot reasonably lower into records, arrays, and primitives
+
+For the currently unsupported `dependentSchemas` and `not` keywords, the importer keeps the
+receive path on `Schema<JsonValue>`, reports those keywords as fallback diagnostics, and leaves
+their semantics to a separate normalization or validation layer if you need them.
 
 The common explicit-schema path should remain the fast path. Dynamic JSON fallbacks must not penalize normal record, array, and primitive codecs.

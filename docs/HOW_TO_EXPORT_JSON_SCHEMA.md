@@ -112,6 +112,11 @@ That report exposes enforced keywords, fallback keywords, and warnings from loca
 
 It also exposes `NormalizedKeywords`, which is where keywords such as `$ref` and `allOf` show up after schema preprocessing.
 
+Fallback keywords are intentional diagnostics, not silent downgrades. For example, if an imported
+schema uses unsupported keywords such as `dependentSchemas` or `not` alongside supported keywords
+such as `type` or `minLength`, the supported sibling rules still enforce normally while the
+unsupported keyword is reported in `FallbackKeywords`.
+
 ## Supply a custom `format` validator
 
 Use `JsonSchema.importUsing` or `JsonSchema.importWithReportUsing` when your schema uses a project-specific `format`:

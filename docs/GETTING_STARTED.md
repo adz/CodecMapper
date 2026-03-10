@@ -2,7 +2,7 @@
 
 `CodecMapper` lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
-This tutorial is learning-oriented: it introduces the main schema DSL and the core compile-and-reuse workflow.
+This tutorial is learning-oriented: it introduces the main schema DSL, how to read a schema definition, and the core compile-and-reuse workflow.
 
 The portable core in `CodecMapper` is intended to stay usable from Native AOT and Fable-oriented targets. The separate `CodecMapper.Bridge` assembly is `.NET`-only because it imports CLR serializer metadata through reflection.
 
@@ -25,6 +25,17 @@ let json = Json.serialize codec person
 let roundTripped = Json.deserialize codec json
 ```
 
+## How to read a schema
+
+Read the pipeline from top to bottom:
+
+- `Schema.define<Person>` says which value the schema describes.
+- `Schema.construct makePerson` says how decode rebuilds the value.
+- `Schema.field "id" _.Id` means the wire field `"id"` maps to the `Id` field on the record.
+- `Schema.fieldWith "home" _.Home addressSchema` means the field still maps to `Home`, but uses an explicit child schema instead of auto-resolution.
+
+That is the mental model for the whole library: the schema is the wire contract written in the shape of the data.
+
 ## Quick start
 
 ```fsharp
@@ -45,6 +56,17 @@ let jsonCodec = Json.compile personSchema
 let person = { Id = 1; Name = "Ada" }
 let json = Json.serialize jsonCodec person
 let decoded = Json.deserialize jsonCodec json
+
+printfn "%s" json
+printfn "%A" decoded
+```
+
+Output:
+
+```text
+{"id":1,"name":"Ada"}
+{ Id = 1
+  Name = "Ada" }
 ```
 
 If you prefer a shorter-looking DSL, open `CodecMapper.Schema` and call the schema steps directly:
@@ -103,6 +125,8 @@ let personSchema =
     |> Schema.fieldWith "home" _.Home addressSchema
     |> Schema.build
 ```
+
+The nested schema mirrors the nested data. `home` is not special serializer metadata; it is just another field whose value is described by `addressSchema`.
 
 ## Lists and arrays
 
@@ -219,6 +243,8 @@ let personIdSchema =
     |> Schema.map PersonId (fun (PersonId value) -> value)
 ```
 
+Read `Schema.map` as "the wire shape is still an `int`, but the in-memory value is `PersonId`."
+
 Use `Schema.tryMap` for smart constructors that can reject invalid decoded values:
 
 ```fsharp
@@ -238,6 +264,8 @@ let userIdSchema =
     |> Schema.tryMap UserId.create UserId.value
 ```
 
+Read `Schema.tryMap` as "decode the wire value first, then validate/refine it into a stronger domain type."
+
 That schema can then be used inside larger records:
 
 ```fsharp
@@ -252,23 +280,6 @@ let accountSchema =
     |> Schema.build
 ```
 
-## JSON Schema export
-
-You can export the JSON wire contract described by any `Schema<'T>`:
-
-```fsharp
-let jsonSchema = JsonSchema.generate accountSchema
-```
-
-The exported document targets JSON Schema draft 2020-12 and follows the same structural rules as `Json.compile`:
-
-- record schemas become object schemas with `properties` and `required`
-- `Schema.option` exports as `anyOf` with the inner type plus `null`
-- `Schema.missingAsNone` removes that property from `required`
-- `Schema.map` and `Schema.tryMap` export the underlying wire shape, not domain-only validation rules
-
-For example, a smart-constructor wrapper over `Schema.int` still exports as an integer contract because the JSON wire format is still an integer.
-
 ## Multiple formats from one schema
 
 Compile the same schema into JSON and XML:
@@ -277,66 +288,39 @@ Compile the same schema into JSON and XML:
 let jsonCodec = Json.compile personSchema
 let xmlCodec = Xml.compile personSchema
 
+let person =
+    {
+        Id = 42
+        Name = "Ada"
+        Home = { Street = "Main"; City = "Adelaide" }
+    }
+
 let json = Json.serialize jsonCodec person
 let personFromJson = Json.deserialize jsonCodec json
 
 let xml = Xml.serialize xmlCodec person
 let personFromXml = Xml.deserialize xmlCodec xml
+
+printfn "%s" json
+printfn "%A" personFromJson
+printfn "%s" xml
+printfn "%A" personFromXml
 ```
 
-## Import existing C# contracts
+Output:
 
-If you already have C# models annotated for `System.Text.Json`, `Newtonsoft.Json`, or `DataContract`, you can import a `CodecMapper` schema instead of rewriting the contract by hand.
-
-F#:
-
-```fsharp
-open CodecMapper
-open CodecMapper.Bridge
-
-let userSchema =
-    SystemTextJson.import<MyCompany.Contracts.User> BridgeOptions.defaults
-
-let codec = Json.compile userSchema
+```text
+{"id":42,"name":"Ada","home":{"street":"Main","city":"Adelaide"}}
+{ Id = 42
+  Name = "Ada"
+  Home = { Street = "Main"
+           City = "Adelaide" } }
+<person><id>42</id><name>Ada</name><home><street>Main</street><city>Adelaide</city></home></person>
+{ Id = 42
+  Name = "Ada"
+  Home = { Street = "Main"
+           City = "Adelaide" } }
 ```
-
-C# model:
-
-```csharp
-public sealed class User
-{
-    [JsonConstructor]
-    public User(int id, string displayName)
-    {
-        Id = id;
-        DisplayName = displayName;
-    }
-
-    [JsonPropertyName("user_id")]
-    public int Id { get; }
-
-    [JsonPropertyName("display_name")]
-    public string DisplayName { get; }
-}
-```
-
-Supported bridge surface today:
-
-- constructor-bound classes
-- parameterless setter-bound classes
-- nested imported classes
-- arrays, `List<T>`, and `Nullable<T>`
-- `System.Text.Json`, `Newtonsoft.Json`, and `DataContract` rename/ignore/required metadata
-
-Explicitly unsupported today:
-
-- custom converter attributes
-- extension-data bags
-- polymorphic contracts
-- recursive graphs
-- classes that mix constructor-bound and setter-bound members
-
-The bridge is a migration/bootstrap path. Once you know the imported shape is correct, code generation or a handwritten schema is still the cleaner long-term contract.
 
 ## XML subset
 
@@ -364,3 +348,5 @@ Still out of scope:
 - Use `Schema.fieldWith` when the nested or wrapped type has an explicit schema.
 - Use `Schema.tryMap` when decode needs validation.
 - Keep schemas in one place so JSON and XML stay aligned.
+- Use [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md) when you need external schema documents.
+- Use [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md) when you are importing existing C# contracts instead of authoring schemas directly.

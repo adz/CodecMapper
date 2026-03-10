@@ -291,6 +291,36 @@ let ``Import report exposes fallback keywords for unsupported schema features`` 
     test <@ report.Warnings = [] @>
 
 [<Fact>]
+let ``Import report flags not as a fallback keyword`` () =
+    let report =
+        JsonSchema.importWithReport
+            """{
+                "type":"string",
+                "not":{"const":"blocked"}
+            }"""
+
+    test <@ report.FallbackKeywords |> List.contains "not" @>
+    test <@ report.EnforcedKeywords |> List.contains "type" @>
+
+[<Fact>]
+let ``Unsupported fallback keywords do not suppress supported sibling rules`` () =
+    let codec =
+        Json.compile (
+            JsonSchema.import
+                """{
+                    "type":"string",
+                    "minLength":2,
+                    "not":{"const":"blocked"}
+                }"""
+        )
+
+    test <@ Json.deserialize codec "\"Ada\"" = JString "Ada" @>
+
+    expectFailure "at least 2" (fun () -> Json.deserialize codec "\"A\"")
+
+    test <@ Json.deserialize codec "\"blocked\"" = JString "blocked" @>
+
+[<Fact>]
 let ``Imported allOf schemas are normalized and enforced together`` () =
     let report =
         JsonSchema.importWithReport

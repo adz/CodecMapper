@@ -2485,276 +2485,270 @@ module JsonSchema =
         | JBool false -> (fun _ -> Error "JSON Schema 'false' does not allow any values")
         | JObject properties ->
             let importedRules =
-                if
-                    properties
-                    |> List.exists (fun (name, _) -> unsupportedImportKeywords.Contains name)
-                then
-                    []
-                else
-                    let typeRules =
-                        match tryFindProperty "type" properties with
-                        | Some(JString typeName) -> [ importTypeRule typeName ]
-                        | Some(JArray typeNames) ->
-                            let branches =
-                                typeNames
-                                |> List.choose (function
-                                    | JString typeName -> Some(importTypeRule typeName)
-                                    | _ -> None)
+                let typeRules =
+                    match tryFindProperty "type" properties with
+                    | Some(JString typeName) -> [ importTypeRule typeName ]
+                    | Some(JArray typeNames) ->
+                        let branches =
+                            typeNames
+                            |> List.choose (function
+                                | JString typeName -> Some(importTypeRule typeName)
+                                | _ -> None)
 
-                            match branches with
-                            | [] -> []
-                            | _ -> [
-                                fun value ->
-                                    branches
-                                    |> List.tryPick (fun branch ->
-                                        match branch value with
-                                        | Ok validated -> Some(Ok validated)
-                                        | Error _ -> None)
-                                    |> Option.defaultValue (Error "Value did not match any allowed JSON Schema type")
-                              ]
-                        | _ ->
-                            match tryFindProperty "properties" properties, tryFindProperty "items" properties with
-                            | Some _, _ -> [ importTypeRule "object" ]
-                            | _, Some _ -> [ importTypeRule "array" ]
-                            | _ -> []
+                        match branches with
+                        | [] -> []
+                        | _ -> [
+                            fun value ->
+                                branches
+                                |> List.tryPick (fun branch ->
+                                    match branch value with
+                                    | Ok validated -> Some(Ok validated)
+                                    | Error _ -> None)
+                                |> Option.defaultValue (Error "Value did not match any allowed JSON Schema type")
+                          ]
+                    | _ ->
+                        match tryFindProperty "properties" properties, tryFindProperty "items" properties with
+                        | Some _, _ -> [ importTypeRule "object" ]
+                        | _, Some _ -> [ importTypeRule "array" ]
+                        | _ -> []
 
-                    let enumRule =
-                        match tryGetArrayProperty "enum" properties with
-                        | Some cases ->
-                            Some(fun value ->
-                                if cases |> List.exists (equalJsonValue value) then
-                                    Ok value
+                let enumRule =
+                    match tryGetArrayProperty "enum" properties with
+                    | Some cases ->
+                        Some(fun value ->
+                            if cases |> List.exists (equalJsonValue value) then
+                                Ok value
+                            else
+                                Error "Value did not match the JSON Schema enum")
+                    | None -> None
+
+                let constRule =
+                    match tryFindProperty "const" properties with
+                    | Some expected ->
+                        Some(fun value ->
+                            if equalJsonValue value expected then
+                                Ok value
+                            else
+                                Error "Value did not match the JSON Schema const")
+                    | None -> None
+
+                let stringLengthRules = [
+                    match tryGetIntProperty "minLength" properties with
+                    | Some minLength ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JString text when text.Length < minLength ->
+                                    Error(sprintf "String length must be at least %d" minLength)
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetIntProperty "maxLength" properties with
+                    | Some maxLength ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JString text when text.Length > maxLength ->
+                                    Error(sprintf "String length must be at most %d" maxLength)
+                                | _ -> Ok value)
+                    | None -> ()
+                ]
+
+                let patternRules = [
+                    match tryGetStringProperty "pattern" properties with
+                    | Some pattern ->
+                        try
+                            let regex = System.Text.RegularExpressions.Regex(pattern)
+
+                            yield
+                                (fun value ->
+                                    match value with
+                                    | JString text when not (regex.IsMatch text) ->
+                                        Error(sprintf "String did not match pattern %s" pattern)
+                                    | _ -> Ok value)
+                        with _ ->
+                            ()
+                    | None -> ()
+                    match tryGetStringProperty "format" properties with
+                    | Some formatName ->
+                        match tryFindFormatValidator options formatName with
+                        | Some validator ->
+                            yield
+                                (fun value ->
+                                    match value with
+                                    | JString text ->
+                                        match validator text with
+                                        | Ok() -> Ok value
+                                        | Error message -> Error message
+                                    | _ -> Ok value)
+                        | None -> ()
+                    | None -> ()
+                ]
+
+                let branchRules = [
+                    match tryGetArrayProperty "oneOf" properties with
+                    | Some branches ->
+                        let validators = branches |> List.map (importRule options)
+
+                        yield
+                            (fun value ->
+                                let successes = validators |> List.filter (fun rule -> ruleMatches rule value)
+
+                                match successes with
+                                | [ validate ] -> validate value
+                                | [] -> Error "Value did not match any oneOf branch"
+                                | _ -> Error "Value matched more than one oneOf branch")
+                    | None -> ()
+                    match tryGetArrayProperty "anyOf" properties with
+                    | Some branches ->
+                        let validators = branches |> List.map (importRule options)
+
+                        yield
+                            (fun value ->
+                                match validators |> List.tryFind (fun rule -> ruleMatches rule value) with
+                                | Some validate -> validate value
+                                | None -> Error "Value did not match any anyOf branch")
+                    | None -> ()
+                    match tryFindProperty "if" properties with
+                    | Some ifSchema ->
+                        let ifRule = importRule options ifSchema
+                        let thenRule = tryFindProperty "then" properties |> Option.map (importRule options)
+                        let elseRule = tryFindProperty "else" properties |> Option.map (importRule options)
+
+                        yield
+                            (fun value ->
+                                if ruleMatches ifRule value then
+                                    match thenRule with
+                                    | Some validateThen -> validateThen value
+                                    | None -> Ok value
                                 else
-                                    Error "Value did not match the JSON Schema enum")
-                        | None -> None
+                                    match elseRule with
+                                    | Some validateElse -> validateElse value
+                                    | None -> Ok value)
+                    | None -> ()
+                ]
 
-                    let constRule =
-                        match tryFindProperty "const" properties with
-                        | Some expected ->
-                            Some(fun value ->
-                                if equalJsonValue value expected then
-                                    Ok value
-                                else
-                                    Error "Value did not match the JSON Schema const")
-                        | None -> None
+                let numberRules = [
+                    match tryGetDecimalProperty "minimum" properties with
+                    | Some minimum ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JNumber token ->
+                                    match tryParseDecimalToken token with
+                                    | Some number when number < minimum ->
+                                        Error(sprintf "Number must be at least %M" minimum)
+                                    | Some _ -> Ok value
+                                    | None -> Error "Expected number"
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetDecimalProperty "maximum" properties with
+                    | Some maximum ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JNumber token ->
+                                    match tryParseDecimalToken token with
+                                    | Some number when number > maximum ->
+                                        Error(sprintf "Number must be at most %M" maximum)
+                                    | Some _ -> Ok value
+                                    | None -> Error "Expected number"
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetDecimalProperty "exclusiveMinimum" properties with
+                    | Some minimum ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JNumber token ->
+                                    match tryParseDecimalToken token with
+                                    | Some number when number <= minimum ->
+                                        Error(sprintf "Number must be greater than %M" minimum)
+                                    | Some _ -> Ok value
+                                    | None -> Error "Expected number"
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetDecimalProperty "exclusiveMaximum" properties with
+                    | Some maximum ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JNumber token ->
+                                    match tryParseDecimalToken token with
+                                    | Some number when number >= maximum ->
+                                        Error(sprintf "Number must be less than %M" maximum)
+                                    | Some _ -> Ok value
+                                    | None -> Error "Expected number"
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetDecimalProperty "multipleOf" properties with
+                    | Some factor ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JNumber token ->
+                                    match tryParseDecimalToken token with
+                                    | Some _ when factor = 0M -> Error "multipleOf must not be zero"
+                                    | Some number when number % factor <> 0M ->
+                                        Error(sprintf "Number must be a multiple of %M" factor)
+                                    | Some _ -> Ok value
+                                    | None -> Error "Expected number"
+                                | _ -> Ok value)
+                    | None -> ()
+                ]
 
-                    let stringLengthRules = [
-                        match tryGetIntProperty "minLength" properties with
-                        | Some minLength ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JString text when text.Length < minLength ->
-                                        Error(sprintf "String length must be at least %d" minLength)
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetIntProperty "maxLength" properties with
-                        | Some maxLength ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JString text when text.Length > maxLength ->
-                                        Error(sprintf "String length must be at most %d" maxLength)
-                                    | _ -> Ok value)
-                        | None -> ()
-                    ]
+                let collectionSizeRules = [
+                    match tryGetIntProperty "minItems" properties with
+                    | Some minItems ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JArray items when items.Length < minItems ->
+                                    Error(sprintf "Array length must be at least %d" minItems)
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetIntProperty "maxItems" properties with
+                    | Some maxItems ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JArray items when items.Length > maxItems ->
+                                    Error(sprintf "Array length must be at most %d" maxItems)
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetIntProperty "minProperties" properties with
+                    | Some minProperties ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JObject fields when fields.Length < minProperties ->
+                                    Error(sprintf "Object must contain at least %d properties" minProperties)
+                                | _ -> Ok value)
+                    | None -> ()
+                    match tryGetIntProperty "maxProperties" properties with
+                    | Some maxProperties ->
+                        yield
+                            (fun value ->
+                                match value with
+                                | JObject fields when fields.Length > maxProperties ->
+                                    Error(sprintf "Object must contain at most %d properties" maxProperties)
+                                | _ -> Ok value)
+                    | None -> ()
+                ]
 
-                    let patternRules = [
-                        match tryGetStringProperty "pattern" properties with
-                        | Some pattern ->
-                            try
-                                let regex = System.Text.RegularExpressions.Regex(pattern)
-
-                                yield
-                                    (fun value ->
-                                        match value with
-                                        | JString text when not (regex.IsMatch text) ->
-                                            Error(sprintf "String did not match pattern %s" pattern)
-                                        | _ -> Ok value)
-                            with _ ->
-                                ()
-                        | None -> ()
-                        match tryGetStringProperty "format" properties with
-                        | Some formatName ->
-                            match tryFindFormatValidator options formatName with
-                            | Some validator ->
-                                yield
-                                    (fun value ->
-                                        match value with
-                                        | JString text ->
-                                            match validator text with
-                                            | Ok() -> Ok value
-                                            | Error message -> Error message
-                                        | _ -> Ok value)
-                            | None -> ()
-                        | None -> ()
-                    ]
-
-                    let branchRules = [
-                        match tryGetArrayProperty "oneOf" properties with
-                        | Some branches ->
-                            let validators = branches |> List.map (importRule options)
-
-                            yield
-                                (fun value ->
-                                    let successes = validators |> List.filter (fun rule -> ruleMatches rule value)
-
-                                    match successes with
-                                    | [ validate ] -> validate value
-                                    | [] -> Error "Value did not match any oneOf branch"
-                                    | _ -> Error "Value matched more than one oneOf branch")
-                        | None -> ()
-                        match tryGetArrayProperty "anyOf" properties with
-                        | Some branches ->
-                            let validators = branches |> List.map (importRule options)
-
-                            yield
-                                (fun value ->
-                                    match validators |> List.tryFind (fun rule -> ruleMatches rule value) with
-                                    | Some validate -> validate value
-                                    | None -> Error "Value did not match any anyOf branch")
-                        | None -> ()
-                        match tryFindProperty "if" properties with
-                        | Some ifSchema ->
-                            let ifRule = importRule options ifSchema
-                            let thenRule = tryFindProperty "then" properties |> Option.map (importRule options)
-                            let elseRule = tryFindProperty "else" properties |> Option.map (importRule options)
-
-                            yield
-                                (fun value ->
-                                    if ruleMatches ifRule value then
-                                        match thenRule with
-                                        | Some validateThen -> validateThen value
-                                        | None -> Ok value
-                                    else
-                                        match elseRule with
-                                        | Some validateElse -> validateElse value
-                                        | None -> Ok value)
-                        | None -> ()
-                    ]
-
-                    let numberRules = [
-                        match tryGetDecimalProperty "minimum" properties with
-                        | Some minimum ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JNumber token ->
-                                        match tryParseDecimalToken token with
-                                        | Some number when number < minimum ->
-                                            Error(sprintf "Number must be at least %M" minimum)
-                                        | Some _ -> Ok value
-                                        | None -> Error "Expected number"
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetDecimalProperty "maximum" properties with
-                        | Some maximum ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JNumber token ->
-                                        match tryParseDecimalToken token with
-                                        | Some number when number > maximum ->
-                                            Error(sprintf "Number must be at most %M" maximum)
-                                        | Some _ -> Ok value
-                                        | None -> Error "Expected number"
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetDecimalProperty "exclusiveMinimum" properties with
-                        | Some minimum ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JNumber token ->
-                                        match tryParseDecimalToken token with
-                                        | Some number when number <= minimum ->
-                                            Error(sprintf "Number must be greater than %M" minimum)
-                                        | Some _ -> Ok value
-                                        | None -> Error "Expected number"
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetDecimalProperty "exclusiveMaximum" properties with
-                        | Some maximum ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JNumber token ->
-                                        match tryParseDecimalToken token with
-                                        | Some number when number >= maximum ->
-                                            Error(sprintf "Number must be less than %M" maximum)
-                                        | Some _ -> Ok value
-                                        | None -> Error "Expected number"
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetDecimalProperty "multipleOf" properties with
-                        | Some factor ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JNumber token ->
-                                        match tryParseDecimalToken token with
-                                        | Some number when factor = 0M -> Error "multipleOf must not be zero"
-                                        | Some number when number % factor <> 0M ->
-                                            Error(sprintf "Number must be a multiple of %M" factor)
-                                        | Some _ -> Ok value
-                                        | None -> Error "Expected number"
-                                    | _ -> Ok value)
-                        | None -> ()
-                    ]
-
-                    let collectionSizeRules = [
-                        match tryGetIntProperty "minItems" properties with
-                        | Some minItems ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JArray items when items.Length < minItems ->
-                                        Error(sprintf "Array length must be at least %d" minItems)
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetIntProperty "maxItems" properties with
-                        | Some maxItems ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JArray items when items.Length > maxItems ->
-                                        Error(sprintf "Array length must be at most %d" maxItems)
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetIntProperty "minProperties" properties with
-                        | Some minProperties ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JObject fields when fields.Length < minProperties ->
-                                        Error(sprintf "Object must contain at least %d properties" minProperties)
-                                    | _ -> Ok value)
-                        | None -> ()
-                        match tryGetIntProperty "maxProperties" properties with
-                        | Some maxProperties ->
-                            yield
-                                (fun value ->
-                                    match value with
-                                    | JObject fields when fields.Length > maxProperties ->
-                                        Error(sprintf "Object must contain at most %d properties" maxProperties)
-                                    | _ -> Ok value)
-                        | None -> ()
-                    ]
-
-                    [
-                        yield! typeRules
-                        yield! stringLengthRules
-                        yield! patternRules
-                        yield! numberRules
-                        yield! collectionSizeRules
-                        yield! branchRules
-                        match enumRule with
-                        | Some rule -> yield rule
-                        | None -> ()
-                        match constRule with
-                        | Some rule -> yield rule
-                        | None -> ()
-                    ]
+                [
+                    yield! typeRules
+                    yield! stringLengthRules
+                    yield! patternRules
+                    yield! numberRules
+                    yield! collectionSizeRules
+                    yield! branchRules
+                    match enumRule with
+                    | Some rule -> yield rule
+                    | None -> ()
+                    match constRule with
+                    | Some rule -> yield rule
+                    | None -> ()
+                ]
 
             match importedRules with
             | [] -> accept
