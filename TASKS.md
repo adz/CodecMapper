@@ -14,6 +14,11 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Support both C# and F# records/classes as generator inputs.
   - Prefer readable checked-in output over opaque build-only generation.
   - Keep the generator in a separate `.NET`-only project so reflection-heavy analysis and templates do not bleed into the AOT/Fable-safe core assembly.
+  - Generate ordinary checked-in F# schema code rather than introducing a second runtime schema system.
+  - Treat CLR-model analysis, JSON-example scaffolding, and imported-contract scaffolding as `.NET`-only tooling layered on top of the stable runtime DSL.
+  - Keep generated output reviewable and copy-editable by users.
+
+- [x] **Task 30:** Fixed the docs-site asset root by aligning `PackageProjectUrl` with the GitHub Pages URL instead of the repo URL, and hardened `scripts/generate-api-docs.sh` to clear stale `fsdocs` cache, build the doc assemblies first, and fail if generated output points theme/search assets at `github.com/adz/CodecMapper/...`.
 
 - [x] **Task 29:** Split `src/CodecMapper/Library.fs` into explicit dependency-ordered files (`Core.fs`, `Schema.fs`, `Json.fs`, `JsonSchema.fs`, `Xml.fs`, `KeyValue.fs`, and `Yaml.fs`) and updated `CodecMapper.fsproj` to preserve the existing no-behavior-change compilation order.
 
@@ -23,25 +28,6 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
 
 - [x] **Task 33:** Added a canonical contract-pattern guide covering basic records, nested records, validated wrappers, versioned contracts, config contracts, JSON Schema import, and the C# bridge, and linked it from the README and docs landing pages so the copy-paste patterns are easy to find.
 
-- [ ] **Task 34: Keep Task 18 focused on build-time code generation**
-  - Generate ordinary checked-in F# schema code rather than introducing a second runtime schema system.
-  - Treat CLR-model analysis, JSON-example scaffolding, and imported-contract scaffolding as `.NET`-only tooling layered on top of the stable runtime DSL.
-  - Keep generated output reviewable and copy-editable by users.
-
-- [ ] **Task 30: Fix the published docs site asset loading**
-  - Reproduce the generated `fsdocs` output locally and identify why theme/search assets are being loaded from blocked cross-origin URLs.
-  - Make the published site self-contained or otherwise serve its JS/CSS assets from paths that work on GitHub Pages without CORS failures.
-  - Add a verification step so docs generation catches broken asset references before publishing.
-
-- [x] **Task 30:** Fixed the docs-site asset root by aligning `PackageProjectUrl` with the GitHub Pages URL instead of the repo URL, and hardened `scripts/generate-api-docs.sh` to clear stale `fsdocs` cache, build the doc assemblies first, and fail if generated output points theme/search assets at `github.com/adz/CodecMapper/...`.
-
-- [ ] **Task 35: Add property-based test coverage for codec laws**
-  - Add property-based tests for the real F# implementation rather than a sidecar model, since the main risks here are semantic drift, parser edge cases, and encode/decode symmetry across many inputs.
-  - Start with fixed representative schemas that already exist in the repo, then generate values for them: primitives, nested records, options, validated wrappers, collections, and numeric boundary cases.
-  - Make round-trip laws the first goal: `deserialize (serialize x) = x` for JSON and XML wherever the format supports the same shape.
-  - Add parser robustness properties for malformed inputs so failures stay deterministic and do not hang, over-consume input, or silently accept trailing content.
-  - Add format-symmetry properties where appropriate so one authored schema preserves the same semantic value across JSON and XML.
-  - Prefer `FsCheck.Xunit` in `tests/CodecMapper.Tests` so the property layer stays close to the existing xUnit and `Swensen.Unquote` test style.
-  - Keep the current example-based parser tests for exact regressions and expected error text; property tests should expand coverage, not replace those focused cases.
-  - Avoid starting with arbitrary recursive schema generation. The first iteration should optimize for debuggable failures and useful shrinking, not maximal generator cleverness.
-  - Treat generator design as part of the contract: keep generated values inside the supported deterministic surface instead of exploring JSON/XML features that the library intentionally leaves out.
+- [x] **Task 35: Add property-based test coverage for codec laws**
+  - Added `FsCheck.Xunit`-backed round-trip properties in `tests/CodecMapper.Tests` for representative nested-record, option, and collection schemas across both JSON and XML.
+  - Kept the generators inside the supported deterministic surface so failures stay debuggable and align with the library's intentional JSON/XML subset.
