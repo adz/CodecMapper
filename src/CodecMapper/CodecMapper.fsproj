@@ -6,7 +6,7 @@
     <PackageId>CodecMapper</PackageId>
     <Authors>Adam Chester</Authors>
     <Description>Schema-first, type-safe JSON and XML codecs for F# with Native AOT and Fable support.</Description>
-    <PackageProjectUrl>https://github.com/adz/CodecMapper</PackageProjectUrl>
+    <PackageProjectUrl>https://adz.github.io/CodecMapper/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/adz/CodecMapper</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
