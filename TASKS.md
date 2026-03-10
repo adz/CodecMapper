@@ -15,10 +15,7 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Prefer readable checked-in output over opaque build-only generation.
   - Keep the generator in a separate `.NET`-only project so reflection-heavy analysis and templates do not bleed into the AOT/Fable-safe core assembly.
 
-- [ ] **Task 29: Split the core library into dependency-ordered files**
-  - Refactor `src/CodecMapper/Library.fs` into stable module files such as core/schema, JSON, JSON Schema, XML, and config projections.
-  - Keep the split as a no-behavior-change refactor first; do not redesign the API while moving code.
-  - Preserve the AOT/Fable-safe core assembly boundary and keep F# file ordering explicit in the project file.
+- [x] **Task 29:** Split `src/CodecMapper/Library.fs` into explicit dependency-ordered files (`Core.fs`, `Schema.fs`, `Json.fs`, `JsonSchema.fs`, `Xml.fs`, `KeyValue.fs`, and `Yaml.fs`) and updated `CodecMapper.fsproj` to preserve the existing no-behavior-change compilation order.
 
 - [ ] **Task 30: Fix the published docs site asset loading**
   - Reproduce the generated `fsdocs` output locally and identify why theme/search assets are being loaded from blocked cross-origin URLs.
