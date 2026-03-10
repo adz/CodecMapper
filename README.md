@@ -53,6 +53,7 @@ let codec = Json.compile personSchema
 - JSON and XML codecs from one schema
 - common built-in primitives, options, collections, and time-based types
 - validated mappings via `Schema.tryMap`
+- raw JSON fallback via `Schema.jsonValue` for dynamic imported shapes
 - bridge importers for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
 
 ## Compatibility
@@ -63,10 +64,24 @@ let codec = Json.compile personSchema
 
 ## Docs
 
+Tutorials:
+
 - [Getting started](docs/GETTING_STARTED.md)
+
+How-to guides:
+
+- [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md)
 - [Configuration contracts guide](docs/CONFIG_CONTRACTS.md)
-- [C# attribute bridge design](docs/CSHARP_ATTRIBUTE_BRIDGE.md)
+
+Reference:
+
+- [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md)
 - [API docs](https://adz.github.io/CodecMapper/)
+
+Explanations:
+
+- [JSON Schema in CodecMapper](docs/JSON_SCHEMA_EXPLANATION.md)
+- [C# attribute bridge design](docs/CSHARP_ATTRIBUTE_BRIDGE.md)
 
 ## Notes
 

@@ -32,10 +32,19 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Support both C# and F# records/classes as generator inputs.
   - Prefer readable checked-in output over opaque build-only generation.
 
-- [ ] **Task 19: Export JSON Schema from `Schema<'T>`**
+- [x] **Task 19: Export JSON Schema from `Schema<'T>`**
   - Generate JSON Schema for message contracts and external validation/docs.
   - Base the export on `Schema<'T>` itself, not only on imported C# models.
   - Define how `Schema.map` / `Schema.tryMap` project to JSON Schema and where metadata is needed.
+  - *Done:* added `JsonSchema.generate` to export draft 2020-12 JSON Schema directly from `Schema<'T>`, documented how mapping and option wrappers project to the wire contract, and added coverage for record, primitive, array, option, and mapped/common-type shapes.
+
+- [ ] **Task 19a: Add JSON Schema import and raw-shape fallback design**
+  - Define the supported import path as structural lowering first, semantic refinement second.
+  - Add a raw JSON value fallback for schemas that cannot lower into the normal `Schema<'T>` subset without ambiguity.
+  - Keep the common explicit-schema path fast; dynamic JSON fallback must not penalize normal record/array/primitive codecs.
+  - Decide the minimal pre-validation/normalization subset needed for branch-shaping schema features such as ambiguous unions, tuple arrays, recursive references, and dynamic-key objects.
+  - Document the support matrix and the intended user guidance around `Schema.tryMap`, pre-validation, and raw JSON fallback.
+  - *Progress:* `Schema.jsonValue` now exists as the explicit JSON-only fallback for dynamic imported shapes, `JsonSchema.import` now builds `Schema<JsonValue>` for the current enforced subset (`$defs`/local `$ref`, object-shaped `allOf`, `oneOf`, `anyOf`, `if` / `then` / `else`, `type`, `properties`, `required`, `items`, schema-valued `additionalProperties`, `patternProperties`, `propertyNames`, `prefixItems`, `contains`, `enum`, `const`, string length bounds, numeric bounds, `multipleOf`, collection/property count bounds, `pattern`, and `format` when a validator is configured), `JsonSchema.ImportOptions` now lets callers supply custom format validators, and `JsonSchema.importWithReport` now exposes enforced keywords, normalized keywords, fallback keywords, and warnings. Remaining work is the narrower unsupported set plus the precise pre-validation/normalization boundary for `dependentSchemas`, `not`, and any future deeper composition semantics.
 
 - [ ] **Task 20: Broaden common collection and interop type support**
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
@@ -75,6 +84,12 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Decide whether missing/null/empty handling should grow beyond `Schema.missingAsNone` and `Schema.emptyStringAsNone`.
   - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
   - Keep strict message-contract behavior as the default.
+
+- [ ] **Task 26: Reorganize docs around Diataxis**
+  - Classify each user-facing document as a tutorial, how-to guide, technical reference, or explanation.
+  - Restructure the docs landing page and README links around that purpose-based navigation.
+  - Add missing JSON Schema docs in the right categories rather than treating all prose as a single getting-started guide.
+  - Keep API docs as the reference anchor and ensure new feature work adds docs in the appropriate category.
 
 - [x] **Task 25: Remove legacy comparison shims**
   - Remove `CodecMapper.LegacyShim` and any remaining compatibility glue for the archived experimental repo.

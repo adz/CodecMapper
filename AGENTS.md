@@ -18,6 +18,8 @@ These standards represent the user's preferred style and architectural philosoph
 - **The "Why" over "What":** Every function and non-obvious block must have a comment explaining its purpose and the rationale.
 - **Visual Separation for Rationale:** Do NOT use a "Why:" prefix. Instead, add an **empty comment line** (`///`) before the rationale comment to clearly separate it from the code while maintaining a continuous comment block.
 - **Expressive Conciseness:** Strive for concise code, but never at the expense of clarity. Use whitespace to "take up space" to express concepts clearly.
+- **Docs move with code:** Every completed task must update the relevant inline API docs and user-facing docs in the same change. Do not leave new public behavior undocumented.
+- **Docs follow Diataxis:** Organize user-facing docs by purpose: tutorials for learning, how-to guides for goal completion, technical reference for lookup, and explanations for design understanding.
 
 ### Technical Integrity & Performance
 - **Zero-Trust Typing:** Never use `obj` or unsafe typing (`:?>`) in the public API.
@@ -42,6 +44,7 @@ These standards represent the user's preferred style and architectural philosoph
 - **The XML surface is intentionally a small subset.** Current support is element-only XML with exact tags, escaped text, repeated `<item>` children for collections, and ignorable inter-element whitespace. Attributes, namespaces, mixed content, comments, CDATA, self-closing tags, and processing instructions are still out of scope.
 - **Common built-in schemas are now broader, but still intentional.** Auto-resolution currently includes `int64`, `int16`, `byte`, `sbyte`, `uint32`, `uint16`, `uint64`, `float`, `decimal`, `char`, `Guid`, `DateTime`, `DateTimeOffset`, and `TimeSpan` in addition to the original primitives, lists, arrays, options, and mapping helpers.
 - **Validated wrappers should use `Schema.tryMap`.** Use `Schema.map` for total projections and `Schema.tryMap` when the decode path needs a smart constructor such as `UserId.create : int -> Result<UserId, string>`.
+- **JSON Schema work should prefer structural parsing over validator parity.** Lower incoming schemas into the strongest `CodecMapper` shape available, use validated wrapper types and `Schema.tryMap` for semantic rules, and only fall back to pre-validation or raw JSON representations for schema constructs that do not describe one deterministic parse shape.
 - **Option support is explicit-value based.** `Schema.option` and `option<'T>` are supported, but missing fields still fail. `None` is represented as `null` in JSON and an empty element in XML.
 - **Compatibility sentinels should stay representative, not exhaustive.** The AOT and Fable apps now cover both JSON and XML nested-record paths plus selected option and validated-mapping cases. Expand them when the supported surface changes materially.
 - **The Fable story now has two checks.** `tests/CodecMapper.FableTests` still runs as a simple .NET sentinel app, and `scripts/check-fable-compat.sh` separately transpiles that project through the pinned Fable toolchain. Keep both checks working when changing generic/type-driven code.

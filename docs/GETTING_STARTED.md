@@ -2,6 +2,8 @@
 
 `CodecMapper` lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
+This tutorial is learning-oriented: it introduces the main schema DSL and the core compile-and-reuse workflow.
+
 The portable core in `CodecMapper` is intended to stay usable from Native AOT and Fable-oriented targets. The separate `CodecMapper.Bridge` assembly is `.NET`-only because it imports CLR serializer metadata through reflection.
 
 ## Core shape
@@ -249,6 +251,23 @@ let accountSchema =
     |> Schema.field "name" _.Name
     |> Schema.build
 ```
+
+## JSON Schema export
+
+You can export the JSON wire contract described by any `Schema<'T>`:
+
+```fsharp
+let jsonSchema = JsonSchema.generate accountSchema
+```
+
+The exported document targets JSON Schema draft 2020-12 and follows the same structural rules as `Json.compile`:
+
+- record schemas become object schemas with `properties` and `required`
+- `Schema.option` exports as `anyOf` with the inner type plus `null`
+- `Schema.missingAsNone` removes that property from `required`
+- `Schema.map` and `Schema.tryMap` export the underlying wire shape, not domain-only validation rules
+
+For example, a smart-constructor wrapper over `Schema.int` still exports as an integer contract because the JSON wire format is still an integer.
 
 ## Multiple formats from one schema
 

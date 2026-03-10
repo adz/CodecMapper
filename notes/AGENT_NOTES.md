@@ -83,6 +83,27 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `Schema.tryMap` is the validated customization hook for smart constructors that return `Result<'T, string>`.
 - Prefer `Schema.tryMap` over burying `failwith` inside a plain `Schema.map`, because it keeps decode-time validation explicit in the public API.
 
+## JSON Schema Export
+
+- `JsonSchema.generate` now exports a draft 2020-12 JSON Schema document directly from `Schema<'T>`.
+- The export is structural: it reflects the JSON wire contract, not extra business rules buried inside mapping functions.
+- `Schema.map` and `Schema.tryMap` therefore export their underlying wire shape.
+- `Schema.option` exports as `anyOf [inner, null]`.
+- `Schema.missingAsNone` removes the property from the enclosing object's `required` list but keeps the explicit value shape unchanged.
+- Future JSON Schema import work should prefer a three-step ladder:
+  - lower to normal `Schema<'T>` when the schema describes one deterministic wire shape
+  - enforce semantic rules with validated wrapper types and `Schema.tryMap`
+  - only fall back to pre-validation or a raw JSON DOM-style schema for dynamic-key, ambiguous-union, tuple-array, recursive, or similarly non-deterministic shapes
+- `Schema.jsonValue` now exists as the explicit raw JSON fallback for those dynamic cases.
+- `Schema.jsonValue` is intentionally JSON-only; `Xml.compile` fails explicitly rather than pretending there is a symmetric XML contract for arbitrary JSON.
+- `JsonSchema.import` now builds `Schema<JsonValue>` for the currently supported receive-side subset by decoding raw JSON first and then validating the imported schema rules over that DOM.
+- `JsonSchema.importWithReport` exposes enforced keywords, fallback keywords, and warnings so receive-side imports do not over-claim JSON Schema support.
+- The currently enforced import subset now covers: `$defs`/local `$ref`, object-shaped `allOf`, `oneOf`, `anyOf`, `if` / `then` / `else`, `type`, `properties`, `required`, `items`, schema-valued `additionalProperties`, `patternProperties`, `propertyNames`, `prefixItems`, `contains`, `enum`, `const`, string length bounds, numeric bounds, `multipleOf`, collection/property count bounds, `pattern`, and `format` when a validator is configured.
+- Local `$defs` and `$ref` normalization now work for the importer before rule generation.
+- Object-shaped `allOf` composition is now normalized before rule generation, and `ImportReport.NormalizedKeywords` exposes that preprocessing explicitly.
+- `JsonSchema.ImportOptions.defaults` currently covers `uuid` and `date-time`, and callers can add project-specific format validators with `JsonSchema.ImportOptions.withFormat`.
+- The remaining unsupported importer surface is now narrower and mostly semantic: `dependentSchemas` and `not` still fall back rather than pretending to be enforced.
+
 ## Parser Notes
 
 - The JSON parser is handwritten and should be hardened with deterministic input coverage before deeper refactors.
@@ -157,6 +178,11 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - The preserved CodecMapper logo now lives at `docs/logo.png` and is referenced from both `README.md` and `docs/index.md`. Treat that as the canonical branding asset path.
 - `fsdocs` output is treated as a generated artifact, not checked-in source. Build it into `output/`, which is ignored by Git.
 - The generated API docs are only as good as the XML comments in `src/`. If you change the public surface, update those comments in the same task instead of letting the reference drift.
+- User-facing docs should be grouped by Diataxis purpose:
+  - tutorials for first learning paths
+  - how-to guides for specific tasks
+  - technical reference for support matrices and API lookup
+  - explanations for design tradeoffs and mental models
 
 ## Legacy CodecMapper Comparison
 

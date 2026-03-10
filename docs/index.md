@@ -4,12 +4,32 @@
 
 `CodecMapper` is a schema-first serialization library for F# focused on explicit contracts, symmetric encode/decode behavior, and portability across .NET AOT and Fable-oriented targets.
 
-## Start Here
+## Tutorials
 
 - [Getting Started](GETTING_STARTED.md)
+
+Use tutorials when you are learning the library for the first time.
+
+## How-To Guides
+
+- [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md)
 - [Config Contracts Guide](CONFIG_CONTRACTS.md)
-- [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md)
+
+Use how-to guides when you already know what you want to accomplish.
+
+## Reference
+
+- [JSON Schema Support Reference](JSON_SCHEMA_SUPPORT.md)
 - [API Reference](reference/index.html)
+
+Use reference docs when you need exact supported behavior or API lookup.
+
+## Explanations
+
+- [JSON Schema in CodecMapper](JSON_SCHEMA_EXPLANATION.md)
+- [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md)
+
+Use explanations when you want the reasoning behind the design.
 
 ## Core Ideas
 
@@ -23,6 +43,7 @@
 - Pipeline DSL for F# schema authoring
 - JSON and XML codecs from the same schema
 - Built-in support for common primitive, numeric, option, collection, and time-based types
+- Raw JSON fallback via `Schema.jsonValue` for dynamic imported JSON shapes
 - .NET-only bridge importers for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
 
 ## Compatibility
