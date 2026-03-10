@@ -48,6 +48,9 @@ jobs:
       - name: Check Fable transpilation
         run: bash scripts/check-fable-compat.sh
 
+      - name: Check Fable 5 transpilation
+        run: bash scripts/check-fable5-compat.sh
+
       - name: Build API docs
         run: bash scripts/generate-api-docs.sh
 

@@ -25,9 +25,13 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 
 - [x] **Task 20:** Added array-backed support for `IReadOnlyList<T>` and `ICollection<T>`, the explicit `Schema.resizeArray` helper for concrete `ResizeArray<'T>` / `List<T>` models, and numeric-wire enum support. Direct dictionary support stays out of scope for now because it does not fit the current JSON/XML symmetry model as cleanly as the rest of the DSL.
 
-- [ ] **Task 20b: Add an explicit Fable 5 compatibility baseline**
-  - Decide whether the repo should pin `Fable 5` directly or run a second compatibility lane against that version.
-  - Add a stable `Fable 5` transpilation check once the version choice is deliberate and repeatable in CI.
+- [x] **Task 20b:** CI now runs a pinned `Fable 5.0.0-rc.2` transpilation lane via `scripts/check-fable5-compat.sh`, the core float encoder uses a Fable-safe path instead of the unsupported round-trip `"R"` formatter, and both the stable `Fable 4` lane plus the new `Fable 5` lane pass against the shared compatibility sentinel.
+
+- [ ] **Task 20c: Add key/value and YAML schema projections**
+  - Explore projecting a `Schema<'T>` to a `IDictionary<string, string>`-style surface for flat config and environment-variable contracts.
+  - Define how lossy/non-string/non-flat shapes should be rejected, normalized, or explicitly encoded.
+  - Explore a YAML codec or schema projection that reuses the same authored contract model without weakening the current JSON/XML symmetry guarantees.
+  - Keep the relationship between JSON Schema, key/value mappings, and YAML explicit in the docs so the library surface stays coherent.
 
 - [ ] **Task 22: Add a thin C# facade over schema authoring and execution**
   - Explore a fluent builder-pattern facade for C# over the existing schema model.

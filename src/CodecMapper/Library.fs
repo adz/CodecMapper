@@ -357,6 +357,16 @@ module Schema =
             (fun value -> System.TimeSpan.ParseExact(value, "c", System.Globalization.CultureInfo.InvariantCulture))
             (fun value -> value.ToString("c", System.Globalization.CultureInfo.InvariantCulture))
 
+    ///
+    /// Keep the .NET path using round-trip float formatting, but let Fable use
+    /// the host number string form instead of rejecting the `"R"` specifier.
+    let formatFloat (value: float) =
+#if FABLE_COMPILER
+        value.ToString()
+#else
+        value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
+#endif
+
     /// Builds a schema for an F# list.
     let inline list (inner: Schema<'T>) : Schema<'T list> = create (List(inner :> ISchema))
 
@@ -1189,7 +1199,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: float = unbox v
-                    w.WriteString(value.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))
+                    w.WriteString(Schema.formatFloat value))
             Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
             MissingValue = None
           }
@@ -3168,7 +3178,7 @@ module Xml =
                     w.WriteByte(60uy)
                     w.WriteString(tag)
                     w.WriteByte(62uy)
-                    w.WriteString((unbox<float> v).ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                    w.WriteString(Schema.formatFloat (unbox<float> v))
                     w.WriteByte(60uy)
                     w.WriteByte(47uy)
                     w.WriteString(tag)
