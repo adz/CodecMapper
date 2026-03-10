@@ -22,8 +22,13 @@ module Schemas =
         |> Schema.fieldWith "Home" _.Home address
         |> Schema.build
 
+    ///
+    /// The benchmark suite times batches of records so the published numbers
+    /// reflect a more realistic payload than a single tiny object.
+    let people = Schema.list person
+
 module CodecMapperBench =
-    let codec = Json.compile Schemas.person
+    let codec = Json.compile Schemas.people
 
     let serialize p = Json.serialize codec p
     let deserializeBytes bytes = Json.deserializeBytes codec bytes

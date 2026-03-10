@@ -9,33 +9,38 @@ open BenchmarkDotNet.Toolchains.InProcess.Emit
 
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
-    let person = {
-        Id = 42
-        Name = "Benchmark User"
-        Home = {
-            Street = "123 F# Way"
-            City = "AOT City"
-        }
-    }
+    ///
+    /// Benchmarking `100` records amortizes fixed serializer overhead and puts
+    /// the comparisons closer to the payload sizes users actually send around.
+    let people =
+        [ 1..100 ]
+        |> List.map (fun id -> {
+            Id = id
+            Name = $"Benchmark User {id}"
+            Home = {
+                Street = $"{id} F# Way"
+                City = if id % 2 = 0 then "AOT City" else "Fable Town"
+            }
+        })
 
-    let json =
-        "{\"Home\":{\"City\":\"AOT City\",\"Street\":\"123 F# Way\"},\"Id\":42,\"Name\":\"Benchmark User\"}"
+    let json = System.Text.Json.JsonSerializer.Serialize(people)
 
     let jsonBytes = System.Text.Encoding.UTF8.GetBytes(json)
 
-    // --- Single Object ---
+    // --- Batch of 100 records ---
 
     [<Benchmark(Baseline = true)>]
-    member _.STJ_Json_Serialize() = StjBench.serialize person
+    member _.STJ_Json_Serialize() = StjBench.serialize people
 
     [<Benchmark>]
-    member _.CodecMapper_Json_Serialize() = CodecMapperBench.serialize person
+    member _.CodecMapper_Json_Serialize() = CodecMapperBench.serialize people
 
     [<Benchmark>]
-    member _.Newtonsoft_Json_Serialize() = NewtonsoftBench.serialize person
+    member _.Newtonsoft_Json_Serialize() = NewtonsoftBench.serialize people
 
     [<Benchmark>]
-    member _.STJ_Json_Deserialize() = StjBench.deserialize<Person> (json)
+    member _.STJ_Json_Deserialize() =
+        StjBench.deserialize<Person list> (json)
 
     [<Benchmark>]
     member _.CodecMapper_Json_Deserialize_Bytes() =
@@ -43,7 +48,7 @@ type CompetitiveBenchmarks() =
 
     [<Benchmark>]
     member _.Newtonsoft_Json_Deserialize() =
-        NewtonsoftBench.deserialize<Person> (json)
+        NewtonsoftBench.deserialize<Person list> (json)
 
 module Program =
     [<EntryPoint>]

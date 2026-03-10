@@ -26,38 +26,47 @@ module Schemas =
         |> Schema.fieldWith "Home" _.Home address
         |> Schema.build
 
+    ///
+    /// Benchmarking a record batch is a closer proxy for real message payloads
+    /// than repeatedly timing a single tiny object in isolation.
+    let people = Schema.list person
+
 module Bench =
     let private stjOptions = System.Text.Json.JsonSerializerOptions()
-    let private cmapCodec = Json.compile Schemas.person
+    let private cmapCodec = Json.compile Schemas.people
 
-    let person = {
-        Id = 42
-        Name = "Benchmark User"
-        Home = {
-            Street = "123 F# Way"
-            City = "AOT City"
-        }
-    }
+    ///
+    /// Keep the batch deterministic so manual snapshots and BenchmarkDotNet
+    /// runs are comparing the same wire shape and allocation profile.
+    let people =
+        [ 1..100 ]
+        |> List.map (fun id -> {
+            Id = id
+            Name = $"Benchmark User {id}"
+            Home = {
+                Street = $"{id} F# Way"
+                City = if id % 2 = 0 then "AOT City" else "Fable Town"
+            }
+        })
 
-    let json =
-        "{\"Home\":{\"City\":\"AOT City\",\"Street\":\"123 F# Way\"},\"Id\":42,\"Name\":\"Benchmark User\"}"
+    let json = System.Text.Json.JsonSerializer.Serialize(people, stjOptions)
 
     let jsonBytes = Encoding.UTF8.GetBytes(json)
 
     let stjSerialize () =
-        System.Text.Json.JsonSerializer.Serialize(person, stjOptions)
+        System.Text.Json.JsonSerializer.Serialize(people, stjOptions)
 
-    let cmapSerialize () = Json.serialize cmapCodec person
-    let newtonsoftSerialize () = JsonConvert.SerializeObject(person)
+    let cmapSerialize () = Json.serialize cmapCodec people
+    let newtonsoftSerialize () = JsonConvert.SerializeObject(people)
 
     let stjDeserialize () =
-        System.Text.Json.JsonSerializer.Deserialize<Person>(json, stjOptions)
+        System.Text.Json.JsonSerializer.Deserialize<Person list>(json, stjOptions)
 
     let cmapDeserializeBytes () =
         Json.deserializeBytes cmapCodec jsonBytes
 
     let newtonsoftDeserialize () =
-        JsonConvert.DeserializeObject<Person>(json)
+        JsonConvert.DeserializeObject<Person list>(json)
 
 type Measurement = { MeanNs: float; MeanAllocBytes: float }
 
@@ -94,8 +103,9 @@ module Runner =
 
     let private hashString (value: string) = value.Length
 
-    let private hashPerson (value: Person) =
-        value.Id ^^^ value.Name.Length ^^^ value.Home.City.Length
+    let private hashPeople (values: Person list) =
+        values
+        |> List.fold (fun acc value -> acc ^^^ value.Id ^^^ value.Name.Length ^^^ value.Home.City.Length) 0
 
     let run () =
         printfn "Manual Release benchmark summary"
@@ -106,9 +116,9 @@ module Runner =
             "STJ serialize", measure 200000 5 Bench.stjSerialize hashString
             "CodecMapper serialize", measure 200000 5 Bench.cmapSerialize hashString
             "Newtonsoft serialize", measure 100000 5 Bench.newtonsoftSerialize hashString
-            "STJ deserialize", measure 200000 5 Bench.stjDeserialize hashPerson
-            "CodecMapper deserialize bytes", measure 200000 5 Bench.cmapDeserializeBytes hashPerson
-            "Newtonsoft deserialize", measure 100000 5 Bench.newtonsoftDeserialize hashPerson
+            "STJ deserialize", measure 20000 5 Bench.stjDeserialize hashPeople
+            "CodecMapper deserialize bytes", measure 20000 5 Bench.cmapDeserializeBytes hashPeople
+            "Newtonsoft deserialize", measure 10000 5 Bench.newtonsoftDeserialize hashPeople
         ]
 
         for (name, result) in results do
