@@ -37,7 +37,8 @@ let ``Smart-constructor wrapper rejects invalid decoded values`` () =
     let jsonCodec = Json.compile accountSchema
     let xmlCodec = Xml.compile accountSchema
 
-    expectFailure "UserId must be positive" (fun () -> Json.deserialize jsonCodec """{"id":0,"name":"Ada"}""")
+    expectFailure "JSON decode error at $.id: Validation failed: UserId must be positive" (fun () ->
+        Json.deserialize jsonCodec """{"id":0,"name":"Ada"}""")
 
-    expectFailure "UserId must be positive" (fun () ->
+    expectFailure "XML decode error at $/id: Validation failed: UserId must be positive" (fun () ->
         Xml.deserialize xmlCodec "<account><id>0</id><name>Ada</name></account>")

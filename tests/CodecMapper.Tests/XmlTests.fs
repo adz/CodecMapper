@@ -126,14 +126,23 @@ let ``Round-trip bool and arrays XML`` () =
 let ``Reject mismatched XML tags deterministically`` () =
     let codec = Xml.compile personSchema
 
-    expectFailure "Expected <name>" (fun () ->
+    expectFailure "XML decode error at $/name: Expected <name>" (fun () ->
         Xml.deserialize
             codec
             "<person><id>42</id><title>Adam</title><home><street>123 F# Lane</street><city>AOT City</city></home></person>")
 
 [<Fact>]
+let ``Report nested XML element path for decode failures`` () =
+    let codec = Xml.compile personSchema
+
+    expectFailure "XML decode error at $/home/street: Expected <street>" (fun () ->
+        Xml.deserialize
+            codec
+            "<person><id>1</id><name>Ada</name><home><line1>Main</line1><city>Adelaide</city></home></person>")
+
+[<Fact>]
 let ``Reject trailing XML content after the root value`` () =
     let codec = Xml.compile Schema.int
 
-    expectFailure "Trailing content after top-level XML value" (fun () ->
+    expectFailure "XML decode error at $: Trailing content after top-level XML value" (fun () ->
         Xml.deserialize codec "<int>1</int><int>2</int>")

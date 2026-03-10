@@ -112,7 +112,35 @@ let ``Skip unknown fields with escaped quotes and backslashes deterministically`
 
 [<Fact>]
 let ``Reject missing required keys`` () =
-    expectFailure "Missing required key: id" (fun () -> Json.deserialize idCodec "{}")
+    expectFailure "JSON decode error at $.id: Missing required key 'id'" (fun () -> Json.deserialize idCodec "{}")
+
+[<Fact>]
+let ``Report nested field path for JSON decode failures`` () =
+    let addressSchema =
+        Schema.define<Address>
+        |> Schema.construct makeAddress
+        |> Schema.field "street" _.Street
+        |> Schema.field "city" _.City
+        |> Schema.build
+
+    let personSchema =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith "home" _.Home addressSchema
+        |> Schema.build
+
+    let codec = Json.compile personSchema
+
+    expectFailure "JSON decode error at $.home.street: Expected \"" (fun () ->
+        Json.deserialize codec """{"id":1,"name":"Ada","home":{"street":42,"city":"Adelaide"}}""")
+
+[<Fact>]
+let ``Report array index path for JSON decode failures`` () =
+    let codec = Json.compile (Schema.list Schema.int)
+
+    expectFailure "JSON decode error at $[1]: Expected digit" (fun () -> Json.deserialize codec """[1,true,3]""")
 
 [<Fact>]
 let ``Reject empty and whitespace-only payloads`` () =

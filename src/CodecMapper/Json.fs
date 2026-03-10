@@ -25,7 +25,59 @@ module Json =
         Decode: Decoder<'T>
     }
 
+    type internal DecodePathSegment =
+        | Property of string
+        | Index of int
+
+    type internal JsonDecodeException(path: DecodePathSegment list, detail: string, ?inner: exn) =
+        inherit System.Exception(detail, defaultArg inner null)
+
+        member _.Path = path
+        member _.Detail = detail
+
+        override _.Message =
+            let renderPath segments =
+                let builder = StringBuilder("$")
+
+                for segment in segments do
+                    match segment with
+                    | Property name ->
+                        builder.Append('.') |> ignore
+                        builder.Append(name) |> ignore
+                    | Index index ->
+                        builder.Append('[') |> ignore
+                        builder.Append(index) |> ignore
+                        builder.Append(']') |> ignore
+
+                builder.ToString()
+
+            sprintf "JSON decode error at %s: %s" (renderPath path) detail
+
     module internal Runtime =
+        let private asDecodeException detail path inner =
+            JsonDecodeException(path, detail, inner) :> exn
+
+        let decodeFailure detail =
+            raise (asDecodeException detail [] null)
+
+        let private prependPath segment (ex: exn) =
+            match ex with
+            | :? JsonDecodeException as decodeEx -> asDecodeException decodeEx.Detail (segment :: decodeEx.Path) ex
+            | _ -> asDecodeException ex.Message [ segment ] ex
+
+        let withPath segment f =
+            try
+                f ()
+            with ex ->
+                raise (prependPath segment ex)
+
+        let withValidationContext f =
+            try
+                f ()
+            with
+            | :? JsonDecodeException -> reraise ()
+            | ex -> raise (asDecodeException ("Validation failed: " + ex.Message) [] ex)
+
         let inline skipWhitespace (src: JsonSource) =
             let mutable i = src.Offset
             let data = src.Data
@@ -878,10 +930,13 @@ module Json =
                         if valSrc.Data = null then
                             match f.Codec.MissingValue with
                             | Some value -> value
-                            | None -> failwithf "Missing required key: %s" f.Name
+                            | None ->
+                                Runtime.withPath (Property f.Name) (fun () ->
+                                    Runtime.decodeFailure (sprintf "Missing required key '%s'" f.Name))
                         else
-                            let struct (v, _) = f.Codec.Decode valSrc
-                            v)
+                            Runtime.withPath (Property f.Name) (fun () ->
+                                let struct (v, _) = f.Codec.Decode valSrc
+                                v))
 
                 struct (ctor args, current)
 
@@ -922,10 +977,15 @@ module Json =
                     continueLoop <- false
                     src <- src.Advance(1)
 
+                let mutable index = 0
+
                 while continueLoop do
-                    let struct (item, nextSrc) = innerCodec.Decode src
+                    let struct (item, nextSrc) =
+                        Runtime.withPath (Index index) (fun () -> innerCodec.Decode src)
+
                     results <- item :: results
                     src <- Runtime.skipWhitespace nextSrc
+                    index <- index + 1
 
                     if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                         src <- src.Advance(1)
@@ -973,10 +1033,15 @@ module Json =
                     continueLoop <- false
                     src <- src.Advance(1)
 
+                let mutable index = 0
+
                 while continueLoop do
-                    let struct (item, nextSrc) = innerCodec.Decode src
+                    let struct (item, nextSrc) =
+                        Runtime.withPath (Index index) (fun () -> innerCodec.Decode src)
+
                     results.Add(item)
                     src <- Runtime.skipWhitespace nextSrc
+                    index <- index + 1
 
                     if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                         src <- src.Advance(1)
@@ -1007,7 +1072,10 @@ module Json =
 
             {
                 Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
-                Decode = (fun src -> let struct (v, s) = innerCodec.Decode src in struct (wrap v, s))
+                Decode =
+                    (fun src ->
+                        let struct (v, s) = innerCodec.Decode src
+                        struct (Runtime.withValidationContext (fun () -> wrap v), s))
                 MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
@@ -1018,7 +1086,15 @@ module Json =
 
         {
             Encode = (fun w v -> compiled.Encode w (box v))
-            Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s))
+            Decode =
+                (fun src ->
+                    try
+                        let struct (v, s) = compiled.Decode src
+                        struct (unbox v, s)
+                    with ex ->
+                        match ex with
+                        | :? JsonDecodeException -> raise ex
+                        | _ -> Runtime.decodeFailure ex.Message)
         }
 
     ///
@@ -1042,7 +1118,7 @@ module Json =
         let rest = Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
-            failwith "Trailing content after top-level JSON value"
+            Runtime.decodeFailure "Trailing content after top-level JSON value"
 
         v
 
@@ -1052,6 +1128,6 @@ module Json =
         let rest = Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
-            failwith "Trailing content after top-level JSON value"
+            Runtime.decodeFailure "Trailing content after top-level JSON value"
 
         v

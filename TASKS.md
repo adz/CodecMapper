@@ -23,10 +23,7 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Prefer expanding safe static auto-resolution over making `fieldWith` implicit through runtime metadata.
   - Keep `fieldWith` for true schema boundaries such as validated wrappers, imported contracts, and explicit child schemas.
 
-- [ ] **Task 32: Improve decode diagnostics**
-  - Make decode failures consistently report path, expected shape, actual token/value, and validation/wrapper context.
-  - Align JSON, XML, KeyValue, YAML, and imported JSON Schema errors around the same mental model.
-  - Treat debuggability as a core ergonomics feature for the explicit schema approach.
+- [x] **Task 32:** Added path-aware decode diagnostics across `Json`, `Xml`, `KeyValue`, and `Yaml`, including missing-field paths, collection indices/items, and `Schema.tryMap` validation context, with matching regression coverage in the unit test suite.
 
 - [ ] **Task 33: Ship canonical pattern docs**
   - Add copy-pasteable reference patterns for basic records, nested records, validated wrappers, versioned contracts, config contracts, JSON Schema import, and the C# bridge.
@@ -44,3 +41,14 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Add a verification step so docs generation catches broken asset references before publishing.
 
 - [x] **Task 30:** Fixed the docs-site asset root by aligning `PackageProjectUrl` with the GitHub Pages URL instead of the repo URL, and hardened `scripts/generate-api-docs.sh` to clear stale `fsdocs` cache, build the doc assemblies first, and fail if generated output points theme/search assets at `github.com/adz/CodecMapper/...`.
+
+- [ ] **Task 35: Add property-based test coverage for codec laws**
+  - Add property-based tests for the real F# implementation rather than a sidecar model, since the main risks here are semantic drift, parser edge cases, and encode/decode symmetry across many inputs.
+  - Start with fixed representative schemas that already exist in the repo, then generate values for them: primitives, nested records, options, validated wrappers, collections, and numeric boundary cases.
+  - Make round-trip laws the first goal: `deserialize (serialize x) = x` for JSON and XML wherever the format supports the same shape.
+  - Add parser robustness properties for malformed inputs so failures stay deterministic and do not hang, over-consume input, or silently accept trailing content.
+  - Add format-symmetry properties where appropriate so one authored schema preserves the same semantic value across JSON and XML.
+  - Prefer `FsCheck.Xunit` in `tests/CodecMapper.Tests` so the property layer stays close to the existing xUnit and `Swensen.Unquote` test style.
+  - Keep the current example-based parser tests for exact regressions and expected error text; property tests should expand coverage, not replace those focused cases.
+  - Avoid starting with arbitrary recursive schema generation. The first iteration should optimize for debuggable failures and useful shrinking, not maximal generator cleverness.
+  - Treat generator design as part of the contract: keep generated values inside the supported deterministic surface instead of exploring JSON/XML features that the library intentionally leaves out.

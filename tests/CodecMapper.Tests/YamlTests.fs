@@ -99,3 +99,17 @@ let ``Yaml deserializes hand-authored sequences of objects`` () =
     ]
 
     test <@ decoded = expected @>
+
+[<Fact>]
+let ``Yaml reports nested schema paths for decode failures`` () =
+    let codec = Yaml.compile personSchema
+
+    expectFailure "YAML decode error at $.home.city: Missing required key 'city'" (fun () ->
+        Yaml.deserialize codec "id: 1\nname: Ada\nhome:\n  street: Main")
+
+[<Fact>]
+let ``Yaml reports parser failures at the root`` () =
+    let codec = Yaml.compile personSchema
+
+    expectFailure "YAML decode error at $: Failed to parse YAML payload" (fun () ->
+        Yaml.deserialize codec "id: 1\n\tname: Ada")

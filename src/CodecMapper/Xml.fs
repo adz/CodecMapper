@@ -23,6 +23,34 @@ module Xml =
         Decode: XmlSource -> struct ('T * XmlSource)
     }
 
+    type internal DecodePathSegment =
+        | Element of string
+        | Item of int
+
+    type internal XmlDecodeException(path: DecodePathSegment list, detail: string, ?inner: exn) =
+        inherit System.Exception(detail, defaultArg inner null)
+
+        member _.Path = path
+        member _.Detail = detail
+
+        override _.Message =
+            let renderPath segments =
+                let builder = StringBuilder("$")
+
+                for segment in segments do
+                    match segment with
+                    | Element name ->
+                        builder.Append('/') |> ignore
+                        builder.Append(name) |> ignore
+                    | Item index ->
+                        builder.Append("/item[") |> ignore
+                        builder.Append(index) |> ignore
+                        builder.Append(']') |> ignore
+
+                builder.ToString()
+
+            sprintf "XML decode error at %s: %s" (renderPath path) detail
+
     type CompiledCodec = {
         Encode: XmlWriter -> string -> obj -> unit
         Decode: XmlSource -> string -> struct (obj * XmlSource)
@@ -30,6 +58,30 @@ module Xml =
     }
 
     module internal Runtime =
+        let private asDecodeException detail path inner =
+            XmlDecodeException(path, detail, inner) :> exn
+
+        let decodeFailure detail =
+            raise (asDecodeException detail [] null)
+
+        let private prependPath segment (ex: exn) =
+            match ex with
+            | :? XmlDecodeException as decodeEx -> asDecodeException decodeEx.Detail (segment :: decodeEx.Path) ex
+            | _ -> asDecodeException ex.Message [ segment ] ex
+
+        let withPath segment f =
+            try
+                f ()
+            with ex ->
+                raise (prependPath segment ex)
+
+        let withValidationContext f =
+            try
+                f ()
+            with
+            | :? XmlDecodeException -> reraise ()
+            | ex -> raise (asDecodeException ("Validation failed: " + ex.Message) [] ex)
+
         let inline skipWhitespace (src: XmlSource) =
             let mutable i = src.Offset
             let data = src.Data
@@ -515,9 +567,13 @@ module Xml =
                                 | Some _ ->
                                     match f.Codec.MissingValue with
                                     | Some value -> value
-                                    | None -> failwithf "Expected <%s>" f.Name
+                                    | None ->
+                                        Runtime.withPath (Element f.Name) (fun () ->
+                                            Runtime.decodeFailure (sprintf "Expected <%s>" f.Name))
                                 | None ->
-                                    let struct (v, next) = f.Codec.Decode current f.Name
+                                    let struct (v, next) =
+                                        Runtime.withPath (Element f.Name) (fun () -> f.Codec.Decode current f.Name)
+
                                     current <- next
                                     v)
 
@@ -549,6 +605,7 @@ module Xml =
                         let mutable current = Runtime.expectOpenTag tag src
                         let results = ResizeArray<obj>()
                         let mutable continueLoop = true
+                        let mutable index = 0
 
                         while continueLoop do
                             current <- Runtime.skipWhitespace current
@@ -558,9 +615,12 @@ module Xml =
                                 current <- next
                                 continueLoop <- false
                             | None ->
-                                let struct (item, next) = innerCodec.Decode current "item"
+                                let struct (item, next) =
+                                    Runtime.withPath (Item index) (fun () -> innerCodec.Decode current "item")
+
                                 results.Add(item)
                                 current <- next
+                                index <- index + 1
 
                         struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
                 MissingValue = None
@@ -587,6 +647,7 @@ module Xml =
                         let mutable current = Runtime.expectOpenTag tag src
                         let results = ResizeArray<obj>()
                         let mutable continueLoop = true
+                        let mutable index = 0
 
                         while continueLoop do
                             current <- Runtime.skipWhitespace current
@@ -596,9 +657,12 @@ module Xml =
                                 current <- next
                                 continueLoop <- false
                             | None ->
-                                let struct (item, next) = innerCodec.Decode current "item"
+                                let struct (item, next) =
+                                    Runtime.withPath (Item index) (fun () -> innerCodec.Decode current "item")
+
                                 results.Add(item)
                                 current <- next
+                                index <- index + 1
 
 #if !FABLE_COMPILER
                         let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
@@ -618,7 +682,10 @@ module Xml =
 
             {
                 Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
-                Decode = (fun src tag -> let struct (v, s) = innerCodec.Decode src tag in struct (wrap v, s))
+                Decode =
+                    (fun src tag ->
+                        let struct (v, s) = innerCodec.Decode src tag
+                        struct (Runtime.withValidationContext (fun () -> wrap v), s))
                 MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | _ -> failwithf "Unsupported XML schema type"
@@ -640,7 +707,15 @@ module Xml =
 
         {
             Encode = (fun w v -> compiled.Encode w rootTag (box v))
-            Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s))
+            Decode =
+                (fun src ->
+                    try
+                        let struct (v, s) = compiled.Decode src rootTag
+                        struct (unbox v, s)
+                    with ex ->
+                        match ex with
+                        | :? XmlDecodeException -> raise ex
+                        | _ -> Runtime.decodeFailure ex.Message)
         }
 
     ///
@@ -661,7 +736,7 @@ module Xml =
         let rest = Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
-            failwith "Trailing content after top-level XML value"
+            Runtime.decodeFailure "Trailing content after top-level XML value"
 
         v
 
@@ -671,6 +746,6 @@ module Xml =
         let rest = Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
-            failwith "Trailing content after top-level XML value"
+            Runtime.decodeFailure "Trailing content after top-level XML value"
 
         v

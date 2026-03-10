@@ -15,9 +15,42 @@ module Yaml =
         Decode: string -> 'T
     }
 
+    type internal YamlDecodeException(path: string, detail: string, ?inner: exn) =
+        inherit System.Exception(detail, defaultArg inner null)
+
+        member _.Path = path
+        member _.Detail = detail
+
+        override _.Message = sprintf "YAML decode error at %s: %s" path detail
+
     type private Line = { Indent: int; Content: string }
 
     let private rawJsonCodec = Json.compile Schema.jsonValue
+
+    let private raiseDecodeFailure path detail inner =
+        raise (YamlDecodeException(path, detail, inner))
+
+    let private wrapYamlFailure path detail f =
+        try
+            f ()
+        with
+        | :? YamlDecodeException -> reraise ()
+        | ex -> raiseDecodeFailure path detail ex
+
+    let private renderJsonPath (segments: Json.DecodePathSegment list) =
+        let builder = StringBuilder("$")
+
+        for segment in segments do
+            match segment with
+            | Json.Property name ->
+                builder.Append('.') |> ignore
+                builder.Append(name) |> ignore
+            | Json.Index index ->
+                builder.Append('[') |> ignore
+                builder.Append(index) |> ignore
+                builder.Append(']') |> ignore
+
+        builder.ToString()
 
     let private normalizeNewlines (text: string) =
         text.Replace("\r\n", "\n").Replace('\r', '\n')
@@ -28,7 +61,7 @@ module Yaml =
         let rest = Json.Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
-            failwith "Trailing content after top-level JSON value"
+            raiseDecodeFailure "$" "Trailing content after top-level JSON value" null
 
         value
 
@@ -334,9 +367,16 @@ module Yaml =
                     renderYamlValue 0 jsonValue)
             Decode =
                 (fun yaml ->
-                    let jsonValue = parseYamlValue yaml
-                    let json = renderJsonValueText jsonValue
-                    Json.deserialize jsonCodec json)
+                    try
+                        let jsonValue =
+                            wrapYamlFailure "$" "Failed to parse YAML payload" (fun () -> parseYamlValue yaml)
+
+                        let json = renderJsonValueText jsonValue
+                        Json.deserialize jsonCodec json
+                    with
+                    | :? YamlDecodeException as ex -> raise ex
+                    | :? Json.JsonDecodeException as ex -> raiseDecodeFailure (renderJsonPath ex.Path) ex.Detail ex
+                    | ex -> raiseDecodeFailure "$" ex.Message ex)
         }
 
     ///

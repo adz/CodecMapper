@@ -104,6 +104,20 @@ let ``KeyValue preserves validated wrapper mappings through scalar leaves`` () =
     test <@ decoded = value @>
 
 [<Fact>]
+let ``KeyValue reports nested paths for decode failures`` () =
+    let codec = KeyValue.compile personSchema
+
+    expectFailure "KeyValue decode error at $.home.city: Missing required key 'home.city'" (fun () ->
+        KeyValue.deserialize codec (Map.ofList [ "id", "42"; "name", "Ada"; "home.street", "Main" ]))
+
+[<Fact>]
+let ``KeyValue reports validation context for mapped wrappers`` () =
+    let codec = KeyValue.compile accountSchema
+
+    expectFailure "KeyValue decode error at $.id: Validation failed: UserId must be positive" (fun () ->
+        KeyValue.deserialize codec (Map.ofList [ "id", "0"; "name", "Ada" ]))
+
+[<Fact>]
 let ``KeyValue rejects collection schemas that do not flatten deterministically`` () =
     let error =
         Assert.Throws<System.Exception>(fun () -> KeyValue.compile listSchema |> ignore)

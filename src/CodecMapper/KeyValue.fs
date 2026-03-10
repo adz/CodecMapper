@@ -32,11 +32,46 @@ module KeyValue =
         Decode: Map<string, string> -> 'T
     }
 
+    type internal KeyValueDecodeException(path: string list, detail: string, ?inner: exn) =
+        inherit System.Exception(detail, defaultArg inner null)
+
+        member _.Path = path
+        member _.Detail = detail
+
+        override _.Message =
+            let renderedPath =
+                match path with
+                | [] -> "$"
+                | _ -> "$." + String.concat "." path
+
+            sprintf "KeyValue decode error at %s: %s" renderedPath detail
+
     type CompiledCodec = {
         Encode: string list -> obj -> (string * string) list
         Decode: string list -> Map<string, string> -> obj option
         MissingValue: obj option
     }
+
+    let private asDecodeException detail path inner =
+        KeyValueDecodeException(path, detail, inner) :> exn
+
+    let private decodeFailure path detail =
+        raise (asDecodeException detail path null)
+
+    let private withPath path f =
+        try
+            f ()
+        with ex ->
+            match ex with
+            | :? KeyValueDecodeException as decodeEx -> raise (asDecodeException decodeEx.Detail path ex)
+            | _ -> raise (asDecodeException ex.Message path ex)
+
+    let private withValidationContext path f =
+        try
+            f ()
+        with
+        | :? KeyValueDecodeException -> reraise ()
+        | ex -> raise (asDecodeException ("Validation failed: " + ex.Message) path ex)
 
     let private keyName (options: Options) (segments: string list) =
         match segments with
@@ -106,7 +141,10 @@ module KeyValue =
         match schema.Definition with
         | Primitive targetType -> {
             Encode = (fun path value -> [ keyName options path, formatPrimitive targetType value ])
-            Decode = (fun path values -> tryFindValue options path values |> Option.map (parsePrimitive targetType))
+            Decode =
+                (fun path values ->
+                    tryFindValue options path values
+                    |> Option.map (fun value -> withPath path (fun () -> parsePrimitive targetType value)))
             MissingValue = None
           }
         | Record(_, fields, ctor) ->
@@ -143,9 +181,11 @@ module KeyValue =
                                         match field.Codec.MissingValue with
                                         | Some value -> value
                                         | None ->
-                                            failwithf
-                                                "Missing required key: %s"
-                                                (keyName options (path @ [ field.Field.Name ])))
+                                            let fieldPath = path @ [ field.Field.Name ]
+
+                                            decodeFailure
+                                                fieldPath
+                                                (sprintf "Missing required key '%s'" (keyName options fieldPath)))
 
                             Some(ctor args))
                 MissingValue = None
@@ -231,7 +271,10 @@ module KeyValue =
 
             {
                 Encode = (fun path value -> innerCodec.Encode path (unwrap value))
-                Decode = (fun path values -> innerCodec.Decode path values |> Option.map wrap)
+                Decode =
+                    (fun path values ->
+                        innerCodec.Decode path values
+                        |> Option.map (fun value -> withValidationContext path (fun () -> wrap value)))
                 MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | List _
@@ -247,9 +290,14 @@ module KeyValue =
             Encode = (fun value -> compiled.Encode [] (box value) |> Map.ofList)
             Decode =
                 (fun values ->
-                    match compiled.Decode [] values with
-                    | Some value -> unbox value
-                    | None -> failwith "KeyValue payload did not contain any decodable fields")
+                    try
+                        match compiled.Decode [] values with
+                        | Some value -> unbox value
+                        | None -> decodeFailure [] "Payload did not contain any decodable fields"
+                    with ex ->
+                        match ex with
+                        | :? KeyValueDecodeException -> raise ex
+                        | _ -> decodeFailure [] ex.Message)
         }
 
     /// Compiles a schema into a reusable flat key/value codec using dotted keys.

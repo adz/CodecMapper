@@ -67,9 +67,10 @@ let ``Missing option fields remain an error`` () =
     let jsonCodec = Json.compile optionalRecordSchema
     let xmlCodec = Xml.compile optionalRecordSchema
 
-    expectFailure "Missing required key: age" (fun () -> Json.deserialize jsonCodec """{"nickname":null}""")
+    expectFailure "JSON decode error at $.age: Missing required key 'age'" (fun () ->
+        Json.deserialize jsonCodec """{"nickname":null}""")
 
-    expectFailure "Expected <age>" (fun () ->
+    expectFailure "XML decode error at $/age: Expected <age>" (fun () ->
         Xml.deserialize xmlCodec "<optionalrecord><nickname></nickname></optionalrecord>")
 
 [<Fact>]
