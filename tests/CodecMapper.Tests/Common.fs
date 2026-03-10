@@ -1,6 +1,7 @@
 module TestCommon
 
 open System
+open System.Collections.Generic
 open Swensen.Unquote
 
 [<AutoOpen>]
@@ -59,6 +60,18 @@ module Domain =
     type BoolArrayRecord = { Enabled: bool; Aliases: string array }
 
     let makeBoolArrayRecord enabled aliases = { Enabled = enabled; Aliases = aliases }
+
+    type InteropCollectionRecord = {
+        Buffer: ResizeArray<string>
+        Names: IReadOnlyList<string>
+        Scores: ICollection<int>
+    }
+
+    let makeInteropCollectionRecord buffer names scores = {
+        Buffer = buffer
+        Names = names
+        Scores = scores
+    }
 
     type CommonTypeRecord = {
         Age: int16

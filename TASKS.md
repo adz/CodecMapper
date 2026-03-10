@@ -26,6 +26,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 - [ ] **Task 20: Broaden common collection and interop type support**
   - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
   - Only add shapes that preserve symmetric encode/decode semantics cleanly.
+  - *Progress:* added array-backed support for `IReadOnlyList<T>` and `ICollection<T>` plus the explicit `Schema.resizeArray` helper for concrete `ResizeArray<'T>` / `List<T>` models. Dictionaries and enums still need a deliberate symmetry story before this task can close.
 
 - [ ] **Task 20b: Add an explicit Fable 5 compatibility baseline**
   - Decide whether the repo should pin `Fable 5` directly or run a second compatibility lane against that version.

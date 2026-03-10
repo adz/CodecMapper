@@ -192,7 +192,7 @@ Compared with DTO-heavy designs, the difference is:
 - Core schema DSL for explicit record, collection, option, and wrapper contracts in F#
 - Reusable JSON and XML codecs compiled from the same schema
 - A handwritten parser/runtime in the core library rather than a thin wrapper over `System.Text.Json`
-- Built-in support for common numeric, string, boolean, GUID, and time-based types
+- Built-in support for common numeric, string, boolean, GUID, time-based, and collection interop types
 - Explicit field-policy helpers such as `Schema.missingAsNone` and `Schema.emptyStringAsNone`
 - Domain refinement through `Schema.map` and `Schema.tryMap`
 - JSON Schema export from authored `Schema<'T>` contracts

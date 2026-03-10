@@ -58,6 +58,24 @@ let ``System.Text.Json bridge imports setter-bound classes`` () =
     test <@ roundTrip.InternalNote = "" @>
 
 [<Fact>]
+let ``System.Text.Json bridge imports interface collection members`` () =
+    let schema = SystemTextJson.import<StjCollectionSettings> BridgeOptions.defaults
+    let codec = Json.compile schema
+
+    let value =
+        StjCollectionSettings(
+            ResizeArray([ "Ada"; "Lin" ]) :> IReadOnlyList<string>,
+            ResizeArray([ 1; 2; 3 ]) :> ICollection<int>
+        )
+
+    let json = Json.serialize codec value
+    let roundTrip = Json.deserialize codec json
+
+    test <@ json = """{"names":["Ada","Lin"],"scores":[1,2,3]}""" @>
+    test <@ Seq.toList roundTrip.Names = [ "Ada"; "Lin" ] @>
+    test <@ Seq.toList roundTrip.Scores = [ 1; 2; 3 ] @>
+
+[<Fact>]
 let ``Newtonsoft bridge imports constructor-bound classes`` () =
     let schema = NewtonsoftJson.import<NewtonsoftUser> BridgeOptions.defaults
     let codec = Json.compile schema

@@ -13,6 +13,7 @@
     <Compile Include="NumericTests.fs" />
     <Compile Include="XmlTests.fs" />
     <Compile Include="CommonTypeTests.fs" />
+    <Compile Include="CollectionInteropTests.fs" />
     <Compile Include="CustomizationTests.fs" />
     <Compile Include="JsonSchemaTests.fs" />
     <Compile Include="JsonValueTests.fs" />

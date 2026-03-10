@@ -153,6 +153,14 @@ let namesSchema = Schema.list Schema.string
 let aliasesSchema = Schema.array Schema.string
 ```
 
+For .NET interop collection shapes, `IReadOnlyList<'T>` and `ICollection<'T>` also auto-resolve through the normal homogeneous array wire form.
+
+If you need a concrete `ResizeArray<'T>` / `List<T>` in the model, keep that explicit:
+
+```fsharp
+let bufferSchema = Schema.resizeArray Schema.string
+```
+
 ## Options
 
 Options are explicit schemas too:

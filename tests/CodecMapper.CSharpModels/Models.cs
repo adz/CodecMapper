@@ -91,6 +91,22 @@ public sealed class StjSettings
     public string InternalNote { get; set; } = "";
 }
 
+public sealed class StjCollectionSettings
+{
+    [System.Text.Json.Serialization.JsonConstructor]
+    public StjCollectionSettings(IReadOnlyList<string> names, ICollection<int> scores)
+    {
+        Names = names;
+        Scores = scores;
+    }
+
+    [System.Text.Json.Serialization.JsonPropertyName("names")]
+    public IReadOnlyList<string> Names { get; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("scores")]
+    public ICollection<int> Scores { get; }
+}
+
 public sealed class StjUnsupportedConverter
 {
     [System.Text.Json.Serialization.JsonPropertyName("name")]

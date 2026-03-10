@@ -362,6 +362,25 @@ module Schema =
     /// Builds a schema for an array.
     let inline array (inner: Schema<'T>) : Schema<'T[]> = create (Array(inner :> ISchema))
 
+    /// Builds a schema for `ResizeArray<'T>` / `List<T>`.
+    ///
+    /// .NET interop often surfaces mutable list shapes even when the wire
+    /// contract is just a homogeneous JSON or XML array.
+    let inline resizeArray (inner: Schema<'T>) : Schema<ResizeArray<'T>> =
+        array inner |> map ResizeArray (fun (items: ResizeArray<'T>) -> items.ToArray())
+
+    /// Builds a schema for `IReadOnlyList<'T>`.
+    ///
+    /// Keep the wire form identical to arrays while still allowing .NET-facing
+    /// APIs to expose read-only collection interfaces.
+    let inline readOnlyList (inner: Schema<'T>) : Schema<IReadOnlyList<'T>> = create (Array(inner :> ISchema))
+
+    /// Builds a schema for `ICollection<'T>`.
+    ///
+    /// This preserves the normal array wire shape while interoperating with
+    /// common mutable collection interfaces from .NET APIs.
+    let inline collection (inner: Schema<'T>) : Schema<ICollection<'T>> = create (Array(inner :> ISchema))
+
     /// Builds a schema for an option value.
     ///
     /// The default semantics are strict: `None` is explicit on the wire, and
@@ -390,8 +409,9 @@ module Schema =
 
     /// Resolves a built-in schema for a CLR type.
     ///
-    /// This powers automatic field resolution for primitives, lists, arrays,
-    /// options, and the common built-in wrapper types.
+    /// This powers automatic field resolution for primitives, F# collections,
+    /// selected .NET collection interfaces, options, and the common built-in
+    /// wrapper types.
     let rec resolveSchema (t: System.Type) : ISchema =
         if t = typeof<int> then
             int :> ISchema
@@ -447,6 +467,22 @@ module Schema =
             { new ISchema with
                 member _.TargetType = t
                 member _.Definition = List(innerSchema)
+            }
+        elif t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<IReadOnlyList<_>> then
+            let innerType = t.GetGenericArguments().[0]
+            let innerSchema = resolveSchema innerType
+
+            { new ISchema with
+                member _.TargetType = t
+                member _.Definition = Array(innerSchema)
+            }
+        elif t.IsGenericType && t.GetGenericTypeDefinition() = typedefof<ICollection<_>> then
+            let innerType = t.GetGenericArguments().[0]
+            let innerSchema = resolveSchema innerType
+
+            { new ISchema with
+                member _.TargetType = t
+                member _.Definition = Array(innerSchema)
             }
         elif t.IsArray then
             let elementType = t.GetElementType()
@@ -1499,33 +1535,17 @@ module Json =
             let innerCodec = compileUntyped innerSchema
 
             let encoder (writer: IByteWriter) (vObj: obj) =
-#if !FABLE_COMPILER
-                let arr = vObj :?> System.Array
                 writer.WriteByte(91uy)
                 let mutable first = true
 
-                for i in 0 .. arr.Length - 1 do
+                for item in (vObj :?> System.Collections.IEnumerable) do
                     if not first then
                         writer.WriteByte(44uy)
 
-                    innerCodec.Encode writer (arr.GetValue(i))
+                    innerCodec.Encode writer item
                     first <- false
 
                 writer.WriteByte(93uy)
-#else
-                let arr = vObj :?> obj array
-                writer.WriteByte(91uy)
-                let mutable first = true
-
-                for i in 0 .. arr.Length - 1 do
-                    if not first then
-                        writer.WriteByte(44uy)
-
-                    innerCodec.Encode writer (arr.[i])
-                    first <- false
-
-                writer.WriteByte(93uy)
-#endif
 
             let decoder (src: JsonSource) =
                 let mutable src = Runtime.skipWhitespace src
@@ -3377,22 +3397,12 @@ module Xml =
             {
                 Encode =
                     (fun w tag vObj ->
-#if !FABLE_COMPILER
-                        let arr = vObj :?> System.Array
-#else
-                        let arr = vObj :?> obj array
-#endif
                         w.WriteByte(60uy)
                         w.WriteString(tag)
                         w.WriteByte(62uy)
 
-#if !FABLE_COMPILER
-                        for i in 0 .. arr.Length - 1 do
-                            innerCodec.Encode w "item" (arr.GetValue(i))
-#else
-                        for i in 0 .. arr.Length - 1 do
-                            innerCodec.Encode w "item" arr.[i]
-#endif
+                        for item in (vObj :?> System.Collections.IEnumerable) do
+                            innerCodec.Encode w "item" item
 
                         w.WriteByte(60uy)
                         w.WriteByte(47uy)

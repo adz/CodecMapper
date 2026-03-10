@@ -98,7 +98,7 @@ Current support is intentionally conservative:
 - constructor-bound classes
 - parameterless setter-bound classes
 - nested imported classes
-- arrays, `List<T>`, and `Nullable<T>`
+- arrays, `List<T>`, `IReadOnlyList<T>`, `ICollection<T>`, and `Nullable<T>`
 - rename/ignore/required metadata for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
 
 ## Explicitly unsupported
