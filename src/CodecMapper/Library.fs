@@ -2769,12 +2769,17 @@ module JsonSchema =
     let generate (schema: Schema<'T>) =
         let rootNode = exportNode schema
         let builder = System.Text.StringBuilder()
+        let title = schema.TargetType.Name
 
         builder.Append("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\"")
         |> ignore
 
         builder.Append(",\"title\":") |> ignore
-        appendQuoted builder typeof<'T>.Name
+        //
+        // The schema already captures the concrete target type when it is built.
+        // Reusing that value avoids a runtime generic type lookup that Fable
+        // cannot preserve after erasure.
+        appendQuoted builder title
         appendRootNode builder rootNode
 
         builder.Append('}') |> ignore
