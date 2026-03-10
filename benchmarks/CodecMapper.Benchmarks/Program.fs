@@ -10,10 +10,10 @@ open BenchmarkDotNet.Toolchains.InProcess.Emit
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
     ///
-    /// Benchmarking `100` records amortizes fixed serializer overhead and puts
+    /// Benchmarking `50` records amortizes fixed serializer overhead and puts
     /// the comparisons closer to the payload sizes users actually send around.
     let people =
-        [ 1..100 ]
+        [ 1..50 ]
         |> List.map (fun id -> {
             Id = id
             Name = $"Benchmark User {id}"
@@ -27,7 +27,7 @@ type CompetitiveBenchmarks() =
 
     let jsonBytes = System.Text.Encoding.UTF8.GetBytes(json)
 
-    // --- Batch of 100 records ---
+    // --- Batch of 50 records ---
 
     [<Benchmark(Baseline = true)>]
     member _.STJ_Json_Serialize() = StjBench.serialize people

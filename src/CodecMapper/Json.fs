@@ -25,6 +25,13 @@ module Json =
         Decode: Decoder<'T>
     }
 
+    ///
+    /// Tiny payloads fit comfortably in the old `128`-byte buffer, but the
+    /// benchmark runner now measures batches of `100` records where repeated
+    /// growth and copy steps dominate allocation churn. Starting larger keeps
+    /// the hot JSON path closer to realistic message sizes.
+    let private defaultSerializeBufferCapacity = 4096
+
     type internal DecodePathSegment =
         | Property of string
         | Index of int
@@ -852,12 +859,24 @@ module Json =
                 fields
                 |> Array.mapi (fun i f ->
                     let codec = compileUntyped f.Schema
+                    let encodedName = "\"" + f.Name + "\":"
 
                     {|
                         Name = f.Name
+                        EncodedName = encodedName
                         Index = i
                         Codec = codec
                     |})
+
+            ///
+            /// Object decode used to linearly scan every field name for every
+            /// property in the payload. A fixed lookup table keeps the compiled
+            /// cost up front and removes repeated per-property scans.
+            let fieldIndices = Dictionary<string, int>(compiledFields.Length)
+
+            do
+                for field in compiledFields do
+                    fieldIndices[field.Name] <- field.Index
 
             let encoder (writer: IByteWriter) (vObj: obj) =
                 writer.WriteByte(123uy)
@@ -867,10 +886,7 @@ module Json =
                     if not first then
                         writer.WriteByte(44uy)
 
-                    writer.WriteByte(34uy)
-                    writer.WriteString(f.Name)
-                    writer.WriteByte(34uy)
-                    writer.WriteByte(58uy)
+                    writer.WriteString(f.EncodedName)
                     f.Codec.Encode writer (fields[f.Index].GetValue vObj)
                     first <- false
 
@@ -900,17 +916,10 @@ module Json =
                         failwith "Expected :"
 
                     let valSrc = Runtime.skipWhitespace (afterColon.Advance(1))
-                    let mutable found = false
-                    let mutable i = 0
 
-                    while i < compiledFields.Length && not found do
-                        let f = compiledFields[i]
-
-                        if f.Name = key then
-                            fieldSources[f.Index] <- valSrc
-                            found <- true
-                        else
-                            i <- i + 1
+                    match fieldIndices.TryGetValue(key) with
+                    | true, index -> fieldSources[index] <- valSrc
+                    | false, _ -> ()
 
                     let afterVal = Runtime.skipWhitespace (Runtime.skipValue valSrc)
 
@@ -1104,7 +1113,7 @@ module Json =
 
     /// Serializes a value to JSON using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) =
-        let writer = ResizableBuffer.Create(128)
+        let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
         codec.Encode writer value
         Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
 

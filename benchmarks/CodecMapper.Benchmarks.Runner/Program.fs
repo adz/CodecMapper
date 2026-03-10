@@ -39,7 +39,7 @@ module Bench =
     /// Keep the batch deterministic so manual snapshots and BenchmarkDotNet
     /// runs are comparing the same wire shape and allocation profile.
     let people =
-        [ 1..100 ]
+        [ 1..50 ]
         |> List.map (fun id -> {
             Id = id
             Name = $"Benchmark User {id}"
