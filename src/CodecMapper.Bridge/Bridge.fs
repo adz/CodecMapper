@@ -110,7 +110,7 @@ module private Runtime =
             let mutable start = 0
 
             for i in 1 .. value.Length - 1 do
-                if Char.IsUpper(value.[i]) && (not (Char.IsUpper(value.[i - 1]))) then
+                if Char.IsUpper(value[i]) && (not (Char.IsUpper(value[i - 1]))) then
                     words.Add(value.Substring(start, i - start))
                     start <- i
 
@@ -125,7 +125,7 @@ module private Runtime =
             if String.IsNullOrEmpty(name) then
                 name
             else
-                Char.ToLowerInvariant(name.[0]).ToString() + name.Substring(1)
+                Char.ToLowerInvariant(name[0]).ToString() + name.Substring(1)
         | SnakeCaseLower -> words |> Array.map _.ToLowerInvariant() |> String.concat "_"
         | SnakeCaseUpper -> words |> Array.map _.ToUpperInvariant() |> String.concat "_"
         | KebabCaseLower -> words |> Array.map _.ToLowerInvariant() |> String.concat "-"
@@ -428,7 +428,7 @@ module private Runtime =
                                 Name = memberInfo.WireName
                                 Type = memberInfo.MemberType
                                 GetValue = memberInfo.Getter
-                                Schema = memberSchemas.[memberInfo.ClrName]
+                                Schema = memberSchemas[memberInfo.ClrName]
                             }
 
                             let plan = getConstructionPlan flavor targetType members
@@ -446,8 +446,8 @@ module private Runtime =
                                         let instance = ctor.Invoke(Array.empty)
 
                                         for i = 0 to orderedMembers.Length - 1 do
-                                            match orderedMembers.[i].Setter with
-                                            | Some setter -> setter instance args.[i]
+                                            match orderedMembers[i].Setter with
+                                            | Some setter -> setter instance args[i]
                                             | None -> invalidOp "Setter plan contained a non-settable member."
 
                                         instance
@@ -567,7 +567,7 @@ type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
             let instance = factory.Invoke()
 
             for i = 0 to schemaFields.Length - 1 do
-                fields.[i].Setter instance args.[i]
+                fields[i].Setter instance args[i]
 
             box instance
 

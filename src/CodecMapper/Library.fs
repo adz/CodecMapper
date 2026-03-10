@@ -8,7 +8,6 @@ open System.Text
 open System.Collections.Generic
 open System.Globalization
 open Microsoft.FSharp.Reflection
-open System.Diagnostics.CodeAnalysis
 
 /// Low-level byte reading and writing primitives shared by the JSON and XML runtimes.
 [<AutoOpen>]
@@ -52,7 +51,7 @@ module Core =
         let mutable index = 0
 
         while valid && index < text.Length do
-            let ch = text.[index]
+            let ch = text[index]
 
             if ch < '0' || ch > '9' then
                 valid <- false
@@ -71,7 +70,7 @@ module Core =
     let private classifyIntegerToken (allowMinus: bool) (text: string) =
         if text = "" then
             InvalidToken
-        elif allowMinus && text.[0] = '-' then
+        elif allowMinus && text[0] = '-' then
             if text.Length = 1 then InvalidToken
             elif isDigitsOnly (text.Substring(1)) then OutOfRangeToken
             else InvalidToken
@@ -244,7 +243,7 @@ module Core =
 
             member x.WriteByte(b: byte) =
                 (x :> IByteWriter).Ensure(1)
-                x.InternalData.[x.InternalCount] <- b
+                x.InternalData[x.InternalCount] <- b
                 x.InternalCount <- x.InternalCount + 1
 
             member x.WriteString(s: string) =
@@ -277,14 +276,14 @@ module Core =
                     let mutable pos = 0
 
                     while v > 0 do
-                        digits.[pos] <- byte (48 + (v % 10))
+                        digits[pos] <- byte (48 + (v % 10))
                         v <- v / 10
                         pos <- pos + 1
 
                     (x :> IByteWriter).Ensure(pos)
 
                     for i in 0 .. pos - 1 do
-                        x.InternalData.[x.InternalCount + i] <- digits.[pos - 1 - i]
+                        x.InternalData[x.InternalCount + i] <- digits[pos - 1 - i]
 
                     x.InternalCount <- x.InternalCount + pos
 
@@ -489,7 +488,7 @@ module Schema =
                 if value.Length <> 1 then
                     failwithf "char value must contain exactly one character, got %d" value.Length
 
-                value.[0])
+                value[0])
             (fun value -> value.ToString())
 
     /// A schema for `DateTime` using the round-trippable `"O"` string format.
@@ -759,7 +758,7 @@ module Schema =
 
         let nextApp (args: obj[]) (idx: int) =
             let fCurried = builder.App args (idx - 1)
-            let arg = unbox<'Field> args.[idx]
+            let arg = unbox<'Field> args[idx]
             fCurried arg
 
         {
@@ -786,7 +785,7 @@ module Schema =
 
         let nextApp (args: obj[]) (idx: int) =
             let fCurried = builder.App args (idx - 1)
-            let arg = unbox<'Field> args.[idx]
+            let arg = unbox<'Field> args[idx]
             fCurried arg
 
         {
@@ -830,7 +829,7 @@ module Json =
             let data = src.Data
 
             while i < data.Length
-                  && (data.[i] = 32uy || data.[i] = 10uy || data.[i] = 13uy || data.[i] = 9uy) do
+                  && (data[i] = 32uy || data[i] = 10uy || data[i] = 13uy || data[i] = 9uy) do
                 i <- i + 1
 
             ByteSource(data, i)
@@ -846,46 +845,46 @@ module Json =
             let data = src.Data
             let mutable i = src.Offset
 
-            if data.[i] = 45uy then
+            if data[i] = 45uy then
                 i <- i + 1
 
             if i >= data.Length then
                 failwith "Expected digit"
 
-            if data.[i] = 48uy then
+            if data[i] = 48uy then
                 i <- i + 1
 
-                if i < data.Length && isDigit data.[i] then
+                if i < data.Length && isDigit data[i] then
                     failwith "Leading zeroes are not allowed"
-            elif isDigit data.[i] then
-                while i < data.Length && isDigit data.[i] do
+            elif isDigit data[i] then
+                while i < data.Length && isDigit data[i] do
                     i <- i + 1
             else
                 failwith "Expected digit"
 
-            if allowFractionAndExponent && i < data.Length && data.[i] = 46uy then
+            if allowFractionAndExponent && i < data.Length && data[i] = 46uy then
                 i <- i + 1
 
-                if i >= data.Length || not (isDigit data.[i]) then
+                if i >= data.Length || not (isDigit data[i]) then
                     failwith "Expected digit"
 
-                while i < data.Length && isDigit data.[i] do
+                while i < data.Length && isDigit data[i] do
                     i <- i + 1
 
             if
                 allowFractionAndExponent
                 && i < data.Length
-                && (data.[i] = 101uy || data.[i] = 69uy)
+                && (data[i] = 101uy || data[i] = 69uy)
             then
                 i <- i + 1
 
-                if i < data.Length && (data.[i] = 43uy || data.[i] = 45uy) then
+                if i < data.Length && (data[i] = 43uy || data[i] = 45uy) then
                     i <- i + 1
 
-                if i >= data.Length || not (isDigit data.[i]) then
+                if i >= data.Length || not (isDigit data[i]) then
                     failwith "Expected digit"
 
-                while i < data.Length && isDigit data.[i] do
+                while i < data.Length && isDigit data[i] do
                     i <- i + 1
 
 #if !FABLE_COMPILER
@@ -938,19 +937,19 @@ module Json =
 
                 if
                     remaining >= 4
-                    && data.[src.Offset] = 116uy
-                    && data.[src.Offset + 1] = 114uy
-                    && data.[src.Offset + 2] = 117uy
-                    && data.[src.Offset + 3] = 101uy
+                    && data[src.Offset] = 116uy
+                    && data[src.Offset + 1] = 114uy
+                    && data[src.Offset + 2] = 117uy
+                    && data[src.Offset + 3] = 101uy
                 then
                     struct (true, ByteSource(data, src.Offset + 4))
                 elif
                     remaining >= 5
-                    && data.[src.Offset] = 102uy
-                    && data.[src.Offset + 1] = 97uy
-                    && data.[src.Offset + 2] = 108uy
-                    && data.[src.Offset + 3] = 115uy
-                    && data.[src.Offset + 4] = 101uy
+                    && data[src.Offset] = 102uy
+                    && data[src.Offset + 1] = 97uy
+                    && data[src.Offset + 2] = 108uy
+                    && data[src.Offset + 3] = 115uy
+                    && data[src.Offset + 4] = 101uy
                 then
                     struct (false, ByteSource(data, src.Offset + 5))
                 else
@@ -962,10 +961,10 @@ module Json =
 
             if
                 src.Offset + 3 < data.Length
-                && data.[src.Offset] = 110uy
-                && data.[src.Offset + 1] = 117uy
-                && data.[src.Offset + 2] = 108uy
-                && data.[src.Offset + 3] = 108uy
+                && data[src.Offset] = 110uy
+                && data[src.Offset + 1] = 117uy
+                && data[src.Offset + 2] = 108uy
+                && data[src.Offset + 3] = 108uy
             then
                 ByteSource(data, src.Offset + 4)
             else
@@ -975,7 +974,7 @@ module Json =
             let src = skipWhitespace src
             let data = src.Data
 
-            if src.Offset >= data.Length || data.[src.Offset] <> 34uy then
+            if src.Offset >= data.Length || data[src.Offset] <> 34uy then
                 failwith "Expected \""
 
             ///
@@ -985,7 +984,7 @@ module Json =
                 let mutable slashCount = 0
                 let mutable j = index - 1
 
-                while j >= src.Offset && data.[j] = 92uy do
+                while j >= src.Offset && data[j] = 92uy do
                     slashCount <- slashCount + 1
                     j <- j - 1
 
@@ -993,7 +992,7 @@ module Json =
 
             let mutable i = src.Offset + 1
 
-            while i < data.Length && not (data.[i] = 34uy && not (isEscapedQuote i)) do
+            while i < data.Length && not (data[i] = 34uy && not (isEscapedQuote i)) do
                 i <- i + 1
 
             if i >= data.Length then
@@ -1006,7 +1005,7 @@ module Json =
                 let src = skipWhitespace src
                 let data = src.Data
 
-                if src.Offset >= data.Length || data.[src.Offset] <> 34uy then
+                if src.Offset >= data.Length || data[src.Offset] <> 34uy then
                     failwith "Expected \""
 
                 let mutable i = src.Offset + 1
@@ -1035,7 +1034,7 @@ module Json =
                 let mutable finished = false
 
                 while i < data.Length && not finished do
-                    match data.[i] with
+                    match data[i] with
                     | 34uy -> finished <- true
                     | 92uy ->
                         appendSegment segmentStart i
@@ -1047,7 +1046,7 @@ module Json =
                         if isNull builder then
                             builder <- StringBuilder()
 
-                        match data.[i] with
+                        match data[i] with
                         | 34uy -> builder.Append('"') |> ignore
                         | 92uy -> builder.Append('\\') |> ignore
                         | 47uy -> builder.Append('/') |> ignore
@@ -1061,10 +1060,10 @@ module Json =
                                 failwith "Unterminated unicode escape"
 
                             let codePoint =
-                                ((hexValue data.[i + 1]) <<< 12)
-                                ||| ((hexValue data.[i + 2]) <<< 8)
-                                ||| ((hexValue data.[i + 3]) <<< 4)
-                                ||| (hexValue data.[i + 4])
+                                ((hexValue data[i + 1]) <<< 12)
+                                ||| ((hexValue data[i + 2]) <<< 8)
+                                ||| ((hexValue data[i + 3]) <<< 4)
+                                ||| (hexValue data[i + 4])
 
                             builder.Append(char codePoint) |> ignore
                             i <- i + 4
@@ -1103,7 +1102,7 @@ module Json =
 
             let data = src.Data
 
-            match data.[src.Offset] with
+            match data[src.Offset] with
             | 110uy ->
                 let next = nullDecoder src
                 struct (JNull, next)
@@ -1119,7 +1118,7 @@ module Json =
                 let items = ResizeArray<JsonValue>()
                 let mutable looping = true
 
-                if current.Offset < data.Length && data.[current.Offset] = 93uy then
+                if current.Offset < data.Length && data[current.Offset] = 93uy then
                     current <- current.Advance(1)
                     looping <- false
 
@@ -1129,9 +1128,9 @@ module Json =
 
                     let afterItem = skipWhitespace next
 
-                    if afterItem.Offset < data.Length && data.[afterItem.Offset] = 44uy then
+                    if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
                         current <- skipWhitespace (afterItem.Advance(1))
-                    elif afterItem.Offset < data.Length && data.[afterItem.Offset] = 93uy then
+                    elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
                         current <- afterItem.Advance(1)
                         looping <- false
                     else
@@ -1143,7 +1142,7 @@ module Json =
                 let fields = ResizeArray<string * JsonValue>()
                 let mutable looping = true
 
-                if current.Offset < data.Length && data.[current.Offset] = 125uy then
+                if current.Offset < data.Length && data[current.Offset] = 125uy then
                     current <- current.Advance(1)
                     looping <- false
 
@@ -1151,7 +1150,7 @@ module Json =
                     let struct (key, afterKey) = stringDecoder current
                     let afterColon = skipWhitespace afterKey
 
-                    if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
+                    if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                         failwith "Expected :"
 
                     let struct (value, next) = jsonValueDecoderAt (depth + 1) (afterColon.Advance(1))
@@ -1159,9 +1158,9 @@ module Json =
 
                     let afterValue = skipWhitespace next
 
-                    if afterValue.Offset < data.Length && data.[afterValue.Offset] = 44uy then
+                    if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
                         current <- skipWhitespace (afterValue.Advance(1))
-                    elif afterValue.Offset < data.Length && data.[afterValue.Offset] = 125uy then
+                    elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
                         current <- afterValue.Advance(1)
                         looping <- false
                     else
@@ -1185,12 +1184,12 @@ module Json =
             else
                 let data = src.Data
 
-                match data.[src.Offset] with
+                match data[src.Offset] with
                 | 123uy ->
                     let mutable current = skipWhitespace (src.Advance(1))
                     let mutable continueLoop = true
 
-                    if current.Offset < data.Length && data.[current.Offset] = 125uy then
+                    if current.Offset < data.Length && data[current.Offset] = 125uy then
                         current <- current.Advance(1)
                         continueLoop <- false
 
@@ -1198,14 +1197,14 @@ module Json =
                         let struct (_, _, afterKey) = stringRaw current
                         let afterColon = skipWhitespace afterKey
 
-                        if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
+                        if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                             failwith "Expected :"
 
                         let afterValue = skipWhitespace (skipValueAt (depth + 1) (afterColon.Advance(1)))
 
-                        if afterValue.Offset < data.Length && data.[afterValue.Offset] = 44uy then
+                        if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
                             current <- skipWhitespace (afterValue.Advance(1))
-                        elif afterValue.Offset < data.Length && data.[afterValue.Offset] = 125uy then
+                        elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
                             current <- afterValue.Advance(1)
                             continueLoop <- false
                         else
@@ -1216,16 +1215,16 @@ module Json =
                     let mutable current = skipWhitespace (src.Advance(1))
                     let mutable continueLoop = true
 
-                    if current.Offset < data.Length && data.[current.Offset] = 93uy then
+                    if current.Offset < data.Length && data[current.Offset] = 93uy then
                         current <- current.Advance(1)
                         continueLoop <- false
 
                     while continueLoop do
                         let afterItem = skipWhitespace (skipValueAt (depth + 1) current)
 
-                        if afterItem.Offset < data.Length && data.[afterItem.Offset] = 44uy then
+                        if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
                             current <- skipWhitespace (afterItem.Advance(1))
-                        elif afterItem.Offset < data.Length && data.[afterItem.Offset] = 93uy then
+                        elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
                             current <- afterItem.Advance(1)
                             continueLoop <- false
                         else
@@ -1239,13 +1238,13 @@ module Json =
                     let mutable i = src.Offset
 
                     while i < data.Length
-                          && data.[i] <> 44uy
-                          && data.[i] <> 125uy
-                          && data.[i] <> 93uy
-                          && data.[i] <> 32uy
-                          && data.[i] <> 10uy
-                          && data.[i] <> 13uy
-                          && data.[i] <> 9uy do
+                          && data[i] <> 44uy
+                          && data[i] <> 125uy
+                          && data[i] <> 93uy
+                          && data[i] <> 32uy
+                          && data[i] <> 10uy
+                          && data[i] <> 13uy
+                          && data[i] <> 9uy do
                         i <- i + 1
 
                     ByteSource(data, i)
@@ -1260,10 +1259,7 @@ module Json =
                 let mutable equal = true
 
                 while i < len && equal do
-                    if a.[i] <> b.[offset + i] then
-                        equal <- false
-                    else
-                        i <- i + 1
+                    if a[i] <> b[offset + i] then equal <- false else i <- i + 1
 
                 equal
 
@@ -1275,7 +1271,7 @@ module Json =
             let mutable result = emptyList
 
             for i in elements.Length - 1 .. -1 .. 0 do
-                result <- cons.Invoke(null, [| elements.[i]; result |])
+                result <- cons.Invoke(null, [| elements[i]; result |])
 
             result
 #else
@@ -1357,7 +1353,7 @@ module Json =
                             w.WriteString(value.Substring(segmentStart, endIdx - segmentStart))
 
                     for i in 0 .. value.Length - 1 do
-                        match value.[i] with
+                        match value[i] with
                         | '"' ->
                             flushSegment i
                             w.WriteString("\\\"")
@@ -1418,7 +1414,7 @@ module Json =
                         writer.WriteString(value.Substring(segmentStart, endIdx - segmentStart))
 
                 for i in 0 .. value.Length - 1 do
-                    match value.[i] with
+                    match value[i] with
                     | '"' ->
                         flushSegment i
                         writer.WriteString("\\\"")
@@ -1511,13 +1507,13 @@ module Json =
                             w.WriteString("null")
                         else
                             let _, fields = FSharpValue.GetUnionFields(v, optionType)
-                            innerCodec.Encode w fields.[0])
+                            innerCodec.Encode w fields[0])
                 Decode =
                     (fun src ->
                         let src = Runtime.skipWhitespace src
                         let data = src.Data
 
-                        if src.Offset < data.Length && data.[src.Offset] = 110uy then
+                        if src.Offset < data.Length && data[src.Offset] = 110uy then
                             let next = Runtime.nullDecoder src
                             struct (FSharpValue.MakeUnion(noneCase, [||]), next)
                         else
@@ -1552,7 +1548,7 @@ module Json =
                         let current = Runtime.skipWhitespace src
                         let data = current.Data
 
-                        if current.Offset < data.Length && data.[current.Offset] = 110uy then
+                        if current.Offset < data.Length && data[current.Offset] = 110uy then
                             let next = Runtime.nullDecoder current
                             struct (defaultValue, next)
                         else
@@ -1586,7 +1582,7 @@ module Json =
                         let src = Runtime.skipWhitespace src
                         let data = src.Data
 
-                        if src.Offset < data.Length && data.[src.Offset] = 34uy then
+                        if src.Offset < data.Length && data[src.Offset] = 34uy then
                             let struct (text, next) = Runtime.stringDecoder src
 
                             if text = "" then
@@ -1621,7 +1617,7 @@ module Json =
                     writer.WriteString(f.Name)
                     writer.WriteByte(34uy)
                     writer.WriteByte(58uy)
-                    f.Codec.Encode writer (fields.[f.Index].GetValue vObj)
+                    f.Codec.Encode writer (fields[f.Index].GetValue vObj)
                     first <- false
 
                 writer.WriteByte(125uy)
@@ -1629,7 +1625,7 @@ module Json =
             let decoder (src: JsonSource) =
                 let src = Runtime.skipWhitespace src
 
-                if src.Offset >= src.Data.Length || src.Data.[src.Offset] <> 123uy then
+                if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 123uy then
                     failwith "Expected {"
 
                 let data = src.Data
@@ -1638,7 +1634,7 @@ module Json =
                 let mutable looping = true
                 current <- Runtime.skipWhitespace current
 
-                if current.Offset < data.Length && data.[current.Offset] = 125uy then
+                if current.Offset < data.Length && data[current.Offset] = 125uy then
                     looping <- false
                     current <- current.Advance(1)
 
@@ -1646,7 +1642,7 @@ module Json =
                     let struct (key, afterKey) = Runtime.stringDecoder current
                     let afterColon = Runtime.skipWhitespace afterKey
 
-                    if afterColon.Offset >= data.Length || data.[afterColon.Offset] <> 58uy then
+                    if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                         failwith "Expected :"
 
                     let valSrc = Runtime.skipWhitespace (afterColon.Advance(1))
@@ -1654,19 +1650,19 @@ module Json =
                     let mutable i = 0
 
                     while i < compiledFields.Length && not found do
-                        let f = compiledFields.[i]
+                        let f = compiledFields[i]
 
                         if f.Name = key then
-                            fieldSources.[f.Index] <- valSrc
+                            fieldSources[f.Index] <- valSrc
                             found <- true
                         else
                             i <- i + 1
 
                     let afterVal = Runtime.skipWhitespace (Runtime.skipValue valSrc)
 
-                    if afterVal.Offset < data.Length && data.[afterVal.Offset] = 44uy then
+                    if afterVal.Offset < data.Length && data[afterVal.Offset] = 44uy then
                         current <- afterVal.Advance(1)
-                    elif afterVal.Offset < data.Length && data.[afterVal.Offset] = 125uy then
+                    elif afterVal.Offset < data.Length && data[afterVal.Offset] = 125uy then
                         current <- afterVal.Advance(1)
                         looping <- false
                     else
@@ -1675,7 +1671,7 @@ module Json =
                 let args =
                     compiledFields
                     |> Array.map (fun f ->
-                        let valSrc = fieldSources.[f.Index]
+                        let valSrc = fieldSources[f.Index]
 
                         if valSrc.Data = null then
                             match f.Codec.MissingValue with
@@ -1712,7 +1708,7 @@ module Json =
             let decoder (src: JsonSource) =
                 let mutable src = Runtime.skipWhitespace src
 
-                if src.Offset >= src.Data.Length || src.Data.[src.Offset] <> 91uy then
+                if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 91uy then
                     failwith "Expected ["
 
                 src <- src.Advance(1)
@@ -1720,7 +1716,7 @@ module Json =
                 let mutable continueLoop = true
                 src <- Runtime.skipWhitespace src
 
-                if src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                if src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                     continueLoop <- false
                     src <- src.Advance(1)
 
@@ -1729,9 +1725,9 @@ module Json =
                     results <- item :: results
                     src <- Runtime.skipWhitespace nextSrc
 
-                    if src.Offset < src.Data.Length && src.Data.[src.Offset] = 44uy then
+                    if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                         src <- src.Advance(1)
-                    elif src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                    elif src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                         continueLoop <- false
                         src <- src.Advance(1)
                     else
@@ -1763,7 +1759,7 @@ module Json =
             let decoder (src: JsonSource) =
                 let mutable src = Runtime.skipWhitespace src
 
-                if src.Offset >= src.Data.Length || src.Data.[src.Offset] <> 91uy then
+                if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 91uy then
                     failwith "Expected ["
 
                 src <- src.Advance(1)
@@ -1771,7 +1767,7 @@ module Json =
                 let mutable continueLoop = true
                 src <- Runtime.skipWhitespace src
 
-                if src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                if src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                     continueLoop <- false
                     src <- src.Advance(1)
 
@@ -1780,9 +1776,9 @@ module Json =
                     results.Add(item)
                     src <- Runtime.skipWhitespace nextSrc
 
-                    if src.Offset < src.Data.Length && src.Data.[src.Offset] = 44uy then
+                    if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                         src <- src.Advance(1)
-                    elif src.Offset < src.Data.Length && src.Data.[src.Offset] = 93uy then
+                    elif src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                         continueLoop <- false
                         src <- src.Advance(1)
                     else
@@ -1792,7 +1788,7 @@ module Json =
                 let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
 
                 for i in 0 .. results.Count - 1 do
-                    targetArray.SetValue(results.[i], i)
+                    targetArray.SetValue(results[i], i)
 
                 struct (box targetArray, src)
 #else
@@ -1989,7 +1985,7 @@ module JsonSchema =
                 if i > 0 then
                     builder.Append(',') |> ignore
 
-                let name, propertyNode = properties.[i]
+                let name, propertyNode = properties[i]
                 appendQuoted builder name
                 builder.Append(':') |> ignore
                 appendNode builder propertyNode
@@ -2003,7 +1999,7 @@ module JsonSchema =
                     if i > 0 then
                         builder.Append(',') |> ignore
 
-                    appendQuoted builder required.[i]
+                    appendQuoted builder required[i]
 
                 builder.Append(']') |> ignore
 
@@ -2015,7 +2011,7 @@ module JsonSchema =
                 if i > 0 then
                     builder.Append(',') |> ignore
 
-                appendNode builder nodes.[i]
+                appendNode builder nodes[i]
 
             builder.Append("]}") |> ignore
 
@@ -2074,7 +2070,7 @@ module JsonSchema =
                 if i > 0 then
                     builder.Append(',') |> ignore
 
-                let name, propertyNode = properties.[i]
+                let name, propertyNode = properties[i]
                 appendQuoted builder name
                 builder.Append(':') |> ignore
                 appendNode builder propertyNode
@@ -2088,7 +2084,7 @@ module JsonSchema =
                     if i > 0 then
                         builder.Append(',') |> ignore
 
-                    appendQuoted builder required.[i]
+                    appendQuoted builder required[i]
 
                 builder.Append(']') |> ignore
         | AnyOfNode nodes ->
@@ -2098,7 +2094,7 @@ module JsonSchema =
                 if i > 0 then
                     builder.Append(',') |> ignore
 
-                appendNode builder nodes.[i]
+                appendNode builder nodes[i]
 
             builder.Append(']') |> ignore
 
@@ -2179,7 +2175,7 @@ module JsonSchema =
         else
             let mutable index = 0
 
-            if token.[0] = '-' then
+            if token[0] = '-' then
                 index <- 1
 
             if index >= token.Length then
@@ -2188,7 +2184,7 @@ module JsonSchema =
                 let mutable valid = true
 
                 while index < token.Length && valid do
-                    let ch = token.[index]
+                    let ch = token[index]
 
                     if ch < '0' || ch > '9' then
                         valid <- false
@@ -2264,7 +2260,7 @@ module JsonSchema =
                 |> Option.bind (fun (_, next) -> loop next rest)
             | segment :: rest, JArray items ->
                 match Core.tryParseInt32Invariant segment with
-                | Some index when index >= 0 && index < items.Length -> loop items.[index] rest
+                | Some index when index >= 0 && index < items.Length -> loop items[index] rest
                 | _ -> None
             | _ -> None
 
@@ -2543,7 +2539,7 @@ module JsonSchema =
                                 |> List.mapi (fun index item ->
                                     let validator =
                                         if index < prefixValidators.Length then
-                                            Some prefixValidators.[index]
+                                            Some prefixValidators[index]
                                         else
                                             match trailingItemsRule with
                                             | Some(Some rule) -> Some rule
@@ -3070,7 +3066,7 @@ module Xml =
             let data = src.Data
 
             while i < data.Length
-                  && (data.[i] = 32uy || data.[i] = 10uy || data.[i] = 13uy || data.[i] = 9uy) do
+                  && (data[i] = 32uy || data[i] = 10uy || data[i] = 13uy || data[i] = 9uy) do
                 i <- i + 1
 
             ByteSource(data, i)
@@ -3082,17 +3078,17 @@ module Xml =
             let src = skipWhitespace src
             let data = src.Data
 
-            if src.Offset >= data.Length || data.[src.Offset] <> 60uy then
+            if src.Offset >= data.Length || data[src.Offset] <> 60uy then
                 failwith "Expected <"
 
             let mutable i = src.Offset + 1
 
-            if i < data.Length && data.[i] = 47uy then
+            if i < data.Length && data[i] = 47uy then
                 failwithf "Expected <%s>" tag
 
             let start = i
 
-            while i < data.Length && data.[i] <> 62uy do
+            while i < data.Length && data[i] <> 62uy do
                 i <- i + 1
 
             if i >= data.Length then
@@ -3115,15 +3111,15 @@ module Xml =
 
             if
                 src.Offset + 2 >= data.Length
-                || data.[src.Offset] <> 60uy
-                || data.[src.Offset + 1] <> 47uy
+                || data[src.Offset] <> 60uy
+                || data[src.Offset + 1] <> 47uy
             then
                 failwithf "Expected </%s>" tag
 
             let mutable i = src.Offset + 2
             let start = i
 
-            while i < data.Length && data.[i] <> 62uy do
+            while i < data.Length && data[i] <> 62uy do
                 i <- i + 1
 
             if i >= data.Length then
@@ -3146,15 +3142,15 @@ module Xml =
 
             if
                 src.Offset + tag.Length + 2 >= data.Length
-                || data.[src.Offset] <> 60uy
-                || data.[src.Offset + 1] <> 47uy
+                || data[src.Offset] <> 60uy
+                || data[src.Offset + 1] <> 47uy
             then
                 None
             else
                 let mutable i = src.Offset + 2
                 let start = i
 
-                while i < data.Length && data.[i] <> 62uy do
+                while i < data.Length && data[i] <> 62uy do
                     i <- i + 1
 
                 if i >= data.Length then
@@ -3175,7 +3171,7 @@ module Xml =
             let builder = StringBuilder()
 
             for i in 0 .. value.Length - 1 do
-                match value.[i] with
+                match value[i] with
                 | '&' -> builder.Append("&amp;") |> ignore
                 | '<' -> builder.Append("&lt;") |> ignore
                 | '>' -> builder.Append("&gt;") |> ignore
@@ -3197,7 +3193,7 @@ module Xml =
             let data = src.Data
             let mutable i = src.Offset
 
-            while i < data.Length && data.[i] <> 60uy do
+            while i < data.Length && data[i] <> 60uy do
                 i <- i + 1
 
 #if !FABLE_COMPILER
@@ -3506,8 +3502,8 @@ module Xml =
                             if
                                 caseInfo.Name = "Some"
                                 && fields.Length = 1
-                                && fields.[0] :? string
-                                && unbox<string> fields.[0] = ""
+                                && fields[0] :? string
+                                && unbox<string> fields[0] = ""
                             then
                                 struct (noneValue, next)
                             else
@@ -3639,7 +3635,7 @@ module Xml =
                         let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
 
                         for i in 0 .. results.Count - 1 do
-                            targetArray.SetValue(results.[i], i)
+                            targetArray.SetValue(results[i], i)
 
                         struct (box targetArray, current)
 #else
@@ -3861,7 +3857,7 @@ module KeyValue =
                             []
                         else
                             let _, fields = FSharpValue.GetUnionFields(value, optionType)
-                            innerCodec.Encode path fields.[0])
+                            innerCodec.Encode path fields[0])
                 Decode =
                     (fun path values ->
                         match innerCodec.Decode path values with
@@ -4034,17 +4030,17 @@ module Yaml =
         | _ -> failwith "Expected scalar YAML value"
 
     let private parseQuotedString (text: string) =
-        if text.Length >= 2 && text.[0] = '"' && text.[text.Length - 1] = '"' then
+        if text.Length >= 2 && text[0] = '"' && text[text.Length - 1] = '"' then
             let content = text.Substring(1, text.Length - 2)
             let builder = StringBuilder()
             let mutable i = 0
 
             while i < content.Length do
-                if content.[i] = '\\' then
+                if content[i] = '\\' then
                     if i + 1 >= content.Length then
                         failwith "Unterminated YAML string escape"
 
-                    match content.[i + 1] with
+                    match content[i + 1] with
                     | '\\' -> builder.Append('\\') |> ignore
                     | '"' -> builder.Append('"') |> ignore
                     | 'n' -> builder.Append('\n') |> ignore
@@ -4054,11 +4050,11 @@ module Yaml =
 
                     i <- i + 2
                 else
-                    builder.Append(content.[i]) |> ignore
+                    builder.Append(content[i]) |> ignore
                     i <- i + 1
 
             builder.ToString()
-        elif text.Length >= 2 && text.[0] = '\'' && text.[text.Length - 1] = '\'' then
+        elif text.Length >= 2 && text[0] = '\'' && text[text.Length - 1] = '\'' then
             text.Substring(1, text.Length - 2).Replace("''", "'")
         else
             failwith "Expected quoted YAML string"
@@ -4101,10 +4097,10 @@ module Yaml =
             else
                 let mutable indent = 0
 
-                while indent < rawLine.Length && rawLine.[indent] = ' ' do
+                while indent < rawLine.Length && rawLine[indent] = ' ' do
                     indent <- indent + 1
 
-                if indent < rawLine.Length && rawLine.[indent] = '\t' then
+                if indent < rawLine.Length && rawLine[indent] = '\t' then
                     failwith "Tabs are not supported in YAML indentation"
 
                 if indent % 2 <> 0 then
@@ -4123,7 +4119,7 @@ module Yaml =
         if index >= lines.Length then
             failwith "Unexpected end of YAML input"
 
-        let line = lines.[index]
+        let line = lines[index]
 
         if line.Indent <> indent then
             failwithf "Unexpected indentation at YAML line %d" (index + 1)
@@ -4143,8 +4139,8 @@ module Yaml =
         : struct (JsonValue * int) =
         let mutable i = index
 
-        while i < lines.Length && lines.[i].Indent = indent do
-            let line = lines.[i]
+        while i < lines.Length && lines[i].Indent = indent do
+            let line = lines[i]
 
             if line.Content = "-" || line.Content.StartsWith("- ") then
                 failwithf "Unexpected sequence item at YAML line %d" (i + 1)
@@ -4158,7 +4154,7 @@ module Yaml =
             let rest = line.Content.Substring(colonIndex + 1).TrimStart()
 
             if rest = "" then
-                if i + 1 < lines.Length && lines.[i + 1].Indent > indent then
+                if i + 1 < lines.Length && lines[i + 1].Indent > indent then
                     let struct (value, nextIndex) = parseNode lines (indent + 2) (i + 1)
                     entries.Add(key, value)
                     i <- nextIndex
@@ -4187,7 +4183,7 @@ module Yaml =
         let rest = inlineContent.Substring(colonIndex + 1).TrimStart()
 
         if rest = "" then
-            if nextIndex < lines.Length && lines.[nextIndex].Indent > indent then
+            if nextIndex < lines.Length && lines[nextIndex].Indent > indent then
                 let struct (value, afterInline) = parseNode lines (indent + 2) nextIndex
                 entries.Add(key, value)
                 parseObjectFromEntries lines (indent + 2) afterInline entries
@@ -4205,11 +4201,11 @@ module Yaml =
         let items = ResizeArray<JsonValue>()
         let mutable i = index
 
-        while i < lines.Length && lines.[i].Indent = indent do
-            let line = lines.[i]
+        while i < lines.Length && lines[i].Indent = indent do
+            let line = lines[i]
 
             if line.Content = "-" then
-                if i + 1 >= lines.Length || lines.[i + 1].Indent <= indent then
+                if i + 1 >= lines.Length || lines[i + 1].Indent <= indent then
                     items.Add(JNull)
                     i <- i + 1
                 else
@@ -4237,7 +4233,7 @@ module Yaml =
         if lines.Length = 0 then
             failwith "Empty YAML input"
 
-        let struct (value, nextIndex) = parseNode lines lines.[0].Indent 0
+        let struct (value, nextIndex) = parseNode lines lines[0].Indent 0
 
         if nextIndex <> lines.Length then
             failwith "Trailing YAML content after top-level value"
