@@ -55,3 +55,9 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
   - Restructure the docs landing page and README links around that purpose-based navigation.
   - Add missing JSON Schema docs in the right categories rather than treating all prose as a single getting-started guide.
   - Keep API docs as the reference anchor and ensure new feature work adds docs in the appropriate category.
+
+- [ ] **Task 27: Automate benchmark snapshot publishing**
+  - Add a script that runs the stable benchmark path and emits a docs-friendly summary format.
+  - Use that script to refresh the README/docs benchmark snapshot instead of editing numbers by hand.
+  - Decide whether CI should publish benchmark artifacts, open a docs update, or only validate that the snapshot generator still runs.
+  - Keep the benchmark story explicit about machine-specific numbers and comparable payload shape.

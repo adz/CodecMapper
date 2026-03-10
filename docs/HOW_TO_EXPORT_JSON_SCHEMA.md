@@ -148,3 +148,61 @@ let codec = Json.compile report.Schema
 ```
 
 That path parses into `JsonValue` and enforces the supported dynamic-shape keywords over the raw JSON structure. It is appropriate for external contracts you do not control. For contracts you author yourself, prefer normal explicit `Schema<'T>` values.
+
+Example:
+
+```fsharp
+open CodecMapper
+
+let schemaText =
+    """{
+        "type":"object",
+        "propertyNames":{"pattern":"^[a-z-]+$"},
+        "patternProperties":{
+            "^x-":{"type":"integer"}
+        },
+        "additionalProperties":{"type":"string"}
+    }"""
+
+let report = JsonSchema.importWithReport schemaText
+let codec = Json.compile report.Schema
+
+let value = Json.deserialize codec """{"x-rate":1,"name":"Ada"}"""
+
+printfn "%A" report.EnforcedKeywords
+printfn "%A" value
+```
+
+Output:
+
+```text
+["type"; "additionalProperties"; "patternProperties"; "propertyNames"]
+JObject
+  [("x-rate", JNumber "1"); ("name", JString "Ada")]
+```
+
+This is still a `JsonValue` receive path, not a lowered record schema. The importer is enforcing the dynamic object rules over the raw JSON shape.
+
+For unsupported keywords that are intentionally out of scope for now, inspect `FallbackKeywords` explicitly:
+
+```fsharp
+let report =
+    JsonSchema.importWithReport
+        """{
+            "type":"string",
+            "minLength":2,
+            "not":{"const":"blocked"}
+        }"""
+
+printfn "%A" report.EnforcedKeywords
+printfn "%A" report.FallbackKeywords
+```
+
+Output:
+
+```text
+["type"; "minLength"]
+["not"]
+```
+
+That means the supported sibling rules still enforce, while `not` remains on the fallback boundary instead of being partially modeled.
