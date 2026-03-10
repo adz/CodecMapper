@@ -107,6 +107,25 @@ public sealed class StjCollectionSettings
     public ICollection<int> Scores { get; }
 }
 
+public enum StjStatus
+{
+    Pending = 0,
+    Active = 1,
+    Suspended = 2
+}
+
+public sealed class StjEnumSettings
+{
+    [System.Text.Json.Serialization.JsonConstructor]
+    public StjEnumSettings(StjStatus status)
+    {
+        Status = status;
+    }
+
+    [System.Text.Json.Serialization.JsonPropertyName("status")]
+    public StjStatus Status { get; }
+}
+
 public sealed class StjUnsupportedConverter
 {
     [System.Text.Json.Serialization.JsonPropertyName("name")]

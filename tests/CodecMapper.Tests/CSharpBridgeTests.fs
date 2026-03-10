@@ -76,6 +76,19 @@ let ``System.Text.Json bridge imports interface collection members`` () =
     test <@ Seq.toList roundTrip.Scores = [ 1; 2; 3 ] @>
 
 [<Fact>]
+let ``System.Text.Json bridge imports enum members through numeric wire values`` () =
+    let schema = SystemTextJson.import<StjEnumSettings> BridgeOptions.defaults
+    let codec = Json.compile schema
+
+    let value = StjEnumSettings(StjStatus.Suspended)
+
+    let json = Json.serialize codec value
+    let roundTrip = Json.deserialize codec json
+
+    test <@ json = """{"status":2}""" @>
+    test <@ roundTrip.Status = StjStatus.Suspended @>
+
+[<Fact>]
 let ``Newtonsoft bridge imports constructor-bound classes`` () =
     let schema = NewtonsoftJson.import<NewtonsoftUser> BridgeOptions.defaults
     let codec = Json.compile schema

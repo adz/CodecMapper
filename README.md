@@ -192,7 +192,7 @@ Compared with DTO-heavy designs, the difference is:
 - Core schema DSL for explicit record, collection, option, and wrapper contracts in F#
 - Reusable JSON and XML codecs compiled from the same schema
 - A handwritten parser/runtime in the core library rather than a thin wrapper over `System.Text.Json`
-- Built-in support for common numeric, string, boolean, GUID, time-based, and collection interop types
+- Built-in support for common numeric, enum, string, boolean, GUID, time-based, and collection interop types
 - Explicit field-policy helpers such as `Schema.missingAsNone` and `Schema.emptyStringAsNone`
 - Domain refinement through `Schema.map` and `Schema.tryMap`
 - JSON Schema export from authored `Schema<'T>` contracts
@@ -202,9 +202,9 @@ Compared with DTO-heavy designs, the difference is:
 
 ## Compatibility
 
-- The core library is exercised by dedicated Native AOT and Fable sentinel apps under [tests/CodecMapper.AotTests](/home/adam/projects/cmap/tests/CodecMapper.AotTests) and [tests/CodecMapper.FableTests](/home/adam/projects/cmap/tests/CodecMapper.FableTests).
+- Shared compatibility coverage lives in [tests/CodecMapper.CompatibilitySentinel](/home/adam/projects/CodecMapper/tests/CodecMapper.CompatibilitySentinel), with thin Native AOT and Fable shell apps under [tests/CodecMapper.AotTests](/home/adam/projects/CodecMapper/tests/CodecMapper.AotTests) and [tests/CodecMapper.FableTests](/home/adam/projects/CodecMapper/tests/CodecMapper.FableTests).
 - CI runs both the .NET sentinel app and a real Fable transpilation check of the Fable sentinel project.
-- The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/cmap/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/cmap/src/CodecMapper).
+- The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/CodecMapper/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/CodecMapper/src/CodecMapper).
 
 ## Start here
 

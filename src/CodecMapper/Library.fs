@@ -6,6 +6,7 @@ namespace CodecMapper
 
 open System.Text
 open System.Collections.Generic
+open System.Globalization
 open Microsoft.FSharp.Reflection
 open System.Diagnostics.CodeAnalysis
 
@@ -381,6 +382,34 @@ module Schema =
     /// common mutable collection interfaces from .NET APIs.
     let inline collection (inner: Schema<'T>) : Schema<ICollection<'T>> = create (Array(inner :> ISchema))
 
+    let private enumSchema (enumType: System.Type) (underlyingSchema: ISchema) : ISchema =
+        { new ISchema with
+            member _.TargetType = enumType
+
+            member _.Definition =
+                Map(
+                    underlyingSchema,
+                    (fun value ->
+#if FABLE_COMPILER
+                        value
+#else
+                        System.Enum.ToObject(enumType, value)
+#endif
+                    ),
+                    (fun value ->
+#if FABLE_COMPILER
+                        value
+#else
+                        System.Convert.ChangeType(
+                            value,
+                            System.Enum.GetUnderlyingType(enumType),
+                            CultureInfo.InvariantCulture
+                        )
+#endif
+                    )
+                )
+        }
+
     /// Builds a schema for an option value.
     ///
     /// The default semantics are strict: `None` is explicit on the wire, and
@@ -425,6 +454,10 @@ module Schema =
             float :> ISchema
         elif t = typeof<decimal> then
             decimal :> ISchema
+        elif t.IsEnum then
+            let underlyingType = System.Enum.GetUnderlyingType(t)
+            let underlyingSchema = resolveSchema underlyingType
+            enumSchema t underlyingSchema
         elif t = typeof<string> then
             string :> ISchema
         elif t = typeof<bool> then

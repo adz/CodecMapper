@@ -23,10 +23,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 
 - [x] **Task 19a:** JSON Schema import now has an explicit structural-lowering boundary, raw `Schema<JsonValue>` fallback for dynamic shapes, diagnostics through `importWithReport`, and docs/tests that keep unsupported keywords such as `dependentSchemas`, `not`, and deeper recursive composition clearly out of scope for now.
 
-- [ ] **Task 20: Broaden common collection and interop type support**
-  - Evaluate `IReadOnlyList<T>`, `ICollection<T>`, dictionaries, and enums.
-  - Only add shapes that preserve symmetric encode/decode semantics cleanly.
-  - *Progress:* added array-backed support for `IReadOnlyList<T>` and `ICollection<T>` plus the explicit `Schema.resizeArray` helper for concrete `ResizeArray<'T>` / `List<T>` models. Dictionaries and enums still need a deliberate symmetry story before this task can close.
+- [x] **Task 20:** Added array-backed support for `IReadOnlyList<T>` and `ICollection<T>`, the explicit `Schema.resizeArray` helper for concrete `ResizeArray<'T>` / `List<T>` models, and numeric-wire enum support. Direct dictionary support stays out of scope for now because it does not fit the current JSON/XML symmetry model as cleanly as the rest of the DSL.
 
 - [ ] **Task 20b: Add an explicit Fable 5 compatibility baseline**
   - Decide whether the repo should pin `Fable 5` directly or run a second compatibility lane against that version.

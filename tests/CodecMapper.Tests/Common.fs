@@ -73,6 +73,14 @@ module Domain =
         Scores = scores
     }
 
+    type OrderStatus =
+        | Pending = 0
+        | Active = 1
+        | Suspended = 2
+
+    type EnumRecord = { Status: OrderStatus }
+    let makeEnumRecord status = { Status = status }
+
     type CommonTypeRecord = {
         Age: int16
         Level: byte

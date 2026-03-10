@@ -11,7 +11,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\CodecMapper\CodecMapper.fsproj" />
+    <ProjectReference Include="..\CodecMapper.CompatibilitySentinel\CodecMapper.CompatibilitySentinel.fsproj" />
   </ItemGroup>
 
 </Project>

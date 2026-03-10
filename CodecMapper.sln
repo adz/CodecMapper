@@ -25,6 +25,8 @@ Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CodecMapper.FableTests", "t
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CodecMapper.Benchmarks.Runner", "benchmarks\CodecMapper.Benchmarks.Runner\CodecMapper.Benchmarks.Runner.fsproj", "{094F972A-5E84-4CC4-91C6-05DB37B7EA17}"
 EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "CodecMapper.CompatibilitySentinel", "tests\CodecMapper.CompatibilitySentinel\CodecMapper.CompatibilitySentinel.fsproj", "{ED11244C-7D10-4155-BD07-E82270C6C75D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -131,6 +133,18 @@ Global
 		{094F972A-5E84-4CC4-91C6-05DB37B7EA17}.Release|x64.Build.0 = Release|Any CPU
 		{094F972A-5E84-4CC4-91C6-05DB37B7EA17}.Release|x86.ActiveCfg = Release|Any CPU
 		{094F972A-5E84-4CC4-91C6-05DB37B7EA17}.Release|x86.Build.0 = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|x64.Build.0 = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Debug|x86.Build.0 = Debug|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|x64.ActiveCfg = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|x64.Build.0 = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|x86.ActiveCfg = Release|Any CPU
+		{ED11244C-7D10-4155-BD07-E82270C6C75D}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -144,5 +158,6 @@ Global
 		{58FCB5AC-B8CE-4BFF-A162-C8E06C7DFBE4} = {B99EC185-51EE-4F8F-BA42-B3C3137CF51D}
 		{6B302955-CF07-4842-BF5E-8B6F08D7CB68} = {B99EC185-51EE-4F8F-BA42-B3C3137CF51D}
 		{094F972A-5E84-4CC4-91C6-05DB37B7EA17} = {FBD2D9CE-852D-4A37-A0A4-67861D31B8B0}
+		{ED11244C-7D10-4155-BD07-E82270C6C75D} = {B99EC185-51EE-4F8F-BA42-B3C3137CF51D}
 	EndGlobalSection
 EndGlobal

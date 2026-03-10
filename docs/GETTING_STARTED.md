@@ -211,6 +211,8 @@ These helpers are available directly and also auto-resolve inside records:
 - `Schema.dateTimeOffset`
 - `Schema.timeSpan`
 
+CLR enums also auto-resolve through their underlying numeric wire form. `CodecMapper` does not currently add a string-enum policy on top of that.
+
 Example:
 
 ```fsharp

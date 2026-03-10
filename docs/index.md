@@ -58,5 +58,5 @@ Use explanations when you want the reasoning behind the design.
 ## Compatibility
 
 - `CodecMapper` keeps the portable codec surface in the core [CodecMapper](reference/codecmapper.html) namespace and isolates the `.NET`-only import story in [CodecMapper.Bridge](reference/codecmapper-bridge.html).
-- Native AOT and Fable compatibility are guarded by dedicated sentinel apps in `tests/CodecMapper.AotTests/` and `tests/CodecMapper.FableTests/`.
+- Native AOT and Fable compatibility share one runner in `tests/CodecMapper.CompatibilitySentinel/`, with thin shell apps in `tests/CodecMapper.AotTests/` and `tests/CodecMapper.FableTests/`.
 - CI runs the Fable sentinel twice: once as a normal `.NET` executable and once through the Fable compiler as a transpilation smoke test.
