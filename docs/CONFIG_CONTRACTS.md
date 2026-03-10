@@ -61,6 +61,64 @@ MODE=strict
 
 Use this for flat config-style boundaries only. Collections, raw JSON, and other non-flat shapes should stay on JSON or XML until there is an explicit normalization story.
 
+## Explicit Missing Defaults
+
+When a config field should fall back to a known value only when it is absent, keep that policy explicit in the schema:
+
+```fsharp
+type AppConfig =
+    {
+        Mode: string
+        RetryCount: int
+        Labels: string list
+    }
+
+let appConfigSchema =
+    Schema.define<AppConfig>
+    |> Schema.construct (fun mode retryCount labels ->
+        {
+            Mode = mode
+            RetryCount = retryCount
+            Labels = labels
+        })
+    |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
+    |> Schema.fieldWith "retry_count" _.RetryCount (Schema.int |> Schema.missingAsValue 3)
+    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.missingAsValue [])
+    |> Schema.build
+```
+
+That keeps the default local to the contract instead of smuggling it through serializer settings or post-deserialize mutation.
+
+## Explicit Null And Empty Collection Policies
+
+Some config boundaries treat an explicit `null` or an explicit empty collection as "use the contract default" rather than as a distinct payload state. Keep that normalization local to the field too:
+
+```fsharp
+type ServiceConfig =
+    {
+        Region: string
+        Labels: string list
+    }
+
+let serviceConfigSchema =
+    Schema.define<ServiceConfig>
+    |> Schema.construct (fun region labels ->
+        {
+            Region = region
+            Labels = labels
+        })
+    |> Schema.fieldWith "region" _.Region (Schema.string |> Schema.nullAsValue "global")
+    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.emptyCollectionAsValue [ "general" ])
+    |> Schema.build
+```
+
+That means:
+
+- missing fields still fail unless you also opt into `Schema.missingAsValue` or `Schema.missingAsNone`
+- explicit `null` can map to a contract default with `Schema.nullAsValue`
+- explicit `[]` can map to a contract default with `Schema.emptyCollectionAsValue`
+- whitespace-only strings stay literal input; there is no implicit trimming or blank-string coercion beyond `Schema.emptyStringAsNone`
+
 ## YAML Projection
 
 For hand-edited config files, the same schema can compile to YAML too:

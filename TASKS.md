@@ -14,9 +14,6 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Support both C# and F# records/classes as generator inputs.
   - Prefer readable checked-in output over opaque build-only generation.
 
-- [ ] **Task 23: Broaden field-policy controls for config-style contracts**
-  - Decide whether missing/null/empty handling should grow beyond `Schema.missingAsNone` and `Schema.emptyStringAsNone`.
-  - Evaluate empty-collection treatment, explicit defaults, and whether JSON/XML behavior should stay symmetric here.
-  - Keep strict message-contract behavior as the default.
+- [x] **Task 23:** Added `Schema.missingAsValue`, `Schema.nullAsValue`, and `Schema.emptyCollectionAsValue` for config-style defaults while keeping strict missing-field behavior as the default and leaving whitespace-only strings untouched unless a schema opts into `Schema.emptyStringAsNone`.
 
 - [x] **Task 27:** Added `scripts/generate-benchmark-snapshot.sh` to run the stable benchmark runner, emit docs-friendly markdown, and refresh the README benchmark snapshot block; CI now validates the generator in `--stdout-only` mode so the automation is exercised without rewriting docs on CI machines.

@@ -10,6 +10,7 @@
     <Compile Include="SchemaDslTests.fs" />
     <Compile Include="JsonParserTests.fs" />
     <Compile Include="OptionTests.fs" />
+    <Compile Include="FieldPolicyTests.fs" />
     <Compile Include="NumericTests.fs" />
     <Compile Include="XmlTests.fs" />
     <Compile Include="CommonTypeTests.fs" />

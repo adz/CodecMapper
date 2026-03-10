@@ -35,6 +35,18 @@ module Core =
         /// Returns a copy of the source with an explicit absolute offset.
         let inline setOffset (n: int) (src: ByteSource) = src.SetOffset(n)
 
+    ///
+    /// Field-policy wrappers sometimes need to distinguish explicit empty
+    /// collections from non-empty ones without caring about the concrete type.
+    let isEmptyCollectionValue (value: obj) =
+        if isNull value || value :? string then
+            false
+        elif value :? System.Collections.IEnumerable then
+            let enumerator = (value :?> System.Collections.IEnumerable).GetEnumerator()
+            not (enumerator.MoveNext())
+        else
+            false
+
     /// Abstraction for writing bytes, to be implemented per target platform.
     type IByteWriter =
         /// Ensures that at least `n` more bytes can be written without reallocating.
@@ -166,6 +178,9 @@ and SchemaDefinition =
     | Array of ISchema
     | Option of ISchema
     | MissingAsNone of ISchema
+    | MissingAsValue of obj * ISchema
+    | NullAsValue of obj * ISchema
+    | EmptyCollectionAsValue of obj * ISchema
     | EmptyStringAsNone of ISchema
     | Map of ISchema * (obj -> obj) * (obj -> obj)
     | RawJsonValue
@@ -438,6 +453,24 @@ module Schema =
     /// instead of as a contract violation. Keep that policy explicit.
     let inline missingAsNone (inner: Schema<'T option>) : Schema<'T option> =
         create (MissingAsNone(inner :> ISchema))
+
+    ///
+    /// Config-style payloads sometimes have explicit defaults that should be
+    /// applied only when a field is absent, not when it is present-but-invalid.
+    let inline missingAsValue (value: 'T) (inner: Schema<'T>) : Schema<'T> =
+        create (MissingAsValue(box value, inner :> ISchema))
+
+    ///
+    /// Config-style payloads sometimes use explicit `null` as "use the
+    /// default value" for non-option fields. Keep that policy local.
+    let inline nullAsValue (value: 'T) (inner: Schema<'T>) : Schema<'T> =
+        create (NullAsValue(box value, inner :> ISchema))
+
+    ///
+    /// Some config shapes use an explicit empty collection as "use the
+    /// default collection" rather than as a meaningful distinct value.
+    let inline emptyCollectionAsValue (value: 'T) (inner: Schema<'T>) : Schema<'T> =
+        create (EmptyCollectionAsValue(box value, inner :> ISchema))
 
     ///
     /// Empty strings are often used as a legacy stand-in for "not provided".
@@ -1404,6 +1437,46 @@ module Json =
                 Decode = innerCodec.Decode
                 MissingValue = Some(Runtime.makeOptionNone optionType)
             }
+        | MissingAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some defaultValue
+            }
+        | NullAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src ->
+                        let current = Runtime.skipWhitespace src
+                        let data = current.Data
+
+                        if current.Offset < data.Length && data.[current.Offset] = 110uy then
+                            let next = Runtime.nullDecoder current
+                            struct (defaultValue, next)
+                        else
+                            innerCodec.Decode src)
+                MissingValue = innerCodec.MissingValue
+            }
+        | EmptyCollectionAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src ->
+                        let struct (value, next) = innerCodec.Decode src
+
+                        if Core.isEmptyCollectionValue value then
+                            struct (defaultValue, next)
+                        else
+                            struct (value, next))
+                MissingValue = innerCodec.MissingValue
+            }
         | EmptyStringAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
@@ -1865,6 +1938,9 @@ module JsonSchema =
         | Array innerSchema -> ArrayNode(exportNode innerSchema)
         | Option innerSchema -> AnyOfNode [| exportNode innerSchema; Null |]
         | MissingAsNone innerSchema -> exportNode innerSchema
+        | MissingAsValue(_, innerSchema) -> exportNode innerSchema
+        | NullAsValue(_, innerSchema) -> exportNode innerSchema
+        | EmptyCollectionAsValue(_, innerSchema) -> exportNode innerSchema
         | EmptyStringAsNone innerSchema -> exportNode innerSchema
         | Map(innerSchema, _, _) -> exportNode innerSchema
         | Record(targetType, fields, _) ->
@@ -1876,6 +1952,9 @@ module JsonSchema =
                 |> Array.choose (fun field ->
                     match field.Schema.Definition with
                     | MissingAsNone _ -> None
+                    | MissingAsValue _ -> None
+                    | NullAsValue _ -> Some field.Name
+                    | EmptyCollectionAsValue _ -> Some field.Name
                     | _ -> Some field.Name)
 
             ObjectNode(Some targetType.Name, properties, required)
@@ -3321,6 +3400,46 @@ module Xml =
                 Decode = innerCodec.Decode
                 MissingValue = Some(Runtime.makeOptionNone optionType)
             }
+        | MissingAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some defaultValue
+            }
+        | NullAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src tag ->
+                        let current = Runtime.expectOpenTag tag src
+                        let current = Runtime.skipWhitespace current
+
+                        match Runtime.tryReadCloseTag tag current with
+                        | Some next -> struct (defaultValue, next)
+                        | None ->
+                            let struct (value, next) = innerCodec.Decode src tag
+                            struct (value, next))
+                MissingValue = innerCodec.MissingValue
+            }
+        | EmptyCollectionAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun src tag ->
+                        let struct (value, next) = innerCodec.Decode src tag
+
+                        if Core.isEmptyCollectionValue value then
+                            struct (defaultValue, next)
+                        else
+                            struct (value, next))
+                MissingValue = innerCodec.MissingValue
+            }
         | EmptyStringAsNone innerSchema ->
             let innerCodec = compileUntyped innerSchema
             let optionType = schema.TargetType
@@ -3715,6 +3834,40 @@ module KeyValue =
                 Decode = innerCodec.Decode
                 MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
             }
+        | MissingAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped options innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode = innerCodec.Decode
+                MissingValue = Some defaultValue
+            }
+        | NullAsValue(defaultValue, innerSchema) ->
+            let innerCodec = compileUntyped options innerSchema
+
+            {
+                Encode = innerCodec.Encode
+                Decode =
+                    (fun path values ->
+                        //
+                        // KeyValue has no distinct null token, so the policy only
+                        // applies when callers choose the literal "null" sentinel.
+                        match tryFindValue options path values with
+                        | Some "null" -> Some defaultValue
+                        | Some _ -> innerCodec.Decode path values
+                        | None -> innerCodec.Decode path values)
+                MissingValue = innerCodec.MissingValue
+            }
+        | EmptyCollectionAsValue(_, innerSchema) ->
+            //
+            // Flat key/value payloads do not support collection shapes, so this
+            // wrapper delegates to the underlying schema until that changes.
+            compileUntyped
+                options
+                { new ISchema with
+                    member _.TargetType = innerSchema.TargetType
+                    member _.Definition = innerSchema.Definition
+                }
         | EmptyStringAsNone innerSchema ->
             let innerCodec = compileUntyped options innerSchema
             let optionType = schema.TargetType
@@ -3869,7 +4022,11 @@ module Yaml =
     let private parseScalar (text: string) =
         let trimmed = text.Trim()
 
-        if trimmed = "null" || trimmed = "~" then
+        if trimmed = "[]" then
+            JArray []
+        elif trimmed = "{}" then
+            JObject []
+        elif trimmed = "null" || trimmed = "~" then
             JNull
         elif trimmed = "true" then
             JBool true

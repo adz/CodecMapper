@@ -236,7 +236,7 @@ Compared with DTO-heavy designs, the difference is:
 - A thin C# facade for setter-bound schema authoring and codec compilation
 - A handwritten parser/runtime in the core library rather than a thin wrapper over `System.Text.Json`
 - Built-in support for common numeric, enum, string, boolean, GUID, time-based, and collection interop types
-- Explicit field-policy helpers such as `Schema.missingAsNone` and `Schema.emptyStringAsNone`
+- Explicit field-policy helpers such as `Schema.missingAsNone`, `Schema.missingAsValue`, `Schema.nullAsValue`, `Schema.emptyCollectionAsValue`, and `Schema.emptyStringAsNone`
 - Domain refinement through `Schema.map` and `Schema.tryMap`
 - JSON Schema export from authored `Schema<'T>` contracts
 - JSON Schema import into `Schema<JsonValue>` for external dynamic receive-side contracts
