@@ -158,6 +158,14 @@ module Schemas =
         |> Schema.field "status" _.Status
         |> Schema.build
 
+    let keyValueRecord =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith "home" _.Home address
+        |> Schema.build
+
 module Sentinel =
     let private test name actual expected =
         if actual = expected then
@@ -277,6 +285,18 @@ module Sentinel =
         let enumJson = Json.serialize enumCodec enumValue
         let enumDecoded = Json.deserialize enumCodec enumJson
         test "Enum round-trip" enumDecoded enumValue
+
+        let keyValueCodec = KeyValue.compile Schemas.keyValueRecord
+        let keyValueEncoded = KeyValue.serialize keyValueCodec p
+        let keyValueDecoded = KeyValue.deserialize keyValueCodec keyValueEncoded
+        test "KeyValue round-trip" keyValueDecoded p
+
+        testSequence "KeyValue flattened shape" (Map.toList keyValueEncoded) [
+            "home.city", "City"
+            "home.street", "Street"
+            "id", "42"
+            "name", platformLabel
+        ]
 
         printfn "%s tests execution finished." platformLabel
         0

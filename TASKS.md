@@ -28,7 +28,7 @@ Completed rename, benchmarking, parser, and first-pass C# bridge work now live i
 - [x] **Task 20b:** CI now runs a pinned `Fable 5.0.0-rc.2` transpilation lane via `scripts/check-fable5-compat.sh`, the core float encoder uses a Fable-safe path instead of the unsupported round-trip `"R"` formatter, and both the stable `Fable 4` lane plus the new `Fable 5` lane pass against the shared compatibility sentinel.
 
 - [ ] **Task 20c: Add key/value and YAML schema projections**
-  - Explore projecting a `Schema<'T>` to a `IDictionary<string, string>`-style surface for flat config and environment-variable contracts.
+  - Flat `KeyValue` projection now exists for flattened record/scalar config and environment-style contracts, with explicit rejection for non-flat shapes.
   - Define how lossy/non-string/non-flat shapes should be rejected, normalized, or explicitly encoded.
   - Explore a YAML codec or schema projection that reuses the same authored contract model without weakening the current JSON/XML symmetry guarantees.
   - Keep the relationship between JSON Schema, key/value mappings, and YAML explicit in the docs so the library surface stays coherent.

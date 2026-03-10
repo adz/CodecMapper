@@ -16,6 +16,8 @@ If you currently have a mix of JSON and XML config files, the recommendation her
 - **XML is migration input only**
 - **the application always writes the latest JSON form**
 
+If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored schema rather than as a second implicit contract.
+
 ## Why This Helps
 
 Unversioned config files are brittle because:
@@ -31,6 +33,31 @@ An explicit contract gives you:
 - planned version changes
 - controlled upgrade logic
 - a clean boundary between wire format and domain model
+
+## Flat Key/Value Projection
+
+For environment variables or app-settings style surfaces, you can compile the same schema into flat `string,string` pairs:
+
+```fsharp
+let codec = KeyValue.compileUsing KeyValue.Options.environment yourConfigSchema
+
+let values =
+    KeyValue.serialize codec {
+        ServiceUrl = "https://api.example.com"
+        RetryCount = 3
+        Mode = "strict"
+    }
+```
+
+That produces keys like:
+
+```text
+SERVICEURL=https://api.example.com
+RETRYCOUNT=3
+MODE=strict
+```
+
+Use this for flat config-style boundaries only. Collections, raw JSON, and other non-flat shapes should stay on JSON or XML until there is an explicit normalization story.
 
 ## Recommended Shape
 

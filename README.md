@@ -91,24 +91,26 @@ The result is not hidden serializer behavior. It is the contract itself, written
 - Versioned message and config contracts stay deliberate because the wire shape is authored directly instead of inferred from whatever the current model happens to look like.
 - Migration is easier to stage: keep the external contract stable, refine the in-memory domain behind `map` / `tryMap`, and only introduce DTOs when you genuinely need a separate transport model.
 
+See [When models evolve](#when-models-evolve) for the concrete version of this tradeoff.
+
 ## Why not just use X?
 
 `CodecMapper` is not trying to replace every serializer. It is for the cases where explicit contracts matter more than convention-driven convenience.
 
-| Option | Contract style | AOT | Fable | Performance | Ease of use | Best fit |
-| --- | --- | --- | --- | --- | --- | --- |
-| `System.Text.Json` | CLR-shape and attribute driven | Good with source generation | No | Strong | Easy | General-purpose .NET serialization |
-| `Newtonsoft.Json` | CLR-shape and attribute driven | Weaker | No | Moderate | Easy | Flexible JSON-heavy .NET apps |
-| `Thoth.Json` | Explicit JSON encoders/decoders | N/A | Strong | Good | Moderate | F# apps that want explicit JSON-only codecs |
-| `Fleece` / `Chiron`-style JSON mapping | F#-native JSON mapping | Varies | Limited | Varies | Moderate | F#-first JSON mapping without mainstream serializer attributes |
-| DTOs plus manual mapping | Fully explicit, but duplicated in transport types | Strong | Strong | Varies | Harder | Strict transport/domain separation when duplication is intentional |
-| JSON Schema-first workflows | External schema as source of truth | Varies | Varies | Varies | Moderate | Integrating with schema-owned external systems |
-| `CodecMapper` | Authored schema as source of truth | Strong | Strong | Strong | Moderate | Explicit message/config contracts with shared JSON/XML codecs |
+| Option | AOT | Fable | Style | Best fit |
+| --- | --- | --- | --- | --- |
+| `System.Text.Json` | Good with source generation | No | CLR-shape and attributes | General-purpose .NET serialization |
+| `Newtonsoft.Json` | Weaker | No | CLR-shape and attributes | Flexible JSON-heavy .NET apps |
+| `Thoth.Json` | N/A | Strong | Explicit JSON codecs | F# apps that want JSON-only explicit codecs |
+| `Fleece` / `Chiron` | Varies | Limited | F# JSON mapping | F#-first JSON mapping |
+| DTOs + manual mapping | Strong | Strong | Explicit but duplicated | Strict transport/domain separation |
+| JSON Schema-first | Varies | Varies | External schema owned | Integrating with schema-owned systems |
+| `CodecMapper` | Strong | Strong | Authored schema contract | Explicit message/config contracts across JSON/XML |
 
 Other dimensions that matter:
 
 - Format symmetry: `CodecMapper` is centered on one contract driving both JSON and XML, while most alternatives are JSON-only or serializer-specific.
-- Model evolution: `CodecMapper` keeps contract edits explicit and supports domain refinement with `Schema.map` / `Schema.tryMap` before you reach for DTO duplication.
+- Model evolution: `CodecMapper` keeps contract edits explicit and supports domain refinement with `Schema.map` / `Schema.tryMap` before you reach for DTO duplication. See [When models evolve](#when-models-evolve).
 - Tooling relationship: `CodecMapper` can export JSON Schema from the authored contract and also import external JSON Schema when you are adapting to another system.
 
 If your question is "why not just use `System.Text.Json`?", the short answer is: use it when convention-based object serialization is enough. Use `CodecMapper` when you want the contract itself to be visible, reviewable, reusable, and stable across model evolution.
@@ -229,6 +231,7 @@ Compared with DTO-heavy designs, the difference is:
 
 - Core schema DSL for explicit record, collection, option, and wrapper contracts in F#
 - Reusable JSON and XML codecs compiled from the same schema
+- Flat key/value projection for config and environment-style contracts
 - A handwritten parser/runtime in the core library rather than a thin wrapper over `System.Text.Json`
 - Built-in support for common numeric, enum, string, boolean, GUID, time-based, and collection interop types
 - Explicit field-policy helpers such as `Schema.missingAsNone` and `Schema.emptyStringAsNone`
