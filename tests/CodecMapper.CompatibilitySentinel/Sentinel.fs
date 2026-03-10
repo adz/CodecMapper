@@ -298,5 +298,10 @@ module Sentinel =
             "name", platformLabel
         ]
 
+        let yamlCodec = Yaml.compile Schemas.person
+        let yamlEncoded = Yaml.serialize yamlCodec p
+        let yamlDecoded = Yaml.deserialize yamlCodec yamlEncoded
+        test "Yaml round-trip" yamlDecoded p
+
         printfn "%s tests execution finished." platformLabel
         0

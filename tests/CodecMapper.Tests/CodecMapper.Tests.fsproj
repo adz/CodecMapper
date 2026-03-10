@@ -16,6 +16,7 @@
     <Compile Include="CollectionInteropTests.fs" />
     <Compile Include="EnumInteropTests.fs" />
     <Compile Include="KeyValueTests.fs" />
+    <Compile Include="YamlTests.fs" />
     <Compile Include="CustomizationTests.fs" />
     <Compile Include="JsonSchemaTests.fs" />
     <Compile Include="JsonValueTests.fs" />

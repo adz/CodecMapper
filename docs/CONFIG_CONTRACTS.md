@@ -18,6 +18,8 @@ If you currently have a mix of JSON and XML config files, the recommendation her
 
 If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored schema rather than as a second implicit contract.
 
+If you need a human-edited text format without dropping back to serializer conventions, the same schema can also compile to the library's small YAML subset for mappings, sequences, scalars, and `null`.
+
 ## Why This Helps
 
 Unversioned config files are brittle because:
@@ -58,6 +60,38 @@ MODE=strict
 ```
 
 Use this for flat config-style boundaries only. Collections, raw JSON, and other non-flat shapes should stay on JSON or XML until there is an explicit normalization story.
+
+## YAML Projection
+
+For hand-edited config files, the same schema can compile to YAML too:
+
+```fsharp
+let codec = Yaml.compile yourConfigSchema
+
+let yaml =
+    Yaml.serialize codec {
+        ServiceUrl = "https://api.example.com"
+        RetryCount = 3
+        Mode = "strict"
+    }
+```
+
+That produces a small config-oriented YAML shape such as:
+
+```yaml
+service_url: https://api.example.com
+retry_count: 3
+mode: strict
+```
+
+Current YAML scope is intentionally narrow:
+
+- mappings
+- sequences
+- scalars and `null`
+- quoted or plain strings
+
+It does not aim at full YAML feature parity. Anchors, tags, multi-document streams, block scalars, and broader YAML syntax are still out of scope.
 
 ## Recommended Shape
 
