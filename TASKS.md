@@ -17,6 +17,27 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
 
 - [x] **Task 29:** Split `src/CodecMapper/Library.fs` into explicit dependency-ordered files (`Core.fs`, `Schema.fs`, `Json.fs`, `JsonSchema.fs`, `Xml.fs`, `KeyValue.fs`, and `Yaml.fs`) and updated `CodecMapper.fsproj` to preserve the existing no-behavior-change compilation order.
 
+- [ ] **Task 31: Ergonomics without reflection**
+  - Keep the runtime DSL explicit and AOT/Fable-safe; do not introduce a second magic authoring path.
+  - Add small authoring helpers where they make the current DSL read smaller, such as compile aliases and more built-in validated/domain combinators.
+  - Prefer expanding safe static auto-resolution over making `fieldWith` implicit through runtime metadata.
+  - Keep `fieldWith` for true schema boundaries such as validated wrappers, imported contracts, and explicit child schemas.
+
+- [ ] **Task 32: Improve decode diagnostics**
+  - Make decode failures consistently report path, expected shape, actual token/value, and validation/wrapper context.
+  - Align JSON, XML, KeyValue, YAML, and imported JSON Schema errors around the same mental model.
+  - Treat debuggability as a core ergonomics feature for the explicit schema approach.
+
+- [ ] **Task 33: Ship canonical pattern docs**
+  - Add copy-pasteable reference patterns for basic records, nested records, validated wrappers, versioned contracts, config contracts, JSON Schema import, and the C# bridge.
+  - Keep the examples aligned with the stable `Schema.define |> Schema.construct |> ... |> Schema.build` DSL.
+  - Make the “small explicit DSL” and compile-once workflow easy to discover from README and docs landing pages.
+
+- [ ] **Task 34: Keep Task 18 focused on build-time code generation**
+  - Generate ordinary checked-in F# schema code rather than introducing a second runtime schema system.
+  - Treat CLR-model analysis, JSON-example scaffolding, and imported-contract scaffolding as `.NET`-only tooling layered on top of the stable runtime DSL.
+  - Keep generated output reviewable and copy-editable by users.
+
 - [ ] **Task 30: Fix the published docs site asset loading**
   - Reproduce the generated `fsdocs` output locally and identify why theme/search assets are being loaded from blocked cross-origin URLs.
   - Make the published site self-contained or otherwise serve its JS/CSS assets from paths that work on GitHub Pages without CORS failures.

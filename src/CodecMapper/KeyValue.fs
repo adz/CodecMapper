@@ -255,6 +255,11 @@ module KeyValue =
     /// Compiles a schema into a reusable flat key/value codec using dotted keys.
     let compile (schema: Schema<'T>) : Codec<'T> = compileUsing Options.defaults schema
 
+    ///
+    /// `codec` keeps the default-key-path compile step explicit while giving
+    /// config examples the same shorter shape as the JSON and XML helpers.
+    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+
     /// Serializes a value to a flat key/value map using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) = codec.Encode value
 

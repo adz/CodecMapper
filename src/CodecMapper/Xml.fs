@@ -643,6 +643,11 @@ module Xml =
             Decode = (fun src -> let struct (v, s) = compiled.Decode src rootTag in struct (unbox v, s))
         }
 
+    ///
+    /// `codec` mirrors `Json.codec` so multi-format examples can keep the same
+    /// explicit compile step while using a shorter, copy-paste-friendly name.
+    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+
     /// Serializes a value to XML using the schema-derived root element name.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)

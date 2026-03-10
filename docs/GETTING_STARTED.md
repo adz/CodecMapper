@@ -25,6 +25,8 @@ let json = Json.serialize codec person
 let roundTripped = Json.deserialize codec json
 ```
 
+If you want the compile step to read a bit smaller in examples, `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` are direct aliases for the corresponding `compile` functions.
+
 ## How to read a schema
 
 Read the pipeline from top to bottom:
@@ -84,6 +86,8 @@ let personSchema =
     |> field "id" _.Id
     |> field "name" _.Name
     |> build
+
+let jsonCodec = Json.codec personSchema
 ```
 
 If you want a shorter qualified style without opening the module for the whole file, use a module alias:

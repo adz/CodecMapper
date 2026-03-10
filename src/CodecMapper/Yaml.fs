@@ -339,6 +339,11 @@ module Yaml =
                     Json.deserialize jsonCodec json)
         }
 
+    ///
+    /// `codec` mirrors the other format modules so config-oriented examples
+    /// can keep the compile step explicit without extra visual noise.
+    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+
     /// Serializes a value to YAML using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) = codec.Encode value
 

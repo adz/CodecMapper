@@ -82,11 +82,13 @@ That schema reads almost like the data constructor:
 
 The result is not hidden serializer behavior. It is the contract itself, written in normal F#.
 
+If you want the compile step to read a bit smaller in samples, the format modules also expose `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` as direct aliases for `compile`.
+
 ## Why this is useful
 
 - The schema mirrors the data, so changes to the wire contract are visible in one place.
 - Encode and decode come from the same definition, so drift is harder to introduce accidentally.
-- `Json.compile` and `Xml.compile` reuse the same schema instead of making you maintain separate mappings.
+- `Json.compile` / `Json.codec` and `Xml.compile` / `Xml.codec` reuse the same schema instead of making you maintain separate mappings.
 - Domain refinement stays explicit through `Schema.map` and `Schema.tryMap` instead of being buried in serializer settings.
 - Versioned message and config contracts stay deliberate because the wire shape is authored directly instead of inferred from whatever the current model happens to look like.
 - Migration is easier to stage: keep the external contract stable, refine the in-memory domain behind `map` / `tryMap`, and only introduce DTOs when you genuinely need a separate transport model.

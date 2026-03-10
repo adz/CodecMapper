@@ -89,6 +89,42 @@ let ``Round-trip list of strings JSON`` () =
     test <@ decoded = value @>
 
 [<Fact>]
+let ``Codec aliases mirror compile helpers across formats`` () =
+    let personSchema =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith
+            "home"
+            _.Home
+            (Schema.define<Address>
+             |> Schema.construct makeAddress
+             |> Schema.field "street" _.Street
+             |> Schema.field "city" _.City
+             |> Schema.build)
+        |> Schema.build
+
+    let person = {
+        Id = 7
+        Name = "Alias"
+        Home = {
+            Street = "Codec Street"
+            City = "Adelaide"
+        }
+    }
+
+    let json = Json.serialize (Json.codec personSchema) person
+    let xml = Xml.serialize (Xml.codec personSchema) person
+    let yaml = Yaml.serialize (Yaml.codec personSchema) person
+    let keyValue = KeyValue.serialize (KeyValue.codec personSchema) person
+
+    test <@ Json.deserialize (Json.codec personSchema) json = person @>
+    test <@ Xml.deserialize (Xml.codec personSchema) xml = person @>
+    test <@ Yaml.deserialize (Yaml.codec personSchema) yaml = person @>
+    test <@ KeyValue.deserialize (KeyValue.codec personSchema) keyValue = person @>
+
+[<Fact>]
 let ``Round-trip mapped type (PersonId) JSON`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 

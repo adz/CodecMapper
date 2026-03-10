@@ -1021,6 +1021,11 @@ module Json =
             Decode = (fun src -> let struct (v, s) = compiled.Decode src in struct (unbox v, s))
         }
 
+    ///
+    /// `codec` is the shorter authoring alias for `compile`, so examples can
+    /// stay explicit about the compile step without repeating the longer name.
+    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+
     /// Serializes a value to JSON using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
