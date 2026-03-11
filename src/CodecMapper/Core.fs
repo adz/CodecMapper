@@ -148,6 +148,40 @@ module Core =
     let tryParseFloatInvariant = tryParseFloatPlatformInvariant
     let tryParseDecimalInvariant = tryParseDecimalPlatformInvariant
 
+    ///
+    /// Fable's packaged `fable-library-js` surface does not currently expose the
+    /// `ParseExact` helpers for date/time types, so the shared schemas need one
+    /// portable entry point that preserves exact parsing on .NET and compatible
+    /// parsing on Fable.
+    let parseDateTimeRoundtripInvariant (text: string) =
+#if FABLE_COMPILER
+        System.DateTime.Parse(text)
+#else
+        System.DateTime.ParseExact(text, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+#endif
+
+    ///
+    /// The package consumer path exercises the published Fable runtime rather
+    /// than the local source build, so `DateTimeOffset` parsing needs the same
+    /// fallback to avoid importing helpers that the package does not ship.
+    let parseDateTimeOffsetRoundtripInvariant (text: string) =
+#if FABLE_COMPILER
+        System.DateTimeOffset.Parse(text)
+#else
+        System.DateTimeOffset.ParseExact(text, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)
+#endif
+
+    ///
+    /// `TimeSpan.ParseExact` hits the same missing-helper problem under Fable,
+    /// while plain invariant parsing still accepts the canonical `"c"` payloads
+    /// that the encoder emits.
+    let parseTimeSpanConstantInvariant (text: string) =
+#if FABLE_COMPILER
+        System.TimeSpan.Parse(text)
+#else
+        System.TimeSpan.ParseExact(text, "c", CultureInfo.InvariantCulture)
+#endif
+
     let private failIntegerToken typeName allowMinus token =
         match classifyIntegerToken allowMinus token with
         | OutOfRangeToken -> failwithf "%s value out of range: %s" typeName token

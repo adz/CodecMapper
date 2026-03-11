@@ -11,3 +11,4 @@ cd "$repo_root"
 rm -rf "$out_dir" "$package_cache"
 dotnet pack src/CodecMapper/CodecMapper.fsproj --nologo -v minimal
 dotnet tool run fable -- tests/CodecMapper.FablePackageTests -o "$out_dir" --noRestore --silent
+node "$out_dir/Program.js"

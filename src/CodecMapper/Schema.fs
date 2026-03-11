@@ -235,29 +235,17 @@ module Schema =
     /// A schema for `DateTime` using the round-trippable `"O"` string format.
     let dateTime: Schema<System.DateTime> =
         string
-        |> map
-            (fun value ->
-                System.DateTime.ParseExact(value, "O", CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind))
-            (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
+        |> map parseDateTimeRoundtripInvariant (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
 
     /// A schema for `DateTimeOffset` using the round-trippable `"O"` string format.
     let dateTimeOffset: Schema<System.DateTimeOffset> =
         string
-        |> map
-            (fun value ->
-                System.DateTimeOffset.ParseExact(
-                    value,
-                    "O",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.RoundtripKind
-                ))
-            (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
+        |> map parseDateTimeOffsetRoundtripInvariant (fun value -> value.ToString("O", CultureInfo.InvariantCulture))
 
     /// A schema for `TimeSpan` using the invariant `"c"` format.
     let timeSpan: Schema<System.TimeSpan> =
         string
-        |> map (fun value -> System.TimeSpan.ParseExact(value, "c", CultureInfo.InvariantCulture)) (fun value ->
-            value.ToString("c", CultureInfo.InvariantCulture))
+        |> map parseTimeSpanConstantInvariant (fun value -> value.ToString("c", CultureInfo.InvariantCulture))
 
     ///
     /// Keep the .NET path using round-trip float formatting, but let Fable use
