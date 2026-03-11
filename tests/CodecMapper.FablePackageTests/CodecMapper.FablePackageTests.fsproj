@@ -4,8 +4,9 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
+    <CodecMapperPackageVersion Condition="'$(CodecMapperPackageVersion)' == ''">0.1.0</CodecMapperPackageVersion>
     <RestorePackagesPath>$(MSBuildThisFileDirectory).packages</RestorePackagesPath>
-    <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)..\..\src\CodecMapper\bin\Release\</RestoreAdditionalProjectSources>
+    <RestoreAdditionalProjectSources>$(MSBuildThisFileDirectory)../../src/CodecMapper/bin/Release/</RestoreAdditionalProjectSources>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CodecMapper" Version="0.1.0" />
+    <PackageReference Include="CodecMapper" Version="$(CodecMapperPackageVersion)" />
   </ItemGroup>
 
 </Project>

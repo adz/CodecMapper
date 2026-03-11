@@ -13,6 +13,15 @@ define<'T>
 
 ## Common Patterns
 
+Recommended learning order:
+
+1. [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
+2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
+3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
+4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+
+Quick jump list:
+
 - [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
 - [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 - [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)

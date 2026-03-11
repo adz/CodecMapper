@@ -8,8 +8,17 @@
 
 Tutorials are for first learning.
 
+- [Introduction](INTRODUCTION.md)
+  Learn the core mental model before branching into format or integration details.
 - [Getting Started](GETTING_STARTED.md)
-  Learn the core schema DSL, the compile-and-reuse workflow, the C# starting paths, and where JSON Schema fits.
+  Follow one linear path from basic schema authoring to nested contracts and validated wrappers.
+
+Recommended order after that:
+
+1. [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
+2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
+3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
+4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
 
 ## How-To Guides
 
@@ -33,6 +42,8 @@ How-to guides are for goal-oriented tasks.
   Choose between `CSharpSchema`, the serializer-attribute bridge, and JSON Schema import for C#-heavy systems.
 - [How To Profile Benchmark Hot Paths](HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md)
   Capture repeatable `perf` data for benchmarked JSON hot paths.
+- [Benchmarks](BENCHMARKS.md)
+  See the current scenario matrix in tabular form with brief workload-level takeaways.
 
 ## Reference
 
