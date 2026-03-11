@@ -31,3 +31,11 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
 - [x] **Task 35: Add property-based test coverage for codec laws**
   - Added `FsCheck.Xunit`-backed round-trip properties in `tests/CodecMapper.Tests` for representative nested-record, option, and collection schemas across both JSON and XML.
   - Kept the generators inside the supported deterministic surface so failures stay debuggable and align with the library's intentional JSON/XML subset.
+
+- [x] **Task 36: Add repeatable profiling workflow for benchmark hot paths**
+  - Add a repo-local profiling harness around the benchmark runner so CPU and allocation investigations are repeatable instead of one-off terminal sessions.
+  - Prefer local tooling that exists on the machine today; `perf` is available, while `dotnet-trace` and `dotnet-counters` are not.
+  - First slice landed: the benchmark runner now has a focused `profile` mode, and `scripts/profile-benchmark-hot-path.sh` captures `perf stat`, `perf.data`, injected JIT symbols, and a text report under `.artifacts/profiling/`.
+  - Capture at least one checked-in workflow for JSON serialize and deserialize hot paths, with outputs that can be inspected as call stacks or folded into flamegraphs.
+  - Keep the profiling entry points deterministic and parameterized so later optimization work can compare the same workload before and after changes.
+  - Document how to rerun the profiling workflow and where generated artifacts land so it becomes part of normal performance work, not tribal knowledge.

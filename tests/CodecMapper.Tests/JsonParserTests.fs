@@ -111,6 +111,11 @@ let ``Skip unknown fields with escaped quotes and backslashes deterministically`
     test <@ value = { Id = 42 } @>
 
 [<Fact>]
+let ``Duplicate object keys keep the last known value`` () =
+    let value = Json.deserialize idCodec """{"id":1,"id":42}"""
+    test <@ value = { Id = 42 } @>
+
+[<Fact>]
 let ``Reject missing required keys`` () =
     expectFailure "JSON decode error at $.id: Missing required key 'id'" (fun () -> Json.deserialize idCodec "{}")
 

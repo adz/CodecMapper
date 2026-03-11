@@ -1380,8 +1380,7 @@ module Json =
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// JSON compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
-        builder |> Schema.build |> compile
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
 
     ///
     /// `codec` remains as the shorter schema-to-codec alias for callers that

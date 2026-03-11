@@ -382,8 +382,7 @@ module Yaml =
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// YAML compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
-        builder |> Schema.build |> compile
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
 
     ///
     /// `codec` mirrors the other format modules for callers that still prefer

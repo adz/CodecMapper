@@ -31,6 +31,7 @@ benchmarks/CodecMapper/
 
 # Build and temp
 .gemini/
+.artifacts/
 .DS_Store
 *.log
 output/
