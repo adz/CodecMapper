@@ -3,7 +3,9 @@ namespace CodecMapper
 open System.Text
 open System.Collections.Generic
 open System.Globalization
+#if !FABLE_COMPILER
 open System.Collections.Concurrent
+#endif
 open Microsoft.FSharp.Reflection
 
 /// JSON codec compilation and runtime helpers.
@@ -62,7 +64,11 @@ module Json =
             sprintf "JSON decode error at %s: %s" (renderPath path) detail
 
     module internal Runtime =
+#if !FABLE_COMPILER
         let private objectArrayPools = ConcurrentDictionary<int, ConcurrentBag<obj array>>()
+#else
+        let private objectArrayPools = Dictionary<int, ResizeArray<obj array>>()
+#endif
 
         let private asDecodeException detail path inner =
             JsonDecodeException(path, detail, inner) :> exn
@@ -279,10 +285,10 @@ module Json =
             let mutable finished = false
             let mutable hadEscapes = false
 
-            ///
-            /// Unknown-field skipping should stay linear even for escaped text,
-            /// so scan forward once instead of recounting backslashes at every
-            /// candidate quote.
+            //
+            // Unknown-field skipping should stay linear even for escaped text,
+            // so scan forward once instead of recounting backslashes at every
+            // candidate quote.
             while i < data.Length && not finished do
                 match data[i] with
                 | 34uy -> finished <- true
@@ -576,13 +582,17 @@ module Json =
 
                 equal
 
+#if !FABLE_COMPILER
         let private listBuilders = ConcurrentDictionary<System.Type, obj array -> obj>()
+#else
+        let private listBuilders = Dictionary<System.Type, obj array -> obj>()
+#endif
 
         let makeListBuilder (elementType: System.Type) =
+#if !FABLE_COMPILER
             listBuilders.GetOrAdd(
                 elementType,
                 System.Func<_, _>(fun elementType ->
-#if !FABLE_COMPILER
                     let listType = typedefof<_ list>.MakeGenericType([| elementType |])
                     let emptyList = listType.GetProperty("Empty").GetValue(null)
                     let cons = listType.GetMethod("Cons")
@@ -593,12 +603,16 @@ module Json =
                         for i in elements.Length - 1 .. -1 .. 0 do
                             result <- cons.Invoke(null, [| elements[i]; result |])
 
-                        result
-#else
-                    fun (elements: obj array) -> List.ofArray elements |> box
-#endif
-                )
+                        result)
             )
+#else
+            match listBuilders.TryGetValue(elementType) with
+            | true, builder -> builder
+            | false, _ ->
+                let builder = fun (elements: obj array) -> List.ofArray elements |> box
+                listBuilders[elementType] <- builder
+                builder
+#endif
 
         ///
         /// XML shares the same erased list-construction helper, so keep the
@@ -616,6 +630,7 @@ module Json =
         /// pooling the `obj[]` buffers removes one of the largest remaining
         /// allocation sources on nested decode workloads.
         let rentObjectArray length =
+#if !FABLE_COMPILER
             let pool = objectArrayPools.GetOrAdd(length, fun _ -> ConcurrentBag<obj array>())
             let mutable rented = Unchecked.defaultof<obj array>
 
@@ -623,13 +638,36 @@ module Json =
                 rented
             else
                 Array.zeroCreate length
+#else
+            match objectArrayPools.TryGetValue(length) with
+            | true, pool when pool.Count > 0 ->
+                let lastIndex = pool.Count - 1
+                let rented = pool[lastIndex]
+                pool.RemoveAt(lastIndex)
+                rented
+            | _ -> Array.zeroCreate length
+#endif
 
         ///
         /// Record field buffers may hold arbitrary user objects, so return
         /// them cleared to avoid keeping payload graphs alive across runs.
         let returnObjectArray (buffer: obj array) (usedLength: int) =
-            System.Array.Clear(buffer, 0, usedLength)
+            for i in 0 .. usedLength - 1 do
+                buffer[i] <- null
+
+#if !FABLE_COMPILER
             objectArrayPools.GetOrAdd(usedLength, fun _ -> ConcurrentBag<obj array>()).Add(buffer)
+#else
+            let pool =
+                match objectArrayPools.TryGetValue(usedLength) with
+                | true, existing -> existing
+                | false, _ ->
+                    let created = ResizeArray<obj array>()
+                    objectArrayPools[usedLength] <- created
+                    created
+
+            pool.Add(buffer)
+#endif
 
     type CompiledCodec = {
         Encode: IByteWriter -> obj -> unit

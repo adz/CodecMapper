@@ -572,7 +572,7 @@ module Core =
                 else
                     (x :> IByteWriter).WriteString(value.ToString("R", CultureInfo.InvariantCulture))
 #else
-                (x :> IByteWriter).WriteString(Schema.formatFloat value)
+                (x :> IByteWriter).WriteString(value.ToString())
 #endif
 
             member x.WriteDecimal(value: decimal) =
