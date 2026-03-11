@@ -25,10 +25,10 @@ That split matters because `CodecMapper` has two different extension stories:
 The stable schema DSL is:
 
 ```fsharp
-Schema.define<'T>
-|> Schema.construct ctor
-|> Schema.field ...
-|> Schema.build
+define<'T>
+|> construct ctor
+|> field ...
+|> build
 ```
 
 Compile explicitly and reuse the resulting codec:
@@ -39,7 +39,7 @@ let json = Json.serialize codec person
 let roundTripped = Json.deserialize codec json
 ```
 
-If you want the compile step to read a bit smaller in examples, `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` are direct aliases for the corresponding `compile` functions.
+The format modules also expose `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` as direct aliases for the corresponding `compile` functions. This tutorial uses the shorter `*.codec` form in the small examples to reduce noise, but the separate `compile` step is still the important performance habit: compile once, keep the codec, and reuse it.
 
 ## How to read a schema
 
@@ -56,18 +56,19 @@ That is the mental model for the whole library: the schema is the wire contract 
 
 ```fsharp
 open CodecMapper
+open CodecMapper.Schema
 
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.build
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> build
 
-let jsonCodec = Json.compile personSchema
+let jsonCodec = Json.codec personSchema
 
 let person = { Id = 1; Name = "Ada" }
 let json = Json.serialize jsonCodec person
@@ -85,7 +86,7 @@ Output:
   Name = "Ada" }
 ```
 
-If you prefer a shorter-looking DSL, open `CodecMapper.Schema` and call the schema steps directly:
+This tutorial keeps using the shorter `Json.codec` spelling in the small snippets:
 
 ```fsharp
 open CodecMapper
@@ -103,6 +104,8 @@ let personSchema =
 
 let jsonCodec = Json.codec personSchema
 ```
+
+In longer-lived application code, prefer keeping the explicit `Json.compile personSchema` shape when you want to emphasize that the codec should be created once and reused.
 
 ## Starting from C#
 
@@ -162,6 +165,8 @@ let personSchema =
 Use `Schema.fieldWith` when the nested type has its own schema:
 
 ```fsharp
+open CodecMapper.Schema
+
 type Address = { Street: string; City: string }
 let makeAddress street city = { Street = street; City = city }
 
@@ -169,19 +174,19 @@ type Person = { Id: int; Name: string; Home: Address }
 let makePerson id name home = { Id = id; Name = name; Home = home }
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
-    |> Schema.field "street" _.Street
-    |> Schema.field "city" _.City
-    |> Schema.build
+    define<Address>
+    |> construct makeAddress
+    |> field "street" _.Street
+    |> field "city" _.City
+    |> build
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
-    |> Schema.build
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> fieldWith "home" _.Home addressSchema
+    |> build
 ```
 
 The nested schema mirrors the nested data. `home` is not special serializer metadata; it is just another field whose value is described by `addressSchema`.
@@ -191,24 +196,28 @@ The nested schema mirrors the nested data. `home` is not special serializer meta
 Lists and arrays are first-class and auto-resolve inside record fields:
 
 ```fsharp
+open CodecMapper.Schema
+
 type Team = { Name: string; Tags: string list; Aliases: string array }
 let makeTeam name tags aliases =
     { Name = name; Tags = tags; Aliases = aliases }
 
 let teamSchema =
-    Schema.define<Team>
-    |> Schema.construct makeTeam
-    |> Schema.field "name" _.Name
-    |> Schema.field "tags" _.Tags
-    |> Schema.field "aliases" _.Aliases
-    |> Schema.build
+    define<Team>
+    |> construct makeTeam
+    |> field "name" _.Name
+    |> field "tags" _.Tags
+    |> field "aliases" _.Aliases
+    |> build
 ```
 
 You can also build collection schemas directly:
 
 ```fsharp
-let namesSchema = Schema.list Schema.string
-let aliasesSchema = Schema.array Schema.string
+open CodecMapper.Schema
+
+let namesSchema = list string
+let aliasesSchema = array string
 ```
 
 For .NET interop collection shapes, `IReadOnlyList<'T>` and `ICollection<'T>` also auto-resolve through the normal homogeneous array wire form.
@@ -216,7 +225,9 @@ For .NET interop collection shapes, `IReadOnlyList<'T>` and `ICollection<'T>` al
 If you need a concrete `ResizeArray<'T>` / `List<T>` in the model, keep that explicit:
 
 ```fsharp
-let bufferSchema = Schema.resizeArray Schema.string
+open CodecMapper.Schema
+
+let bufferSchema = resizeArray string
 ```
 
 ## Options
@@ -224,21 +235,25 @@ let bufferSchema = Schema.resizeArray Schema.string
 Options are explicit schemas too:
 
 ```fsharp
-let maybeAgeSchema = Schema.option Schema.int
+open CodecMapper.Schema
+
+let maybeAgeSchema = option int
 ```
 
 Inside records, `option<'T>` auto-resolves:
 
 ```fsharp
+open CodecMapper.Schema
+
 type Profile = { Nickname: string option; Age: int option }
 let makeProfile nickname age = { Nickname = nickname; Age = age }
 
 let profileSchema =
-    Schema.define<Profile>
-    |> Schema.construct makeProfile
-    |> Schema.field "nickname" _.Nickname
-    |> Schema.field "age" _.Age
-    |> Schema.build
+    define<Profile>
+    |> construct makeProfile
+    |> field "nickname" _.Nickname
+    |> field "age" _.Age
+    |> build
 ```
 
 Current wire representation is explicit rather than omitted:
@@ -275,6 +290,7 @@ Example:
 
 ```fsharp
 open System
+open CodecMapper.Schema
 
 type AuditRecord =
     {
@@ -291,12 +307,12 @@ let makeAuditRecord userId createdAt duration =
     }
 
 let auditSchema =
-    Schema.define<AuditRecord>
-    |> Schema.construct makeAuditRecord
-    |> Schema.field "userId" _.UserId
-    |> Schema.field "createdAt" _.CreatedAt
-    |> Schema.field "duration" _.Duration
-    |> Schema.build
+    define<AuditRecord>
+    |> construct makeAuditRecord
+    |> field "userId" _.UserId
+    |> field "createdAt" _.CreatedAt
+    |> field "duration" _.Duration
+    |> build
 ```
 
 ## Custom wrappers
@@ -304,11 +320,13 @@ let auditSchema =
 Use `Schema.map` for total wrappers:
 
 ```fsharp
+open CodecMapper.Schema
+
 type PersonId = PersonId of int
 
 let personIdSchema =
-    Schema.int
-    |> Schema.map PersonId (fun (PersonId value) -> value)
+    int
+    |> map PersonId (fun (PersonId value) -> value)
 ```
 
 Read `Schema.map` as "the wire shape is still an `int`, but the in-memory value is `PersonId`."
@@ -316,6 +334,8 @@ Read `Schema.map` as "the wire shape is still an `int`, but the in-memory value 
 Use `Schema.tryMap` for smart constructors that can reject invalid decoded values:
 
 ```fsharp
+open CodecMapper.Schema
+
 type UserId = UserId of int
 
 module UserId =
@@ -328,8 +348,8 @@ module UserId =
     let value (UserId value) = value
 
 let userIdSchema =
-    Schema.int
-    |> Schema.tryMap UserId.create UserId.value
+    int
+    |> tryMap UserId.create UserId.value
 ```
 
 Read `Schema.tryMap` as "decode the wire value first, then validate/refine it into a stronger domain type."
@@ -337,10 +357,12 @@ Read `Schema.tryMap` as "decode the wire value first, then validate/refine it in
 For common opt-in boundary rules, `Schema` also exposes small validated helpers:
 
 ```fsharp
-let userNameSchema = Schema.nonEmptyString
-let retryCountSchema = Schema.positiveInt
-let tagsSchema = Schema.nonEmptyList Schema.string
-let normalizedLabelSchema = Schema.trimmedString
+open CodecMapper.Schema
+
+let userNameSchema = nonEmptyString
+let retryCountSchema = positiveInt
+let tagsSchema = nonEmptyList string
+let normalizedLabelSchema = trimmedString
 ```
 
 These stay explicit authoring choices. They do not weaken the normal `Schema.string`, `Schema.int`, or `Schema.list` defaults.
@@ -348,15 +370,17 @@ These stay explicit authoring choices. They do not weaken the normal `Schema.str
 That schema can then be used inside larger records:
 
 ```fsharp
+open CodecMapper.Schema
+
 type Account = { Id: UserId; Name: string }
 let makeAccount id name = { Id = id; Name = name }
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
-    |> Schema.fieldWith "id" _.Id userIdSchema
-    |> Schema.field "name" _.Name
-    |> Schema.build
+    define<Account>
+    |> construct makeAccount
+    |> fieldWith "id" _.Id userIdSchema
+    |> field "name" _.Name
+    |> build
 ```
 
 ## Multiple formats from one schema

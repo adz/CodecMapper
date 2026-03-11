@@ -66,6 +66,8 @@ Use this for flat config-style boundaries only. Collections, raw JSON, and other
 When a config field should fall back to a known value only when it is absent, keep that policy explicit in the schema:
 
 ```fsharp
+open CodecMapper.Schema
+
 type AppConfig =
     {
         Mode: string
@@ -74,17 +76,17 @@ type AppConfig =
     }
 
 let appConfigSchema =
-    Schema.define<AppConfig>
-    |> Schema.construct (fun mode retryCount labels ->
+    define<AppConfig>
+    |> construct (fun mode retryCount labels ->
         {
             Mode = mode
             RetryCount = retryCount
             Labels = labels
         })
-    |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
-    |> Schema.fieldWith "retry_count" _.RetryCount (Schema.int |> Schema.missingAsValue 3)
-    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.missingAsValue [])
-    |> Schema.build
+    |> fieldWith "mode" _.Mode (string |> missingAsValue "strict")
+    |> fieldWith "retry_count" _.RetryCount (int |> missingAsValue 3)
+    |> fieldWith "labels" _.Labels (list string |> missingAsValue [])
+    |> build
 ```
 
 That keeps the default local to the contract instead of smuggling it through serializer settings or post-deserialize mutation.
@@ -94,6 +96,8 @@ That keeps the default local to the contract instead of smuggling it through ser
 Some config boundaries treat an explicit `null` or an explicit empty collection as "use the contract default" rather than as a distinct payload state. Keep that normalization local to the field too:
 
 ```fsharp
+open CodecMapper.Schema
+
 type ServiceConfig =
     {
         Region: string
@@ -101,15 +105,15 @@ type ServiceConfig =
     }
 
 let serviceConfigSchema =
-    Schema.define<ServiceConfig>
-    |> Schema.construct (fun region labels ->
+    define<ServiceConfig>
+    |> construct (fun region labels ->
         {
             Region = region
             Labels = labels
         })
-    |> Schema.fieldWith "region" _.Region (Schema.string |> Schema.nullAsValue "global")
-    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.emptyCollectionAsValue [ "general" ])
-    |> Schema.build
+    |> fieldWith "region" _.Region (string |> nullAsValue "global")
+    |> fieldWith "labels" _.Labels (list string |> emptyCollectionAsValue [ "general" ])
+    |> build
 ```
 
 That means:
@@ -142,14 +146,14 @@ retry_count: 3
 mode: strict
 ```
 
-Current YAML scope is intentionally narrow:
+The YAML projection supports:
 
 - mappings
 - sequences
 - scalars and `null`
 - quoted or plain strings
 
-It does not aim at full YAML feature parity. Anchors, tags, multi-document streams, block scalars, and broader YAML syntax are still out of scope.
+Unsupported YAML features include anchors, tags, multi-document streams, block scalars, and broader YAML syntax.
 
 ## Recommended Shape
 
@@ -329,6 +333,8 @@ With `CodecMapper`, the wire contract should be explicit in the schema, not infe
 A versioned envelope schema is the right place to make changes visible:
 
 ```fsharp
+open CodecMapper.Schema
+
 type AppConfigV2 =
     {
         ServiceUrl: string
@@ -344,17 +350,17 @@ type VersionEnvelope<'T> =
 
 module Schemas =
     let appConfigV2 =
-        Schema.define<AppConfigV2>
-        |> Schema.construct (fun serviceUrl retryCount mode ->
+        define<AppConfigV2>
+        |> construct (fun serviceUrl retryCount mode ->
             {
                 ServiceUrl = serviceUrl
                 RetryCount = retryCount
                 Mode = mode
             })
-        |> Schema.field "service_url" _.ServiceUrl
-        |> Schema.field "retry_count" _.RetryCount
-        |> Schema.field "mode" _.Mode
-        |> Schema.build
+        |> field "service_url" _.ServiceUrl
+        |> field "retry_count" _.RetryCount
+        |> field "mode" _.Mode
+        |> build
 ```
 
 Then wrap that with a schema for the envelope:
@@ -362,11 +368,11 @@ Then wrap that with a schema for the envelope:
 ```fsharp
 module Schemas =
     let versionEnvelope inner =
-        Schema.define<VersionEnvelope<'T>>
-        |> Schema.construct (fun version config -> { Version = version; Config = config })
-        |> Schema.field "version" _.Version
-        |> Schema.fieldWith "config" _.Config inner
-        |> Schema.build
+        define<VersionEnvelope<'T>>
+        |> construct (fun version config -> { Version = version; Config = config })
+        |> field "version" _.Version
+        |> fieldWith "config" _.Config inner
+        |> build
 ```
 
 The latest version should be the one you serialize.

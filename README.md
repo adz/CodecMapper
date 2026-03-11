@@ -14,14 +14,17 @@
 [![Last Commit](https://img.shields.io/github/last-commit/adz/CodecMapper)](https://github.com/adz/CodecMapper/commits/main)
 [![Stars](https://img.shields.io/github/stars/adz/CodecMapper?style=social)](https://github.com/adz/CodecMapper/stargazers)
 
-`CodecMapper` is a schema-first serialization library for F# focused on explicit wire contracts, symmetric encode/decode behavior, and portability to Native AOT and Fable-style targets.
+CodecMapper is a schema-first serialization library for F# focused on explicit wire contracts,
+symmetric encode/decode behavior, and portability to Native AOT and Fable-style targets.
 
-It is for cases where serializer attributes and implicit conventions stop being helpful. You define one schema that mirrors the wire shape, then compile it into reusable codecs.
+It's for cases where serializer attributes and implicit conventions stop being helpful. 
+You define one schema that mirrors the wire shape, then compile it into reusable codecs.
 
 ## Why the schema feels different
 
 ```fsharp
 open CodecMapper
+open CodecMapper.Schema
 
 type Address = { Street: string; City: string }
 let makeAddress street city = { Street = street; City = city }
@@ -30,19 +33,19 @@ type Person = { Id: int; Name: string; Home: Address }
 let makePerson id name home = { Id = id; Name = name; Home = home }
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
-    |> Schema.field "street" _.Street
-    |> Schema.field "city" _.City
-    |> Schema.build
+    define<Address>
+    |> construct makeAddress
+    |> field "street" _.Street
+    |> field "city" _.City
+    |> build
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
-    |> Schema.build
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> fieldWith "home" _.Home addressSchema
+    |> build
 
 let codec = Json.compile personSchema
 let person =
@@ -142,6 +145,8 @@ One of the main benefits over convention-based serializers is that model evoluti
 If your domain gets richer but the wire contract does not need to change yet, keep the same wire shape and refine it:
 
 ```fsharp
+open CodecMapper.Schema
+
 type UserId = UserId of int
 
 module UserId =
@@ -155,15 +160,15 @@ type Account = { Id: UserId; Name: string }
 let makeAccount id name = { Id = id; Name = name }
 
 let userIdSchema =
-    Schema.int
-    |> Schema.tryMap UserId.create UserId.value
+    int
+    |> tryMap UserId.create UserId.value
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
-    |> Schema.fieldWith "id" _.Id userIdSchema
-    |> Schema.field "name" _.Name
-    |> Schema.build
+    define<Account>
+    |> construct makeAccount
+    |> fieldWith "id" _.Id userIdSchema
+    |> field "name" _.Name
+    |> build
 ```
 
 The JSON contract is still:
@@ -177,16 +182,18 @@ The in-memory model is stronger, but you did not need a second DTO type just to 
 If the wire contract really changes, the schema changes with it in one obvious place:
 
 ```fsharp
+open CodecMapper.Schema
+
 type PersonV2 = { Id: int; Name: string; Email: string option }
 let makePersonV2 id name email = { Id = id; Name = name; Email = email }
 
 let personV2Schema =
-    Schema.define<PersonV2>
-    |> Schema.construct makePersonV2
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.field "email" _.Email
-    |> Schema.build
+    define<PersonV2>
+    |> construct makePersonV2
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> field "email" _.Email
+    |> build
 ```
 
 That does not silently "pick up" the new field just because the record changed. You add it deliberately to the schema, so the contract review point is explicit.
@@ -227,7 +234,8 @@ When benchmark numbers move, profile before changing the runtime. The repo now i
 ## Docs
 
 - Start with [Getting started](docs/GETTING_STARTED.md).
-- Copy from [How to model common contract patterns](docs/HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md).
+- Use the [contract pattern index](docs/HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md) when you need a quick jump page.
+- Copy from [How to model a basic record](docs/HOW_TO_MODEL_A_BASIC_RECORD.md), [how to model a nested record](docs/HOW_TO_MODEL_A_NESTED_RECORD.md), [how to model a validated wrapper](docs/HOW_TO_MODEL_A_VALIDATED_WRAPPER.md), or [how to model a versioned contract](docs/HOW_TO_MODEL_A_VERSIONED_CONTRACT.md).
 - Use [Configuration contracts guide](docs/CONFIG_CONTRACTS.md) for versioned config shapes.
 - Use [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md) and [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md) for schema interchange.
 - Use [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md) for the bridge/facade story.

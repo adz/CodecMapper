@@ -15,8 +15,16 @@ Tutorials are for first learning.
 
 How-to guides are for goal-oriented tasks.
 
-- [How To Model Common Contract Patterns](HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md)
-  Start from common record, wrapper, collection, and contract patterns.
+- [Contract Pattern Index](HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md)
+  Jump to the most common authored-schema patterns.
+- [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
+  Start from the smallest flat object mapping.
+- [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
+  Keep child schema boundaries explicit with `fieldWith`.
+- [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
+  Use `Schema.tryMap` for smart-constructor domain types.
+- [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+  Add an explicit version envelope for evolving messages and config.
 - [Configuration As An Explicit Contract](CONFIG_CONTRACTS.md)
   Model versioned application configuration in JSON, YAML, XML, or key/value form.
 - [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md)

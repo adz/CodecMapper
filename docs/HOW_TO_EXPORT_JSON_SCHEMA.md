@@ -13,16 +13,17 @@ Keep those two workflows separate when you design your integration boundary.
 
 ```fsharp
 open CodecMapper
+open CodecMapper.Schema
 
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.build
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> build
 
 let jsonSchema = JsonSchema.generate personSchema
 ```
@@ -34,6 +35,8 @@ let jsonSchema = JsonSchema.generate personSchema
 `Schema.map` and `Schema.tryMap` export the underlying wire shape, not the domain-only refinement rule:
 
 ```fsharp
+open CodecMapper.Schema
+
 type UserId = UserId of int
 
 module UserId =
@@ -44,8 +47,8 @@ module UserId =
     let value (UserId value) = value
 
 let userIdSchema =
-    Schema.int
-    |> Schema.tryMap UserId.create UserId.value
+    int
+    |> tryMap UserId.create UserId.value
 
 let schemaText = JsonSchema.generate userIdSchema
 ```
@@ -57,7 +60,9 @@ That schema still exports as an integer contract because the JSON wire value is 
 `Schema.option` keeps explicit `null` semantics:
 
 ```fsharp
-let maybeAgeSchema = Schema.option Schema.int
+open CodecMapper.Schema
+
+let maybeAgeSchema = option int
 let schemaText = JsonSchema.generate maybeAgeSchema
 ```
 
