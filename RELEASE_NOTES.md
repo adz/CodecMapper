@@ -1,11 +1,14 @@
 # Release Notes
 
-## Unreleased
+## 0.1.0 - 2026-03-11
 
 - Initial public `CodecMapper` repository setup
 - Typed pipeline schema DSL
 - JSON and XML codecs from one schema model
+- YAML and key/value projections from the same authored schema model
+- JSON Schema export and import support
 - .NET bridge importers for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
+- Fable-ready NuGet packaging validated through local packed-package consumer checks
 - Public getting-started, config-contract, and API reference docs
 
 ## Release Process

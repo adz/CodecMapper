@@ -51,6 +51,12 @@ jobs:
       - name: Check Fable 5 transpilation
         run: bash scripts/check-fable5-compat.sh
 
+      - name: Check packaged Fable transpilation
+        run: bash scripts/check-fable-package-compat.sh
+
+      - name: Check packaged Fable 5 transpilation
+        run: bash scripts/check-fable5-package-compat.sh
+
       - name: Validate benchmark snapshot generator
         run: bash scripts/generate-benchmark-snapshot.sh --stdout-only
 
