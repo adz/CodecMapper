@@ -380,8 +380,14 @@ module Yaml =
         }
 
     ///
-    /// `codec` mirrors the other format modules so config-oriented examples
-    /// can keep the compile step explicit without extra visual noise.
+    /// Inline schema pipelines read more clearly when the final `build` and
+    /// YAML compile step collapse into one terminal pipeline stage.
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
+        builder |> Schema.build |> compile
+
+    ///
+    /// `codec` mirrors the other format modules for callers that still prefer
+    /// the shorter schema-to-codec alias over the longer `compile` name.
     let codec (schema: Schema<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to YAML using a previously compiled codec.

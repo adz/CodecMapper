@@ -89,8 +89,17 @@ let ``Round-trip list of strings JSON`` () =
     test <@ decoded = value @>
 
 [<Fact>]
-let ``Codec aliases mirror compile helpers across formats`` () =
-    let personSchema =
+let ``buildAndCompile composes build and compile across formats`` () =
+    let person = {
+        Id = 7
+        Name = "Alias"
+        Home = {
+            Street = "Codec Street"
+            City = "Adelaide"
+        }
+    }
+
+    let jsonCodec =
         Schema.define<Person>
         |> Schema.construct makePerson
         |> Schema.field "id" _.Id
@@ -103,26 +112,62 @@ let ``Codec aliases mirror compile helpers across formats`` () =
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
-        |> Schema.build
+        |> Json.buildAndCompile
 
-    let person = {
-        Id = 7
-        Name = "Alias"
-        Home = {
-            Street = "Codec Street"
-            City = "Adelaide"
-        }
-    }
+    let xmlCodec =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith
+            "home"
+            _.Home
+            (Schema.define<Address>
+             |> Schema.construct makeAddress
+             |> Schema.field "street" _.Street
+             |> Schema.field "city" _.City
+             |> Schema.build)
+        |> Xml.buildAndCompile
 
-    let json = Json.serialize (Json.codec personSchema) person
-    let xml = Xml.serialize (Xml.codec personSchema) person
-    let yaml = Yaml.serialize (Yaml.codec personSchema) person
-    let keyValue = KeyValue.serialize (KeyValue.codec personSchema) person
+    let yamlCodec =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith
+            "home"
+            _.Home
+            (Schema.define<Address>
+             |> Schema.construct makeAddress
+             |> Schema.field "street" _.Street
+             |> Schema.field "city" _.City
+             |> Schema.build)
+        |> Yaml.buildAndCompile
 
-    test <@ Json.deserialize (Json.codec personSchema) json = person @>
-    test <@ Xml.deserialize (Xml.codec personSchema) xml = person @>
-    test <@ Yaml.deserialize (Yaml.codec personSchema) yaml = person @>
-    test <@ KeyValue.deserialize (KeyValue.codec personSchema) keyValue = person @>
+    let keyValueCodec =
+        Schema.define<Person>
+        |> Schema.construct makePerson
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.fieldWith
+            "home"
+            _.Home
+            (Schema.define<Address>
+             |> Schema.construct makeAddress
+             |> Schema.field "street" _.Street
+             |> Schema.field "city" _.City
+             |> Schema.build)
+        |> KeyValue.buildAndCompile
+
+    let json = Json.serialize jsonCodec person
+    let xml = Xml.serialize xmlCodec person
+    let yaml = Yaml.serialize yamlCodec person
+    let keyValue = KeyValue.serialize keyValueCodec person
+
+    test <@ Json.deserialize jsonCodec json = person @>
+    test <@ Xml.deserialize xmlCodec xml = person @>
+    test <@ Yaml.deserialize yamlCodec yaml = person @>
+    test <@ KeyValue.deserialize keyValueCodec keyValue = person @>
 
 [<Fact>]
 let ``Round-trip mapped type (PersonId) JSON`` () =

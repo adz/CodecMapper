@@ -719,8 +719,14 @@ module Xml =
         }
 
     ///
-    /// `codec` mirrors `Json.codec` so multi-format examples can keep the same
-    /// explicit compile step while using a shorter, copy-paste-friendly name.
+    /// Inline schema pipelines read more clearly when the final `build` and
+    /// XML compile step collapse into one terminal pipeline stage.
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
+        builder |> Schema.build |> compile
+
+    ///
+    /// `codec` mirrors `Json.codec` for callers that still prefer the direct
+    /// schema-to-codec alias over the longer `compile` name.
     let codec (schema: Schema<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to XML using the schema-derived root element name.

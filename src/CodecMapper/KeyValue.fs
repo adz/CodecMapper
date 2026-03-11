@@ -304,8 +304,14 @@ module KeyValue =
     let compile (schema: Schema<'T>) : Codec<'T> = compileUsing Options.defaults schema
 
     ///
-    /// `codec` keeps the default-key-path compile step explicit while giving
-    /// config examples the same shorter shape as the JSON and XML helpers.
+    /// Inline schema pipelines read more clearly when the final `build` and
+    /// key/value compile step collapse into one terminal pipeline stage.
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
+        builder |> Schema.build |> compile
+
+    ///
+    /// `codec` remains as the shorter schema-to-codec alias for callers that
+    /// prefer the direct compile step under the default options.
     let codec (schema: Schema<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to a flat key/value map using a previously compiled codec.

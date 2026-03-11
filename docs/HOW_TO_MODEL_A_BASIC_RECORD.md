@@ -9,14 +9,12 @@ open CodecMapper.Schema
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema =
+let codec =
     define<Person>
     |> construct makePerson
     |> field "id" _.Id
     |> field "name" _.Name
-    |> build
-
-let codec = Json.codec personSchema
+    |> Json.buildAndCompile
 ```
 
-This is the smallest authored schema shape: define the record target, provide the constructor, then map each field explicitly.
+This is the smallest authored schema shape: define the record target, provide the constructor, then map each field explicitly and finish with `Json.buildAndCompile`.

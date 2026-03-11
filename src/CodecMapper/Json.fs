@@ -1378,8 +1378,14 @@ module Json =
         }
 
     ///
-    /// `codec` is the shorter authoring alias for `compile`, so examples can
-    /// stay explicit about the compile step without repeating the longer name.
+    /// Inline schema pipelines read more clearly when the final `build` and
+    /// JSON compile step collapse into one terminal pipeline stage.
+    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> =
+        builder |> Schema.build |> compile
+
+    ///
+    /// `codec` remains as the shorter schema-to-codec alias for callers that
+    /// prefer the direct `compile schema` shape without the longer name.
     let codec (schema: Schema<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to JSON using a previously compiled codec.

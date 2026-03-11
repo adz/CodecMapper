@@ -31,7 +31,7 @@ define<'T>
 |> build
 ```
 
-Compile explicitly and reuse the resulting codec:
+When the schema is named and reused, compile explicitly and keep the resulting codec:
 
 ```fsharp
 let codec = Json.compile personSchema
@@ -39,7 +39,18 @@ let json = Json.serialize codec person
 let roundTripped = Json.deserialize codec json
 ```
 
-The format modules also expose `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` as direct aliases for the corresponding `compile` functions. This tutorial uses the shorter `*.codec` form in the small examples to reduce noise, but the separate `compile` step is still the important performance habit: compile once, keep the codec, and reuse it.
+When the schema only exists to feed one inline pipeline, end the authoring flow with the format-specific `buildAndCompile` helper:
+
+```fsharp
+let codec =
+    define<Person>
+    |> construct makePerson
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> Json.buildAndCompile
+```
+
+Use `buildAndCompile` to make inline examples easier to scan. Use `Json.compile personSchema` when the schema itself is named, linked from other schemas, or reused across multiple codecs.
 
 ## How to read a schema
 
@@ -61,14 +72,12 @@ open CodecMapper.Schema
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema =
+let jsonCodec =
     define<Person>
     |> construct makePerson
     |> field "id" _.Id
     |> field "name" _.Name
-    |> build
-
-let jsonCodec = Json.codec personSchema
+    |> Json.buildAndCompile
 
 let person = { Id = 1; Name = "Ada" }
 let json = Json.serialize jsonCodec person
@@ -86,7 +95,7 @@ Output:
   Name = "Ada" }
 ```
 
-This tutorial keeps using the shorter `Json.codec` spelling in the small snippets:
+This tutorial uses `Json.buildAndCompile` for the small inline snippets:
 
 ```fsharp
 open CodecMapper
@@ -95,17 +104,15 @@ open CodecMapper.Schema
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
-let personSchema =
+let jsonCodec =
     define<Person>
     |> construct makePerson
     |> field "id" _.Id
     |> field "name" _.Name
-    |> build
-
-let jsonCodec = Json.codec personSchema
+    |> Json.buildAndCompile
 ```
 
-In longer-lived application code, prefer keeping the explicit `Json.compile personSchema` shape when you want to emphasize that the codec should be created once and reused.
+When you keep the schema in a named value, prefer the explicit `Json.compile personSchema` shape so the reuse boundary stays obvious.
 
 ## Starting from C#
 

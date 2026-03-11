@@ -39,15 +39,13 @@ let addressSchema =
     |> field "city" _.City
     |> build
 
-let personSchema =
+let codec =
     define<Person>
     |> construct makePerson
     |> field "id" _.Id
     |> field "name" _.Name
     |> fieldWith "home" _.Home addressSchema
-    |> build
-
-let codec = Json.compile personSchema
+    |> Json.buildAndCompile
 let person =
     {
         Id = 42
@@ -76,13 +74,13 @@ That schema reads almost like the data constructor:
 
 The result is not hidden serializer behavior. It is the contract itself, written in normal F#.
 
-If you want the compile step to read a bit smaller in samples, the format modules also expose `Json.codec`, `Xml.codec`, `Yaml.codec`, and `KeyValue.codec` as direct aliases for `compile`.
+If the schema only exists inline at the end of the authoring pipeline, `Json.buildAndCompile`, `Xml.buildAndCompile`, `Yaml.buildAndCompile`, and `KeyValue.buildAndCompile` make that terminal step easier to scan. Keep `Json.compile personSchema` when the named schema is reused.
 
 ## Why use it
 
 - The schema mirrors the data, so changes to the wire contract are visible in one place.
 - Encode and decode come from the same definition, so drift is harder to introduce accidentally.
-- `Json.compile` / `Json.codec` and `Xml.compile` / `Xml.codec` reuse the same schema instead of making you maintain separate mappings.
+- `Json.compile` and `Xml.compile` reuse the same schema instead of making you maintain separate mappings.
 - Domain refinement stays explicit through `Schema.map` and `Schema.tryMap` instead of being buried in serializer settings.
 - Versioned message and config contracts stay deliberate because the wire shape is authored directly.
 
