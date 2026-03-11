@@ -7,6 +7,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\BenchmarkScenarios.fs">
+      <Link>BenchmarkScenarios.fs</Link>
+    </Compile>
     <Compile Include="Program.fs" />
   </ItemGroup>
 

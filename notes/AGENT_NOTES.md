@@ -111,6 +111,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - Supported XML is element-only: exact tags, escaped text nodes, repeated `<item>` children for collections, and ignorable inter-element whitespace.
 - Out of scope for now: attributes, self-closing tags, namespaces, mixed content, comments, CDATA, and processing instructions.
 - Parser work should prefer small state-machine steps plus exhaustive tests over “smart” generalized parsing.
+- A future typed-interpreter architecture option is documented in `notes/TYPED_SCHEMA_INTERPRETERS.md`. Treat that note as a constrained design record, not as an implicit mandate to start a large rewrite.
 
 ## Test Coverage Notes
 

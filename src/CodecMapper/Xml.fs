@@ -726,8 +726,12 @@ module Xml =
     /// Serializes a value to XML using the schema-derived root element name.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(128)
-        codec.Encode writer value
-        Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
+
+        try
+            codec.Encode writer value
+            Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
+        finally
+            writer.Release()
 
     /// Deserializes an XML payload using the schema-derived root element name.
     let deserialize (codec: Codec<'T>) (xml: string) =

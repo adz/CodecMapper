@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="CodecMapperBench.fs" />
-    <Compile Include="StjBench.fs" />
-    <Compile Include="NewtonsoftBench.fs" />
+    <Compile Include="..\BenchmarkScenarios.fs">
+      <Link>BenchmarkScenarios.fs</Link>
+    </Compile>
     <Compile Include="Program.fs" />
   </ItemGroup>
 

@@ -10,45 +10,36 @@ open BenchmarkDotNet.Toolchains.InProcess.Emit
 [<MemoryDiagnoser>]
 type CompetitiveBenchmarks() =
     ///
-    /// Benchmarking `50` records amortizes fixed serializer overhead and puts
-    /// the comparisons closer to the payload sizes users actually send around.
-    let people =
-        [ 1..50 ]
-        |> List.map (fun id -> {
-            Id = id
-            Name = $"Benchmark User {id}"
-            Home = {
-                Street = $"{id} F# Way"
-                City = if id % 2 = 0 then "AOT City" else "Fable Town"
-            }
-        })
+    /// The benchmark matrix covers both common request-sized objects and
+    /// larger batch-style payloads so one ratio does not dominate the story.
+    [<ParamsSource("ScenarioNames")>]
+    member val ScenarioName = "" with get, set
 
-    let json = System.Text.Json.JsonSerializer.Serialize(people)
+    member _.ScenarioNames = Workloads.names
 
-    let jsonBytes = System.Text.Encoding.UTF8.GetBytes(json)
-
-    // --- Batch of 50 records ---
+    member private this.Current =
+        match Workloads.tryFind this.ScenarioName with
+        | Some workload -> workload
+        | None -> failwithf "Unknown benchmark scenario '%s'." this.ScenarioName
 
     [<Benchmark(Baseline = true)>]
-    member _.STJ_Json_Serialize() = StjBench.serialize people
+    member this.STJ_Json_Serialize() = this.Current.StjSerialize()
 
     [<Benchmark>]
-    member _.CodecMapper_Json_Serialize() = CodecMapperBench.serialize people
+    member this.CodecMapper_Json_Serialize() = this.Current.CodecMapperSerialize()
 
     [<Benchmark>]
-    member _.Newtonsoft_Json_Serialize() = NewtonsoftBench.serialize people
+    member this.Newtonsoft_Json_Serialize() = this.Current.NewtonsoftSerialize()
 
     [<Benchmark>]
-    member _.STJ_Json_Deserialize() =
-        StjBench.deserialize<Person list> (json)
+    member this.STJ_Json_Deserialize() = this.Current.StjDeserialize()
 
     [<Benchmark>]
-    member _.CodecMapper_Json_Deserialize_Bytes() =
-        CodecMapperBench.deserializeBytes jsonBytes
+    member this.CodecMapper_Json_Deserialize_Bytes() =
+        this.Current.CodecMapperDeserializeBytes()
 
     [<Benchmark>]
-    member _.Newtonsoft_Json_Deserialize() =
-        NewtonsoftBench.deserialize<Person list> (json)
+    member this.Newtonsoft_Json_Deserialize() = this.Current.NewtonsoftDeserialize()
 
 module Program =
     [<EntryPoint>]

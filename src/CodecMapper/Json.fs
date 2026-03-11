@@ -3,6 +3,7 @@ namespace CodecMapper
 open System.Text
 open System.Collections.Generic
 open System.Globalization
+open System.Collections.Concurrent
 open Microsoft.FSharp.Reflection
 
 /// JSON codec compilation and runtime helpers.
@@ -61,6 +62,8 @@ module Json =
             sprintf "JSON decode error at %s: %s" (renderPath path) detail
 
     module internal Runtime =
+        let private objectArrayPools = ConcurrentDictionary<int, ConcurrentBag<obj array>>()
+
         let private asDecodeException detail path inner =
             JsonDecodeException(path, detail, inner) :> exn
 
@@ -75,6 +78,16 @@ module Json =
         let withPath segment f =
             try
                 f ()
+            with ex ->
+                raise (prependPath segment ex)
+
+        ///
+        /// The hot decode path already knows the field or item segment up
+        /// front, so accepting the decoder directly avoids closure allocation
+        /// around every successful nested decode.
+        let inline decodeAtPath segment (decoder: JsonSource -> struct ('T * JsonSource)) (src: JsonSource) =
+            try
+                decoder src
             with ex ->
                 raise (prependPath segment ex)
 
@@ -148,43 +161,67 @@ module Json =
                 while i < data.Length && isDigit data[i] do
                     i <- i + 1
 
-#if !FABLE_COMPILER
-            let token = Encoding.UTF8.GetString(data, src.Offset, i - src.Offset)
-#else
-            let token = Encoding.UTF8.GetString(data.[src.Offset .. i - 1])
-#endif
-
-            struct (token, ByteSource(data, i))
+            struct (src.Offset, i - src.Offset, ByteSource(data, i))
 
         let intDecoder: Decoder<int> =
             fun src ->
-                let struct (token, next) = numberToken false src
+                let struct (start, length, next) = numberToken false src
+#if !FABLE_COMPILER
+                struct (Core.parseInt32InvariantBytes "int" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseInt32Invariant "int" token, next)
+#endif
 
         let int64Decoder: Decoder<int64> =
             fun src ->
-                let struct (token, next) = numberToken false src
+                let struct (start, length, next) = numberToken false src
+#if !FABLE_COMPILER
+                struct (Core.parseInt64InvariantBytes "int64" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseInt64Invariant "int64" token, next)
+#endif
 
         let uint32Decoder: Decoder<uint32> =
             fun src ->
-                let struct (token, next) = numberToken false src
+                let struct (start, length, next) = numberToken false src
+#if !FABLE_COMPILER
+                struct (Core.parseUInt32InvariantBytes "uint32" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseUInt32Invariant "uint32" token, next)
+#endif
 
         let uint64Decoder: Decoder<uint64> =
             fun src ->
-                let struct (token, next) = numberToken false src
+                let struct (start, length, next) = numberToken false src
+#if !FABLE_COMPILER
+                struct (Core.parseUInt64InvariantBytes "uint64" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseUInt64Invariant "uint64" token, next)
+#endif
 
         let floatDecoder: Decoder<float> =
             fun src ->
-                let struct (token, next) = numberToken true src
+                let struct (start, length, next) = numberToken true src
+#if !FABLE_COMPILER
+                struct (Core.parseFloatInvariantBytes "float" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseFloatInvariant "float" token, next)
+#endif
 
         let decimalDecoder: Decoder<decimal> =
             fun src ->
-                let struct (token, next) = numberToken true src
+                let struct (start, length, next) = numberToken true src
+#if !FABLE_COMPILER
+                struct (Core.parseDecimalInvariantBytes "decimal" src.Data start length, next)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
                 struct (Core.parseDecimalInvariant "decimal" token, next)
+#endif
 
         let boolDecoder: Decoder<bool> =
             fun src ->
@@ -231,35 +268,45 @@ module Json =
             else
                 failwith "Expected null"
 
-        let stringRaw (src: JsonSource) : struct (int * int * JsonSource) =
+        let stringRaw (src: JsonSource) : struct (int * int * bool * JsonSource) =
             let src = skipWhitespace src
             let data = src.Data
 
             if src.Offset >= data.Length || data[src.Offset] <> 34uy then
                 failwith "Expected \""
 
-            ///
-            /// Strings are also used while skipping unknown fields, so escaped
-            /// quotes must not terminate the scan early.
-            let isEscapedQuote index =
-                let mutable slashCount = 0
-                let mutable j = index - 1
-
-                while j >= src.Offset && data[j] = 92uy do
-                    slashCount <- slashCount + 1
-                    j <- j - 1
-
-                slashCount % 2 = 1
-
             let mutable i = src.Offset + 1
+            let mutable finished = false
+            let mutable hadEscapes = false
 
-            while i < data.Length && not (data[i] = 34uy && not (isEscapedQuote i)) do
-                i <- i + 1
+            ///
+            /// Unknown-field skipping should stay linear even for escaped text,
+            /// so scan forward once instead of recounting backslashes at every
+            /// candidate quote.
+            while i < data.Length && not finished do
+                match data[i] with
+                | 34uy -> finished <- true
+                | 92uy ->
+                    hadEscapes <- true
+                    i <- i + 1
 
-            if i >= data.Length then
+                    if i >= data.Length then
+                        failwith "Unterminated escape sequence"
+
+                    if data[i] = 117uy then
+                        if i + 4 >= data.Length then
+                            failwith "Unterminated unicode escape"
+
+                        i <- i + 4
+                | _ -> ()
+
+                if not finished then
+                    i <- i + 1
+
+            if not finished then
                 failwith "Unterminated string"
 
-            struct (src.Offset + 1, i - (src.Offset + 1), ByteSource(data, i + 1))
+            struct (src.Offset + 1, i - (src.Offset + 1), hadEscapes, ByteSource(data, i + 1))
 
         let stringDecoder: Decoder<string> =
             fun src ->
@@ -429,7 +476,12 @@ module Json =
 
                 struct (JObject(List.ofSeq fields), current)
             | _ ->
-                let struct (token, next) = numberToken true src
+                let struct (start, length, next) = numberToken true src
+#if !FABLE_COMPILER
+                let token = Encoding.UTF8.GetString(src.Data, start, length)
+#else
+                let token = Encoding.UTF8.GetString(src.Data.[start .. start + length - 1])
+#endif
                 struct (JNumber token, next)
 
         let jsonValueDecoder (src: JsonSource) = jsonValueDecoderAt 0 src
@@ -455,7 +507,7 @@ module Json =
                         continueLoop <- false
 
                     while continueLoop do
-                        let struct (_, _, afterKey) = stringRaw current
+                        let struct (_, _, _, afterKey) = stringRaw current
                         let afterColon = skipWhitespace afterKey
 
                         if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
@@ -493,7 +545,7 @@ module Json =
 
                     current
                 | 34uy ->
-                    let struct (_, _, nextSrc) = stringRaw src
+                    let struct (_, _, _, nextSrc) = stringRaw src
                     nextSrc
                 | _ ->
                     let mutable i = src.Offset
@@ -524,26 +576,60 @@ module Json =
 
                 equal
 
-        let makeList (elementType: System.Type) (elements: obj array) =
+        let private listBuilders = ConcurrentDictionary<System.Type, obj array -> obj>()
+
+        let makeListBuilder (elementType: System.Type) =
+            listBuilders.GetOrAdd(
+                elementType,
+                System.Func<_, _>(fun elementType ->
 #if !FABLE_COMPILER
-            let listType = typedefof<_ list>.MakeGenericType([| elementType |])
-            let emptyList = listType.GetProperty("Empty").GetValue(null)
-            let cons = listType.GetMethod("Cons")
-            let mutable result = emptyList
+                    let listType = typedefof<_ list>.MakeGenericType([| elementType |])
+                    let emptyList = listType.GetProperty("Empty").GetValue(null)
+                    let cons = listType.GetMethod("Cons")
 
-            for i in elements.Length - 1 .. -1 .. 0 do
-                result <- cons.Invoke(null, [| elements[i]; result |])
+                    fun (elements: obj array) ->
+                        let mutable result = emptyList
 
-            result
+                        for i in elements.Length - 1 .. -1 .. 0 do
+                            result <- cons.Invoke(null, [| elements[i]; result |])
+
+                        result
 #else
-            List.ofArray elements |> box
+                    fun (elements: obj array) -> List.ofArray elements |> box
 #endif
+                )
+            )
+
+        ///
+        /// XML shares the same erased list-construction helper, so keep the
+        /// old entrypoint as a thin wrapper over the cached builder.
+        let makeList (elementType: System.Type) (elements: obj array) = makeListBuilder elementType elements
 
         let makeOptionNone (optionType: System.Type) =
             let noneCase =
                 FSharpType.GetUnionCases(optionType) |> Array.find (fun c -> c.Name = "None")
 
             FSharpValue.MakeUnion(noneCase, [||])
+
+        ///
+        /// Record decode still needs temporary erased storage today, but
+        /// pooling the `obj[]` buffers removes one of the largest remaining
+        /// allocation sources on nested decode workloads.
+        let rentObjectArray length =
+            let pool = objectArrayPools.GetOrAdd(length, fun _ -> ConcurrentBag<obj array>())
+            let mutable rented = Unchecked.defaultof<obj array>
+
+            if pool.TryTake(&rented) then
+                rented
+            else
+                Array.zeroCreate length
+
+        ///
+        /// Record field buffers may hold arbitrary user objects, so return
+        /// them cleared to avoid keeping payload graphs alive across runs.
+        let returnObjectArray (buffer: obj array) (usedLength: int) =
+            System.Array.Clear(buffer, 0, usedLength)
+            objectArrayPools.GetOrAdd(usedLength, fun _ -> ConcurrentBag<obj array>()).Add(buffer)
 
     type CompiledCodec = {
         Encode: IByteWriter -> obj -> unit
@@ -562,7 +648,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: int64 = unbox v
-                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
+                    w.WriteInt64(value))
             Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -570,7 +656,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: uint32 = unbox v
-                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
+                    w.WriteUInt32(value))
             Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -578,7 +664,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: uint64 = unbox v
-                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
+                    w.WriteUInt64(value))
             Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
             MissingValue = None
           }
@@ -586,7 +672,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: float = unbox v
-                    w.WriteString(Schema.formatFloat value))
+                    w.WriteFloat(value))
             Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
             MissingValue = None
           }
@@ -594,7 +680,7 @@ module Json =
             Encode =
                 (fun w v ->
                     let value: decimal = unbox v
-                    w.WriteString(value.ToString(CultureInfo.InvariantCulture)))
+                    w.WriteDecimal(value))
             Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
             MissingValue = None
           }
@@ -611,7 +697,22 @@ module Json =
 
                     let flushSegment endIdx =
                         if endIdx > segmentStart then
-                            w.WriteString(value.Substring(segmentStart, endIdx - segmentStart))
+                            w.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
+
+                    let writeUnicodeEscape (writer: IByteWriter) (c: char) =
+                        let hexDigit value =
+                            if value < 10 then
+                                byte (int '0' + value)
+                            else
+                                byte (int 'a' + value - 10)
+
+                        let code = int c
+                        writer.WriteByte(92uy)
+                        writer.WriteByte(117uy)
+                        writer.WriteByte(hexDigit ((code >>> 12) &&& 0xF))
+                        writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
+                        writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
+                        writer.WriteByte(hexDigit (code &&& 0xF))
 
                     for i in 0 .. value.Length - 1 do
                         match value[i] with
@@ -645,7 +746,7 @@ module Json =
                             segmentStart <- i + 1
                         | c when int c < 32 ->
                             flushSegment i
-                            w.WriteString(sprintf "\\u%04x" (int c))
+                            writeUnicodeEscape w c
                             segmentStart <- i + 1
                         | _ -> ()
 
@@ -672,7 +773,22 @@ module Json =
 
                 let flushSegment endIdx =
                     if endIdx > segmentStart then
-                        writer.WriteString(value.Substring(segmentStart, endIdx - segmentStart))
+                        writer.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
+
+                let writeUnicodeEscape (writer: IByteWriter) (c: char) =
+                    let hexDigit value =
+                        if value < 10 then
+                            byte (int '0' + value)
+                        else
+                            byte (int 'a' + value - 10)
+
+                    let code = int c
+                    writer.WriteByte(92uy)
+                    writer.WriteByte(117uy)
+                    writer.WriteByte(hexDigit ((code >>> 12) &&& 0xF))
+                    writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
+                    writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
+                    writer.WriteByte(hexDigit (code &&& 0xF))
 
                 for i in 0 .. value.Length - 1 do
                     match value[i] with
@@ -706,7 +822,7 @@ module Json =
                         segmentStart <- i + 1
                     | c when int c < 32 ->
                         flushSegment i
-                        writer.WriteString(sprintf "\\u%04x" (int c))
+                        writeUnicodeEscape writer c
                         segmentStart <- i + 1
                     | _ -> ()
 
@@ -860,13 +976,46 @@ module Json =
                 |> Array.mapi (fun i f ->
                     let codec = compileUntyped f.Schema
                     let encodedName = "\"" + f.Name + "\":"
+                    let rawName = Encoding.UTF8.GetBytes(f.Name)
 
                     {|
                         Name = f.Name
                         EncodedName = encodedName
+                        RawName = rawName
                         Index = i
                         Codec = codec
                     |})
+
+            let inline hashRawBytes (data: byte[]) (start: int) (length: int) =
+                let mutable hash = 14695981039346656037UL
+                let mutable i = 0
+
+                while i < length do
+                    hash <- (hash ^^^ uint64 data[start + i]) * 1099511628211UL
+                    i <- i + 1
+
+                hash
+
+            let rawFieldIndices =
+                Dictionary<struct (uint64 * int), int array>(compiledFields.Length)
+
+            do
+                let buckets =
+                    Dictionary<struct (uint64 * int), ResizeArray<int>>(compiledFields.Length)
+
+                for field in compiledFields do
+                    let key =
+                        struct (hashRawBytes field.RawName 0 field.RawName.Length, field.RawName.Length)
+
+                    match buckets.TryGetValue(key) with
+                    | true, bucket -> bucket.Add(field.Index)
+                    | false, _ ->
+                        let bucket = ResizeArray()
+                        bucket.Add(field.Index)
+                        buckets[key] <- bucket
+
+                for KeyValue(key, bucket) in buckets do
+                    rawFieldIndices[key] <- bucket.ToArray()
 
             ///
             /// Object decode used to linearly scan every field name for every
@@ -898,9 +1047,53 @@ module Json =
                 if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 123uy then
                     failwith "Expected {"
 
+                ///
+                /// Most schema field names are simple ASCII without escapes, so
+                /// compare the raw UTF-8 bytes first and only allocate a key
+                /// string when the payload uses escapes in the property name.
+                let tryFindFieldIndexByRawKey (start: int) (length: int) (data: byte[]) : int option =
+                    let mutable i = 0
+                    let mutable hasEscapes = false
+
+                    while i < length && not hasEscapes do
+                        if data[start + i] = 92uy then
+                            hasEscapes <- true
+
+                        i <- i + 1
+
+                    if hasEscapes then
+                        None
+                    else
+                        let key = struct (hashRawBytes data start length, length)
+
+                        match rawFieldIndices.TryGetValue(key) with
+                        | false, _ -> None
+                        | true, candidates ->
+                            let mutable candidateIndex = 0
+                            let mutable matched: int option = None
+
+                            while candidateIndex < candidates.Length && matched.IsNone do
+                                let candidate = compiledFields[candidates[candidateIndex]].RawName
+
+                                if Runtime.bytesEqual candidate data start length then
+                                    matched <- Some candidates[candidateIndex]
+
+                                candidateIndex <- candidateIndex + 1
+
+                            matched
+
                 let data = src.Data
                 let mutable current = src.Advance(1)
-                let fieldSources = Array.zeroCreate compiledFields.Length
+                let fieldValues = Runtime.rentObjectArray compiledFields.Length
+                let useSeenMask = compiledFields.Length <= 64
+                let mutable fieldSeenMask = 0UL
+
+                let fieldSeen =
+                    if useSeenMask then
+                        [||]
+                    else
+                        Array.zeroCreate compiledFields.Length
+
                 let mutable looping = true
                 current <- Runtime.skipWhitespace current
 
@@ -909,19 +1102,46 @@ module Json =
                     current <- current.Advance(1)
 
                 while looping do
-                    let struct (key, afterKey) = Runtime.stringDecoder current
-                    let afterColon = Runtime.skipWhitespace afterKey
+                    let struct (keyStart, keyLength, keyHasEscapes, afterRawKey) =
+                        Runtime.stringRaw current
+
+                    let mutable fieldIndex =
+                        if keyHasEscapes then
+                            None
+                        else
+                            tryFindFieldIndexByRawKey keyStart keyLength data
+
+                    if fieldIndex.IsNone && keyHasEscapes then
+                        let struct (key, _) = Runtime.stringDecoder current
+
+                        match fieldIndices.TryGetValue(key) with
+                        | true, index -> fieldIndex <- Some index
+                        | false, _ -> ()
+
+                    let afterColon = Runtime.skipWhitespace afterRawKey
 
                     if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                         failwith "Expected :"
 
                     let valSrc = Runtime.skipWhitespace (afterColon.Advance(1))
 
-                    match fieldIndices.TryGetValue(key) with
-                    | true, index -> fieldSources[index] <- valSrc
-                    | false, _ -> ()
+                    let afterVal =
+                        match fieldIndex with
+                        | Some index ->
+                            let field = compiledFields[index]
 
-                    let afterVal = Runtime.skipWhitespace (Runtime.skipValue valSrc)
+                            let struct (value, nextSrc) =
+                                Runtime.decodeAtPath (Property field.Name) field.Codec.Decode valSrc
+
+                            fieldValues[index] <- value
+
+                            if useSeenMask then
+                                fieldSeenMask <- fieldSeenMask ||| (1UL <<< index)
+                            else
+                                fieldSeen[index] <- true
+
+                            Runtime.skipWhitespace nextSrc
+                        | None -> Runtime.skipWhitespace (Runtime.skipValue valSrc)
 
                     if afterVal.Offset < data.Length && data[afterVal.Offset] = 44uy then
                         current <- afterVal.Advance(1)
@@ -931,23 +1151,29 @@ module Json =
                     else
                         failwith "Expected , or }"
 
-                let args =
-                    compiledFields
-                    |> Array.map (fun f ->
-                        let valSrc = fieldSources[f.Index]
+                try
+                    for f in compiledFields do
+                        let seen =
+                            if useSeenMask then
+                                (fieldSeenMask &&& (1UL <<< f.Index)) <> 0UL
+                            else
+                                fieldSeen[f.Index]
 
-                        if valSrc.Data = null then
+                        if not seen then
                             match f.Codec.MissingValue with
-                            | Some value -> value
+                            | Some value -> fieldValues[f.Index] <- value
                             | None ->
                                 Runtime.withPath (Property f.Name) (fun () ->
                                     Runtime.decodeFailure (sprintf "Missing required key '%s'" f.Name))
-                        else
-                            Runtime.withPath (Property f.Name) (fun () ->
-                                let struct (v, _) = f.Codec.Decode valSrc
-                                v))
 
-                struct (ctor args, current)
+                    try
+                        struct (ctor fieldValues, current)
+                    with ex ->
+                        match ex with
+                        | :? JsonDecodeException -> raise ex
+                        | _ -> raise (JsonDecodeException([], ex.Message, ex))
+                finally
+                    Runtime.returnObjectArray fieldValues compiledFields.Length
 
             {
                 Encode = encoder
@@ -956,6 +1182,7 @@ module Json =
             }
         | List innerSchema ->
             let innerCodec = compileUntyped innerSchema
+            let buildList = Runtime.makeListBuilder innerSchema.TargetType
 
             let encoder (writer: IByteWriter) (vObj: obj) =
                 let list = vObj :?> System.Collections.IEnumerable
@@ -978,7 +1205,7 @@ module Json =
                     failwith "Expected ["
 
                 src <- src.Advance(1)
-                let mutable results = []
+                let results = ResizeArray<obj>()
                 let mutable continueLoop = true
                 src <- Runtime.skipWhitespace src
 
@@ -990,9 +1217,9 @@ module Json =
 
                 while continueLoop do
                     let struct (item, nextSrc) =
-                        Runtime.withPath (Index index) (fun () -> innerCodec.Decode src)
+                        Runtime.decodeAtPath (Index index) innerCodec.Decode src
 
-                    results <- item :: results
+                    results.Add(item)
                     src <- Runtime.skipWhitespace nextSrc
                     index <- index + 1
 
@@ -1004,7 +1231,7 @@ module Json =
                     else
                         failwith "Expected , or ]"
 
-                struct (Runtime.makeList (innerSchema.TargetType) (List.rev results |> List.toArray), src)
+                struct (buildList (results.ToArray()), src)
 
             {
                 Encode = encoder
@@ -1046,7 +1273,7 @@ module Json =
 
                 while continueLoop do
                     let struct (item, nextSrc) =
-                        Runtime.withPath (Index index) (fun () -> innerCodec.Decode src)
+                        Runtime.decodeAtPath (Index index) innerCodec.Decode src
 
                     results.Add(item)
                     src <- Runtime.skipWhitespace nextSrc
@@ -1084,7 +1311,13 @@ module Json =
                 Decode =
                     (fun src ->
                         let struct (v, s) = innerCodec.Decode src
-                        struct (Runtime.withValidationContext (fun () -> wrap v), s))
+
+                        try
+                            struct (Runtime.withValidationContext (fun () -> wrap v), s)
+                        with ex ->
+                            match ex with
+                            | :? JsonDecodeException -> raise ex
+                            | _ -> raise (JsonDecodeException([], ex.Message, ex)))
                 MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
         | _ -> failwithf "Unsupported schema type: %O" schema.Definition
@@ -1114,8 +1347,12 @@ module Json =
     /// Serializes a value to JSON using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) =
         let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
-        codec.Encode writer value
-        Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
+
+        try
+            codec.Encode writer value
+            Encoding.UTF8.GetString(writer.InternalData, 0, writer.InternalCount)
+        finally
+            writer.Release()
 
     /// Deserializes a JSON payload using a previously compiled codec.
     ///

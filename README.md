@@ -218,6 +218,10 @@ Compared with DTO-heavy designs, the difference is:
 - Shared compatibility coverage lives in [tests/CodecMapper.CompatibilitySentinel](/home/adam/projects/CodecMapper/tests/CodecMapper.CompatibilitySentinel), with thin Native AOT and Fable shell apps under [tests/CodecMapper.AotTests](/home/adam/projects/CodecMapper/tests/CodecMapper.AotTests) and [tests/CodecMapper.FableTests](/home/adam/projects/CodecMapper/tests/CodecMapper.FableTests).
 - CI runs both the .NET sentinel app and a real Fable transpilation check of the Fable sentinel project.
 - The shared sentinel now includes selected invalid and out-of-range numeric cases, so the portability story covers failure behavior as well as happy-path round-trips.
+
+## Performance Work
+
+When benchmark numbers move, profile before changing the runtime. The repo now includes a repeatable `perf` workflow for the manual benchmark runner in [docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md](docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md).
 - The contract bridge in [src/CodecMapper.Bridge](/home/adam/projects/CodecMapper/src/CodecMapper.Bridge) is `.NET`-only by design; the portable surface is the core schema/JSON/XML library in [src/CodecMapper](/home/adam/projects/CodecMapper/src/CodecMapper).
 
 ## Docs
@@ -245,26 +249,28 @@ For BenchmarkDotNet output, use:
 dotnet run -c Release --project benchmarks/CodecMapper.Benchmarks/CodecMapper.Benchmarks.fsproj
 ```
 
-The benchmark suite compares `CodecMapper` JSON encode/decode against `System.Text.Json` and `Newtonsoft.Json` on the same deterministic batch of `100` nested records.
+The benchmark suite compares `CodecMapper` JSON encode/decode against `System.Text.Json` and `Newtonsoft.Json` across a deterministic scenario matrix that covers small messages, nested-record batches, string-heavy payloads, numeric-heavy telemetry, and decode paths with ignored unknown fields.
 
 <!-- benchmark-snapshot:start -->
-Latest local manual snapshot, measured on March 10, 2026.
+Latest local manual scenario-matrix snapshot, measured on March 11, 2026.
 
-Encode, fastest to slowest:
+The manual runner now covers six deterministic workloads:
 
-| Library | Mean ns/op | Mean B/op |
-| --- | ---: | ---: |
-| System.Text.Json | 28158.3 | 17528.0 |
-| CodecMapper | 32989.8 | 63680.0 |
-| Newtonsoft.Json | 47202.1 | 53368.9 |
+- `small-message`: one shallow command-sized object
+- `person-batch-25`: medium nested-record API-style batch
+- `person-batch-250`: larger nested-record throughput batch
+- `escaped-articles-20`: string-heavy records with escapes and nested authors
+- `telemetry-500`: numeric-heavy objects with float, decimal, and wider integers
+- `person-batch-25-unknown-fields`: receive-side decode with ignored extra fields
 
-Decode, fastest to slowest:
+Headline observations from the latest local run:
 
-| Library | Mean ns/op | Mean B/op |
-| --- | ---: | ---: |
-| System.Text.Json | 77985.5 | 47920.3 |
-| CodecMapper deserialize bytes | 108412.4 | 148472.0 |
-| Newtonsoft.Json | 112767.2 | 90024.1 |
+- The latest optimization pass moved `CodecMapper` ahead on `small-message` serialize (`1.87 us` vs `2.25 us`) while keeping tiny-message decode in the same general range.
+- `CodecMapper` stayed effectively even with `System.Text.Json` on `person-batch-25` deserialize (`94.6 us` vs `94.7 us`) and remained competitive on `person-batch-250` serialize (`390.8 us` vs `370.8 us`).
+- `System.Text.Json` still leads on the string-heavy `escaped-articles-20` workload, especially on deserialize.
+- `System.Text.Json` also still leads the largest numeric-heavy `telemetry-500` case, which means the JSON runtime still has meaningful throughput and allocation work left on wide numeric batches.
+- The unknown-field decode path improved, but `System.Text.Json` still holds a modest lead on `person-batch-25-unknown-fields` deserialize (`125.8 us` vs `132.5 us`).
+- Both `CodecMapper` and `System.Text.Json` stayed well ahead of `Newtonsoft.Json` across every workload in this local matrix.
 
 These numbers came from:
 
