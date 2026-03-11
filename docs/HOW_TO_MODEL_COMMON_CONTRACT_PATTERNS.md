@@ -165,4 +165,4 @@ var jsonCodec = CSharpSchema.Json(userSchema);
 var yamlCodec = CSharpSchema.Yaml(userSchema);
 ```
 
-For bridge import details and tradeoffs, see [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md) and [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md).
+For bridge import details and tradeoffs, see [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md).

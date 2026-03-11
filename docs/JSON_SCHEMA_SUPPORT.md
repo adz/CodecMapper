@@ -1,10 +1,15 @@
 # JSON Schema Support Reference
 
-This page describes the current `CodecMapper` JSON Schema model and the intended direction for future import work.
+This page is easier to use if you keep the two JSON Schema features separate:
 
-## Export support from `Schema<'T>`
+- `JsonSchema.generate` exports JSON Schema from an authored `Schema<'T>`
+- `JsonSchema.import` imports an external JSON Schema into `Schema<JsonValue>`
 
-`JsonSchema.generate` currently exports these structural shapes directly:
+Those are related, but they are not the same workflow and they do not target the same runtime shape.
+
+## Export support from authored `Schema<'T>`
+
+`JsonSchema.generate` exports these structural shapes directly:
 
 - `integer`
 - `number`
@@ -28,9 +33,9 @@ These `Schema` features map directly:
 - `Schema.missingAsNone` -> omit that property from the enclosing object's `required`
 - `Schema.map`, `Schema.tryMap` -> the underlying wire shape
 
-## Not currently exported as JSON Schema constraints
+## Not exported as JSON Schema constraints
 
-`CodecMapper` does not currently emit:
+`CodecMapper` does not emit:
 
 - string constraints such as `pattern`, `minLength`, `maxLength`, `format`
 - numeric constraints such as `minimum`, `maximum`, `multipleOf`
@@ -40,15 +45,9 @@ These `Schema` features map directly:
 - `$defs`, `$ref`
 - `oneOf`, `allOf`, conditional keywords, or discriminator-style composition beyond nullable option shapes
 
-## Import direction
+## Import model for external JSON Schema
 
-Future JSON Schema import work should follow this ladder:
-
-1. Lower the incoming schema into the strongest deterministic `CodecMapper` shape available.
-2. Use validated wrapper types and `Schema.tryMap` for semantic rules that are better expressed in domain types.
-3. Only use pre-validation or a raw JSON fallback for schema features that change parse shape or cannot be lowered deterministically.
-
-`JsonSchema.import` now returns `Schema<JsonValue>`. It decodes through `Schema.jsonValue` first, then enforces the supported JSON Schema subset over that raw JSON DOM.
+`JsonSchema.import` returns `Schema<JsonValue>`. It decodes through `Schema.jsonValue` first, then enforces the supported JSON Schema subset over that raw JSON DOM.
 
 `JsonSchema.importWithReport` returns the imported schema plus diagnostics about:
 
@@ -57,7 +56,7 @@ Future JSON Schema import work should follow this ladder:
 - fallback keywords
 - warnings such as unresolved or cyclic local refs
 
-Currently enforced during import:
+Enforced during import:
 
 - local `$defs` and `$ref`
 - `allOf` normalization for object-shaped schema composition
@@ -80,20 +79,19 @@ Currently enforced during import:
 - `pattern`
 - `format` when a validator is configured
 
-Currently not enforced directly and intentionally out of scope for now:
+Not enforced directly:
 
 - `dependentSchemas`
 - `not`
 
-These keywords are still reported through `JsonSchema.importWithReport().FallbackKeywords`.
-If they appear alongside supported keywords in the same schema object, the supported sibling
-rules still apply; only the unsupported keyword itself remains unenforced.
+These keywords are reported through `JsonSchema.importWithReport().FallbackKeywords`.
+If they appear alongside supported keywords in the same schema object, the supported sibling rules still apply.
 
-## Raw JSON fallback
+## Import boundary and raw JSON fallback
 
 `Schema.jsonValue` is the explicit escape hatch for imported JSON Schema shapes that do not fit the normal DSL without ambiguity.
 
-It currently supports:
+It supports:
 
 - arbitrary-key objects
 - heterogeneous arrays
@@ -101,7 +99,7 @@ It currently supports:
 
 It is intentionally JSON-only. XML compilation fails explicitly rather than pretending there is a symmetric XML DOM contract for arbitrary JSON.
 
-## Advanced dynamic-shape keywords
+## Dynamic-shape import keywords
 
 Some receive-side JSON Schema features are supported only through the raw `JsonValue` import path because they describe dynamic or branch-selected shapes rather than one fixed record schema.
 
@@ -112,11 +110,27 @@ These include:
 - tuple-like arrays: `prefixItems`
 - array membership checks: `contains`
 
-That support is intentional, but it is different from the normal authored `Schema<'T>` path:
+This is intentionally different from the normal authored `Schema<'T>` path:
 
 - the payload is still parsed as `JsonValue`
 - the schema keywords are enforced over that parsed raw value
 - you should document these receive-side contracts as advanced or dynamic-shape scenarios, not as the preferred path for schemas you author yourself
+
+## Keep authored contracts and imported contracts separate
+
+For contracts you own:
+
+- author `Schema<'T>` directly
+- compile it into typed codecs
+- export JSON Schema only when another system needs the document
+
+For contracts owned by an external schema document:
+
+- import the JSON Schema
+- accept the `Schema<JsonValue>` receive boundary
+- refine further after parse if needed
+
+Do not treat JSON Schema import as a replacement for the normal schema DSL.
 
 ## When `Schema.tryMap` is enough
 
@@ -131,7 +145,7 @@ In those cases, parse first and refine into a stronger type. That keeps `CodecMa
 
 ## When a fallback is needed
 
-These shapes do not fit the current `Schema<'T>` model directly:
+These shapes do not fit the normal `Schema<'T>` model directly:
 
 - arbitrary-key objects
 - `patternProperties`
@@ -140,15 +154,11 @@ These shapes do not fit the current `Schema<'T>` model directly:
 - ambiguous unions without a deterministic discriminator
 - composition that must be normalized before a single parse shape is known
 
-These remain out of scope for lowering into the normal authored schema subset for now.
-
-The intended fallback for those cases is:
+Use this fallback for those cases:
 
 - a pre-validation or normalization step for branch-shaping schema logic
 - or `Schema.jsonValue` when the payload cannot reasonably lower into records, arrays, and primitives
 
-For the currently unsupported `dependentSchemas` and `not` keywords, the importer keeps the
-receive path on `Schema<JsonValue>`, reports those keywords as fallback diagnostics, and leaves
-their semantics to a separate normalization or validation layer if you need them.
+For `dependentSchemas` and `not`, the importer keeps the receive path on `Schema<JsonValue>`, reports those keywords as fallback diagnostics, and leaves their semantics to a separate normalization or validation layer if you need them.
 
 The common explicit-schema path should remain the fast path. Dynamic JSON fallbacks must not penalize normal record, array, and primitive codecs.

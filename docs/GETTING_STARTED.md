@@ -6,6 +6,20 @@ This tutorial is learning-oriented: it introduces the main schema DSL, how to re
 
 The portable core in `CodecMapper` is intended to stay usable from Native AOT and Fable-oriented targets. The separate `CodecMapper.Bridge` assembly is `.NET`-only because it imports CLR serializer metadata through reflection.
 
+## Choose the right starting path
+
+Start from the contract you already have:
+
+- F# contract you control: author a `Schema<'T>` directly and compile it.
+- New C# class you control: use `CSharpSchema` for setter-bound classes, then compile the result like any other schema.
+- Existing C# contract already annotated for `System.Text.Json`, `Newtonsoft.Json`, or `DataContract`: import it through `CodecMapper.Bridge`.
+- External JSON Schema document: keep that separate from authored schemas and use the JSON Schema import path only for receive-side `JsonValue` contracts.
+
+That split matters because `CodecMapper` has two different extension stories:
+
+- authored schemas: normal `Schema<'T>` values that compile into fast typed codecs
+- imported contracts: bridge or JSON Schema flows that help you interoperate with contracts you do not want to rewrite immediately
+
 ## Core shape
 
 The stable schema DSL is:
@@ -89,6 +103,46 @@ let personSchema =
 
 let jsonCodec = Json.codec personSchema
 ```
+
+## Starting from C#
+
+If you are using `CodecMapper` from a C#-heavy codebase, there are two intended paths.
+
+For new setter-bound classes, author the schema directly with `CSharpSchema`:
+
+```csharp
+using CodecMapper;
+using CodecMapper.Bridge;
+
+public sealed class User
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = "";
+}
+
+var schema =
+    CSharpSchema.Record(() => new User())
+        .Field("id", value => value.Id, (value, field) => value.Id = field)
+        .Field("name", value => value.Name, (value, field) => value.Name = field)
+        .Build();
+
+var codec = CSharpSchema.Json(schema);
+var json = codec.Serialize(new User { Id = 1, Name = "Ada" });
+```
+
+For existing attributed contracts, keep the existing annotations and import the contract instead:
+
+```fsharp
+open CodecMapper
+open CodecMapper.Bridge
+
+let schema =
+    SystemTextJson.import<MyCompany.Contracts.User> BridgeOptions.defaults
+
+let codec = Json.compile schema
+```
+
+Use the direct C# schema path when you own the contract and want `CodecMapper` to be the source of truth. Use the bridge when an existing serializer contract is already established and you need an incremental migration path.
 
 If you want a shorter qualified style without opening the module for the whole file, use a module alias:
 
@@ -374,5 +428,6 @@ Still out of scope:
 - Use `Schema.tryMap` when decode needs validation.
 - Reach for `Schema.nonEmptyString`, `Schema.trimmedString`, `Schema.positiveInt`, and `Schema.nonEmptyList` when those boundary rules are part of the contract.
 - Keep schemas in one place so JSON and XML stay aligned.
-- Use [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md) when you need external schema documents.
-- Use [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md) when you are importing existing C# contracts instead of authoring schemas directly.
+- Treat JSON Schema as a separate integration surface: export it from authored schemas, or import it for receive-side `JsonValue` contracts.
+- Use [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md) when you need external schema documents from authored contracts.
+- Use [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md) when you are starting from an existing C# serializer contract.

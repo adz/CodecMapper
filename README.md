@@ -230,7 +230,7 @@ When benchmark numbers move, profile before changing the runtime. The repo now i
 - Copy from [How to model common contract patterns](docs/HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md).
 - Use [Configuration contracts guide](docs/CONFIG_CONTRACTS.md) for versioned config shapes.
 - Use [How to export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md) and [JSON Schema support reference](docs/JSON_SCHEMA_SUPPORT.md) for schema interchange.
-- Use [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md) and [C# attribute bridge design](docs/CSHARP_ATTRIBUTE_BRIDGE.md) for the bridge/facade story.
+- Use [How to import existing C# contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md) for the bridge/facade story.
 - Browse the [API docs](https://adz.github.io/CodecMapper/).
 
 ## Benchmarks

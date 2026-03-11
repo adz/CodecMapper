@@ -1,10 +1,28 @@
 # How To Import Existing C# Contracts
 
-Use the bridge when you already have C# models annotated for `System.Text.Json`, `Newtonsoft.Json`, or `DataContract` and want to import that wire contract into `CodecMapper`.
+Use this guide when you already have C# models and need a clear path into `CodecMapper`.
 
-This is a migration path, not the canonical authoring style. For new F#-first contracts, prefer a handwritten `Schema<'T>`.
+There are three distinct cases:
 
-If you are authoring a new C# contract and want an explicit `CodecMapper` schema without serializer attributes, use the thin `CSharpSchema` facade instead of the bridge.
+- new C# classes you control: author a schema directly with `CSharpSchema`
+- existing attributed contracts: import them with `CodecMapper.Bridge`
+- external JSON Schema documents: do not use the bridge; use the JSON Schema import path instead
+
+That split keeps the user-facing story simple:
+
+- `CSharpSchema` is for explicit schema authoring from C#
+- the bridge is for migration from serializer attributes
+- JSON Schema import is for external schema-owned receive paths
+
+## Choose the pathway
+
+Choose the path that matches the contract you already have:
+
+- Use `CSharpSchema` when the class is setter-bound and you want `CodecMapper` to be the source of truth.
+- Use `SystemTextJson.import`, `NewtonsoftJson.import`, or `DataContracts.import` when the class is already annotated and that attribute contract is the source of truth.
+- Use `JsonSchema.import` when the source of truth is a JSON Schema document rather than a CLR type.
+
+If you control the C# model and do not need serializer attribute compatibility, prefer `CSharpSchema`. It is simpler, more explicit, and avoids reflection in the authoring path.
 
 ## Author a schema directly from C#
 
@@ -44,7 +62,17 @@ var jsonCodec = CSharpSchema.Json(userSchema);
 var keyValueCodec = CSharpSchema.KeyValue(userSchema);
 ```
 
-This is still a normal `Schema<T>` under the hood. The facade is just a thin wrapper over record-field definitions and the usual compile functions.
+The resulting schema is a normal `Schema<T>`. Compile it into JSON, XML, YAML, or KeyValue codecs the same way you would from F#.
+
+Use this path when:
+
+- you are writing a new C# contract
+- the class has a parameterless constructor and writable properties
+- you want the wire contract to stay explicit in code instead of inferred from serializer attributes
+
+## Import an existing attributed contract
+
+Use the bridge when the contract is already described by serializer metadata and you want to preserve that wire shape while moving into `CodecMapper`.
 
 ## Import a `System.Text.Json` contract
 
@@ -79,6 +107,8 @@ public sealed class User
     public string DisplayName { get; }
 }
 ```
+
+This is the common incremental migration path for constructor-bound immutable C# models.
 
 ## Import a `Newtonsoft.Json` contract
 
@@ -117,54 +147,89 @@ printfn "%s" json
 printfn "%A" decoded
 ```
 
-That means the rest of the workflow is the same as handwritten schemas.
+From that point on, use the imported schema the same way you would use a handwritten schema.
 
-## Know what the bridge is for
+## Know what each C# option is for
+
+Use `CSharpSchema` when:
+
+- you are defining a new setter-bound C# class
+- you want an explicit `CodecMapper` schema without serializer attributes
+- you want the contract definition to stay visible in your own codebase
 
 Use the bridge when:
 
-- you are migrating an existing C# contract incrementally
-- you need interoperability with an established serializer-based model
-- you want to validate that an existing contract can be represented as a normal `CodecMapper` schema
+- you are migrating an existing serializer-based contract incrementally
+- you need compatibility with an established `System.Text.Json`, `Newtonsoft.Json`, or `DataContract` model
+- the class is constructor-bound and the serializer attributes already define the wire shape
 
-Prefer handwritten schemas when:
+Use JSON Schema import instead when:
 
-- you control the contract already
-- you want the contract to stay obvious in F#
-- you want to avoid reflection in the authoring path
-
-Prefer the C# facade when:
-
-- you are defining a new setter-bound C# contract directly
-- you want explicit `CodecMapper` schemas without serializer attributes
-- you want the bridge and codegen paths to stay optional rather than foundational
+- the source of truth is a JSON Schema document instead of a CLR type
+- the receive path is dynamic or branch-heavy
+- you expect the imported result to stay `Schema<JsonValue>` rather than a typed CLR schema
 
 ## Supported bridge surface
 
-Current support is intentionally conservative:
+The bridge supports the contract shapes that map cleanly into normal `CodecMapper` schemas:
 
 - constructor-bound classes
 - parameterless setter-bound classes
 - nested imported classes
 - arrays, `List<T>`, `IReadOnlyList<T>`, `ICollection<T>`, `Nullable<T>`, and numeric-wire enums
-- rename/ignore/required metadata for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
+- rename, ignore, required, and constructor-selection metadata for `System.Text.Json`, `Newtonsoft.Json`, and `DataContract`
 
-## Explicitly unsupported
+This is enough for many existing API and config models, but it is intentionally not serializer-feature-complete.
 
-These fail closed instead of being partially emulated:
+## Edge cases to check before you choose the bridge
 
-- custom converter attributes
-- extension-data bags
-- polymorphic contracts
-- recursive graphs
-- classes that mix constructor-bound and setter-bound members
+These cases are worth checking early because they decide whether the bridge is the right fit:
 
-For the C# facade specifically, current support is narrower:
+- Multiple constructors:
+  the bridge needs one deterministic construction path. Use an explicit serializer constructor attribute or a single public constructor.
+- Renamed constructor parameters:
+  `System.Text.Json` still matches constructor parameters by CLR member name, not by `JsonPropertyName`. Keep the constructor parameter names aligned with the underlying members.
+- Duplicate wire names:
+  if two members map to the same wire field after renaming, import fails.
+- Mixed constructor and setter ownership:
+  classes that partly decode through constructor parameters and partly through setters are rejected.
+- Custom converters or serializer-only policies:
+  attribute-driven conversion logic does not become part of a normal `CodecMapper` schema. Those cases fail closed.
+- Extension-data and polymorphic contracts:
+  keep those outside the bridge path unless the library gains an explicit schema-level model for them.
+
+For the C# facade specifically, the supported surface is narrower:
 
 - parameterless setter-bound classes
 - explicit `Field` and `FieldWith` bindings
 - normal JSON/XML/KeyValue/YAML compile helpers after `Build()`
 
-Constructor-bound C# authoring is still better served by the bridge or future code generation.
+Constructor-bound C# authoring is better served by the bridge.
 
-For the reasoning behind those boundaries, see [C# Attribute Bridge Design](CSHARP_ATTRIBUTE_BRIDGE.md).
+## Practical examples
+
+Choose `CSharpSchema` for a new explicit contract:
+
+```csharp
+var schema =
+    CSharpSchema.Record(() => new User())
+        .Field("id", value => value.Id, (value, field) => value.Id = field)
+        .Field("name", value => value.Name, (value, field) => value.Name = field)
+        .Build();
+```
+
+Choose the bridge for an existing immutable serializer contract:
+
+```fsharp
+let schema =
+    SystemTextJson.import<MyCompany.Contracts.User> BridgeOptions.defaults
+```
+
+Choose JSON Schema import for an external schema-owned boundary:
+
+```fsharp
+let imported = JsonSchema.import schemaText
+let codec = Json.compile imported
+```
+
+That last path is intentionally different: it produces a `Schema<JsonValue>` receive boundary, not a typed CLR contract import.

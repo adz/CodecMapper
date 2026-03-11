@@ -2,6 +2,13 @@
 
 `CodecMapper` should treat JSON Schema primarily as a description of parseable wire shape, not as a demand to mirror every validator feature in the decoder.
 
+It also helps to keep two separate questions in mind:
+
+- How do I publish or document a contract I already authored in `CodecMapper`?
+- How do I receive an external contract that is owned by a JSON Schema document?
+
+Those are different workflows, and `CodecMapper` keeps them separate on purpose.
+
 That distinction matters because JSON Schema mixes two different concerns:
 
 - structure: what JSON shape should be parsed

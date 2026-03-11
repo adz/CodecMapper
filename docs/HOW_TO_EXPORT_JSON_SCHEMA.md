@@ -2,6 +2,13 @@
 
 Use `JsonSchema.generate` when you want a JSON Schema document for the JSON wire contract already described by a `Schema<'T>`.
 
+This is the authored-schema path. It is separate from JSON Schema import:
+
+- export starts from your typed `Schema<'T>`
+- import starts from an external JSON Schema document and returns `Schema<JsonValue>`
+
+Keep those two workflows separate when you design your integration boundary.
+
 ## Export a schema
 
 ```fsharp
@@ -100,6 +107,8 @@ let value = Json.deserialize codec """{"id":42,"name":"Ada"}"""
 ```
 
 This path preserves the incoming JSON shape as `JsonValue`. It enforces the supported structural subset and leaves unsupported branch-heavy features on the raw JSON fallback path.
+
+This is not a round-trip back into a typed authored schema. It is a receive-side integration boundary for external schema-owned contracts.
 
 If you need to know what was enforced, use `JsonSchema.importWithReport`:
 
