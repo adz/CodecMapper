@@ -8,7 +8,6 @@ cd "$repo_root"
 
 mapfile -t files < <(
     find src tests benchmarks \
-        -path 'benchmarks/CodecMapper' -prune -o \
         -path '*/bin' -prune -o \
         -path '*/obj' -prune -o \
         -type f \( -name '*.fs' -o -name '*.fsi' -o -name '*.fsx' \) \

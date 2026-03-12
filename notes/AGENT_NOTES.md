@@ -147,7 +147,6 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 ## Benchmarking Notes
 
 - `benchmarks/CodecMapper.Benchmarks/CodecMapper.Benchmarks.fsproj` is now a runnable BenchmarkDotNet app again (`OutputType=Exe` plus a real entrypoint), so the failure is no longer at the top-level `dotnet run` step.
-- The archived experimental clone under `benchmarks/CodecMapper/` also contains a `CodecMapper.Benchmarks.fsproj`, which makes BenchmarkDotNet's default child-project generator ambiguous once both repos exist in the same workspace.
 - `benchmarks/CodecMapper.Benchmarks/Program.fs` now forces BenchmarkDotNet onto `InProcessEmitToolchain` to avoid child-project generation entirely.
 - The remaining warning during local runs is just Linux process-priority elevation failure (`Permission denied`), which does not stop benchmarks from executing.
 - A manual Release runner was added in `benchmarks/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
@@ -187,7 +186,6 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 
 ## Legacy CodecMapper Comparison
 
-- The previous `CodecMapper` repo is cloned locally at `benchmarks/CodecMapper/` for reference only and is ignored by this repo's Git metadata.
 - Its published benchmark snapshot is not directly comparable to `CodecMapper`'s current README numbers because it benchmarks a 1000-record `Person list` payload, while `CodecMapper` currently publishes a small single-object benchmark.
 - The old repo also fails to complete BenchmarkDotNet runs cleanly on this machine under `.NET SDK 10.0.103`; direct child-project builds still end with `Build FAILED` and `0 Error(s)`.
 - Legacy branding assets from the archived experimental repo are preserved under `notes/legacy-codemapper/`.
