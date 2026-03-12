@@ -5,11 +5,11 @@
 [![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-0a7ea4)](https://adz.github.io/CodecMapper/)
 [![License](https://img.shields.io/github/license/adz/CodecMapper)](LICENSE.md)
 
-`CodecMapper` is a schema-first serialization library for F#.
+`CodecMapper` is a schema-first serialization library for F# with native AOT and Fable compatibility.
 
 It lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
-It is for cases where the wire contract should be explicit, reviewable, and reusable instead of being inferred from CLR shape or serializer settings.
+It's for cases where the wire contract should be explicit, reviewable, and reusable instead of being inferred from CLR shape or serializer settings.
 
 ## The idea
 
