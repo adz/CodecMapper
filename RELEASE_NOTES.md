@@ -1,5 +1,14 @@
 # Release Notes
 
+## 0.2.0 - 2026-03-15
+
+- Split the core library into explicit dependency-ordered source files to keep the portable runtime easier to navigate without changing behavior
+- Added compile aliases plus validated schema helpers such as `Schema.nonEmptyString`, `Schema.trimmedString`, `Schema.positiveInt`, and `Schema.nonEmptyList`
+- Added path-aware decode diagnostics across JSON, XML, YAML, and key/value projections so errors carry field and collection context
+- Expanded contract-pattern documentation with focused guides for basic, nested, validated, versioned, config, JSON Schema, and C# bridge scenarios
+- Added property-based round-trip coverage for representative JSON and XML codec laws
+- Added a repeatable benchmark hot-path profiling workflow and docs around the manual benchmark runner
+
 ## 0.1.0 - 2026-03-11
 
 - Initial public `CodecMapper` repository setup

@@ -13,7 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="CodecMapper" Version="0.1.0" GeneratePathProperty="true" />
+    <PackageReference Include="CodecMapper" Version="0.2.0" GeneratePathProperty="true" />
   </ItemGroup>
 
 </Project>

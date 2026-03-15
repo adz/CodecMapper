@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>CodecMapper</PackageId>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Adam Davies</Authors>
     <Description>Schema-first, type-safe JSON and XML codecs for F# with Native AOT and Fable support.</Description>
     <PackageProjectUrl>https://adz.github.io/CodecMapper/</PackageProjectUrl>
@@ -12,7 +12,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-    <PackageReleaseNotes>First public preview release of CodecMapper with schema DSL, shared JSON/XML codecs, YAML and key/value projections, JSON Schema import/export, and the .NET bridge package in the repo.</PackageReleaseNotes>
+    <PackageReleaseNotes>Added file-split core source layout, compile aliases and validated schema helpers, path-aware decode diagnostics, common contract-pattern docs, property-based codec law coverage, and repeatable benchmark hot-path profiling.</PackageReleaseNotes>
     <PackageTags>fsharp;json;xml;serialization;deserialization;codec;schema-first;type-safe;fable;fable-javascript;native-aot;data-contract;json-schema</PackageTags>
   </PropertyGroup>
 
