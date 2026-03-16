@@ -29,6 +29,7 @@ These standards represent the user's preferred style and architectural philosoph
 ## 3. Testing & Validation
 - **Unquote Assertions:** Use `Swensen.Unquote` for all assertions: `test <@ actual = expected @>`.
 - **Round-Trip Testing:** Always include tests that verify a value can be serialized and then deserialized back to its original state.
+- **Release benchmark refresh:** Before cutting a release, rerun `bash scripts/generate-benchmark-snapshot.sh --stdout-only`, update the benchmark-facing docs to match the new snapshot, and do not ship stale performance numbers.
 
 ## 4. Architectural Patterns
 - **Decoder Pattern:** `JsonSource -> struct('T * JsonSource)`
@@ -40,6 +41,7 @@ These standards represent the user's preferred style and architectural philosoph
 - **Keep `Json.compile` explicit.** Hiding compilation inside `serialize`/`deserialize` would either recompile on each call or require implicit caching, which is poor UX for a performance-oriented library.
 - **Explicit nested/custom schemas currently use `Schema.fieldWith`.** Auto-resolution exists for primitives, lists, and arrays only. Future work may rename this, but the explicit-schema distinction is currently meaningful.
 - **Benchmarks should use the same DSL as tests and docs.** Avoid introducing parallel schema-definition styles unless the repo deliberately adopts a second public API.
+- **Release prep includes benchmark docs refresh.** If the release changes public performance-relevant code or performance messaging, refresh the manual benchmark snapshot and update `README.md` and benchmark docs in the same release-prep pass.
 - **When changing parsers, expand tests before refactoring.** The JSON and XML parsers are handwritten and should be treated as deterministic state machines, not “best effort” parsers.
 - **The XML surface is intentionally a small subset.** Current support is element-only XML with exact tags, escaped text, repeated `<item>` children for collections, and ignorable inter-element whitespace. Attributes, namespaces, mixed content, comments, CDATA, self-closing tags, and processing instructions are still out of scope.
 - **Common built-in schemas are now broader, but still intentional.** Auto-resolution currently includes `int64`, `int16`, `byte`, `sbyte`, `uint32`, `uint16`, `uint64`, `float`, `decimal`, `char`, `Guid`, `DateTime`, `DateTimeOffset`, `TimeSpan`, numeric-wire enums, and array-backed `IReadOnlyList<T>` / `ICollection<T>` in addition to the original primitives, lists, arrays, options, and mapping helpers. Concrete `ResizeArray<'T>` / `List<T>` uses the explicit `Schema.resizeArray` helper, and direct dictionary support still stays out of scope until there is a cleaner JSON/XML symmetry story.
@@ -54,5 +56,5 @@ These standards represent the user's preferred style and architectural philosoph
 - **Numeric parsing should stay on the shared portable helpers.** Route JSON/XML/KeyValue/import numeric decoding through the `Core.tryParse...Invariant` and `Core.parse...Invariant` helpers instead of ad hoc `Parse(..., InvariantCulture)` calls plus exception-type checks, so Fable stays warning-free and the invalid/out-of-range behavior remains aligned across runtimes.
 - **The C# facade is intentionally narrower than the bridge.** `CSharpSchema.Record(...)` is for new setter-bound C# classes and wraps the existing schema model; constructor-bound or attribute-driven C# contracts should still prefer the bridge or future codegen instead of stretching the facade into a second schema system.
 - **Do not use `System.Enum.ToObject` or `System.Convert.ChangeType` in the core portable path.** Fable rejects both APIs. When adding enum support, keep the .NET path behind `#if !FABLE_COMPILER` and use a Fable-safe erased-number path instead.
-- **BenchmarkDotNet now runs via the in-process emit toolchain.** Keep the manual runner for quick snapshots and README numbers.
+- **BenchmarkDotNet now runs via the in-process emit toolchain.** Keep the manual runner for quick snapshots and release-facing README/docs numbers.
 - **Project layout is now split by role.** Public libraries live under `src/`, executable and xUnit tests live under `tests/`, and benchmark apps live under `benchmarks/`. Keep new projects in the root that matches their purpose so tooling and docs discovery stay predictable.

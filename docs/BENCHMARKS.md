@@ -20,7 +20,7 @@ The current scenario matrix covers:
 - `telemetry-500`
 - `person-batch-25-unknown-fields`
 
-These numbers were measured locally on March 11, 2026 with:
+These numbers were measured locally on March 16, 2026 with:
 
 ```bash
 dotnet run -c Release --project benchmarks/CodecMapper.Benchmarks.Runner/CodecMapper.Benchmarks.Runner.fsproj
@@ -30,19 +30,19 @@ dotnet run -c Release --project benchmarks/CodecMapper.Benchmarks.Runner/CodecMa
 
 | Scenario | CodecMapper serialize | STJ serialize | Newtonsoft serialize | CodecMapper deserialize | STJ deserialize | Newtonsoft deserialize | Brief explanation |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| `small-message` | `3.0 us` | `3.6 us` | `6.7 us` | `6.9 us` | `5.2 us` | `11.5 us` | `CodecMapper` wins tiny-message serialize, while `STJ` still leads decode. |
-| `person-batch-25` | `76.1 us` | `68.5 us` | `130.1 us` | `152.2 us` | `152.5 us` | `150.2 us` | Medium nested decode is effectively even; serialize remains close. |
-| `person-batch-250` | `436.0 us` | `386.9 us` | `670.5 us` | `1.303 ms` | `1.074 ms` | `1.627 ms` | Larger nested batches are still competitive, but `STJ` has the throughput lead. |
-| `escaped-articles-20` | `236.4 us` | `192.9 us` | `288.0 us` | `410.7 us` | `325.8 us` | `404.9 us` | String-heavy payloads are a clear weak spot today. |
-| `telemetry-500` | `1.984 ms` | `1.609 ms` | `2.814 ms` | `3.981 ms` | `2.810 ms` | `5.205 ms` | Numeric-heavy payloads still need real optimization work, especially on decode. |
-| `person-batch-25-unknown-fields` | `40.4 us` | `39.3 us` | `68.9 us` | `158.9 us` | `129.4 us` | `273.9 us` | Unknown-field decode improved, but `STJ` still has a noticeable lead. |
+| `small-message` | `519.5 ns` | `676.9 ns` | `1012.0 ns` | `990.1 ns` | `928.4 ns` | `1817.7 ns` | `CodecMapper` wins tiny-message serialize, while `STJ` still leads decode. |
+| `person-batch-25` | `8.83 us` | `8.36 us` | `14.06 us` | `26.08 us` | `20.41 us` | `28.80 us` | Medium nested serialize remains close, but `STJ` holds a clearer decode lead than before. |
+| `person-batch-250` | `86.93 us` | `78.18 us` | `125.44 us` | `247.16 us` | `190.27 us` | `277.88 us` | Larger nested batches are still competitive on serialize, but `STJ` has the throughput lead on decode. |
+| `escaped-articles-20` | `46.00 us` | `33.87 us` | `49.79 us` | `80.78 us` | `63.08 us` | `78.27 us` | String-heavy payloads remain a clear weak spot, especially against `STJ`. |
+| `telemetry-500` | `393.93 us` | `311.45 us` | `539.74 us` | `745.63 us` | `520.84 us` | `938.99 us` | Numeric-heavy payloads still need real optimization work, especially on decode. |
+| `person-batch-25-unknown-fields` | `7.92 us` | `7.51 us` | `12.25 us` | `30.50 us` | `24.23 us` | `48.85 us` | Unknown-field decode improved, but `STJ` still has a noticeable lead. |
 
 ## Current reading
 
-- `CodecMapper` is already competitive on small messages and medium nested-record contracts.
+- `CodecMapper` is already competitive on small messages and stays reasonably close on medium nested-record serialize workloads.
 - `System.Text.Json` still leads on string-heavy and numeric-heavy workloads.
 - `Newtonsoft.Json` is slower across the whole current matrix.
-- Decode on wider numeric and string-heavy payloads is still the most obvious performance gap.
+- Decode on wider nested, numeric-heavy, and string-heavy payloads is still the most obvious performance gap.
 
 ## How to use this
 

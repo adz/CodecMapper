@@ -107,15 +107,15 @@ The project ships both a manual scenario runner and a repeatable `perf` workflow
 - profiling guide: [docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md](docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md)
 - full benchmark page: [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
-Latest local manual snapshot, measured on March 11, 2026:
+Latest local manual snapshot, measured on March 16, 2026:
 
 | Scenario | CodecMapper serialize | STJ serialize | CodecMapper deserialize | STJ deserialize | Takeaway |
 | --- | ---: | ---: | ---: | ---: | --- |
-| `small-message` | `3.0 us` | `3.6 us` | `6.9 us` | `5.2 us` | `CodecMapper` wins serialize on tiny payloads; `STJ` still leads deserialize. |
-| `person-batch-25` | `76.1 us` | `68.5 us` | `152.2 us` | `152.5 us` | Medium nested decode is effectively even; serialize remains close. |
-| `person-batch-250` | `436.0 us` | `386.9 us` | `1.303 ms` | `1.074 ms` | Larger nested batches are still competitive, but `STJ` leads on throughput. |
-| `escaped-articles-20` | `236.4 us` | `192.9 us` | `410.7 us` | `325.8 us` | String-heavy payloads are a clear weak spot today. |
-| `telemetry-500` | `1.984 ms` | `1.609 ms` | `3.981 ms` | `2.810 ms` | Numeric-heavy flat payloads still need real optimization work. |
-| `person-batch-25-unknown-fields` | `40.4 us` | `39.3 us` | `158.9 us` | `129.4 us` | Unknown-field decode improved, but `STJ` still holds a noticeable lead. |
+| `small-message` | `519.5 ns` | `676.9 ns` | `990.1 ns` | `928.4 ns` | `CodecMapper` still wins tiny-message serialize; `STJ` keeps a slight decode lead. |
+| `person-batch-25` | `8.83 us` | `8.36 us` | `26.08 us` | `20.41 us` | Medium nested serialize stays close, but decode is not yet even. |
+| `person-batch-250` | `86.93 us` | `78.18 us` | `247.16 us` | `190.27 us` | Larger nested batches remain competitive on serialize, while `STJ` leads decode throughput. |
+| `escaped-articles-20` | `46.00 us` | `33.87 us` | `80.78 us` | `63.08 us` | String-heavy payloads are still a clear weak spot. |
+| `telemetry-500` | `393.93 us` | `311.45 us` | `745.63 us` | `520.84 us` | Numeric-heavy flat payloads still need significant optimization work, especially on decode. |
+| `person-batch-25-unknown-fields` | `7.92 us` | `7.51 us` | `30.50 us` | `24.23 us` | Unknown-field decode improved, but `STJ` still holds a noticeable lead. |
 
 Those numbers are machine-specific. Compare ratios and workload shape more than the absolute values.
