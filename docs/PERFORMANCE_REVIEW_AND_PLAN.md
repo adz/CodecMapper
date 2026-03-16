@@ -191,6 +191,26 @@ Measured effect on the parser diagnostics:
 This is not enough to close the gap to `Utf8JsonReader`, but it is a clear
 directional win and worth keeping.
 
+### Colon fast path in object property loops
+
+The second accepted optimization adds a direct colon fast path for object
+properties and only falls back to whitespace-tolerant handling when needed.
+
+This targets the common authored-contract shape:
+
+```json
+{"field":"value"}
+```
+
+instead of paying the general whitespace scan before every colon.
+
+Measured effect:
+
+- `person-batch-25-unknown-fields`: `775.955 ms` -> `694.389 ms`
+- `telemetry-500`: `5663.483 ms` -> `4240.830 ms`
+
+This is the strongest production JSON decode win so far.
+
 ## Failed experiments
 
 ### `numberToken` digit-scan extraction
@@ -207,3 +227,25 @@ Conclusion:
 
 - do not assume cleaner-looking helpers are free in the parser hot path
 - keep future numeric parsing changes benchmarked in isolation
+
+### `stringRaw` search variants
+
+Two `.NET`-only `stringRaw` experiments were tried and rejected:
+
+- a broad `Array.IndexOf`-based search for the next quote or escape
+- a bounded quote-first search that only looked for escapes before the next
+  quote
+
+Why they were rejected:
+
+- both hurt the top-priority flat-object case
+- one version regressed very badly
+- the quote-first version helped escaped strings but still lost on the more
+  important object-traversal path
+
+Conclusion:
+
+- `stringRaw` is still interesting, but the obvious library-search-based
+  approaches are not good enough
+- any future `stringRaw` work should be treated as its own measured experiment,
+  not bundled into larger parser changes

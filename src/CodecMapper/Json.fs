@@ -149,6 +149,24 @@ module Json =
             else
                 failwith errorMessage
 
+        ///
+        /// Most authored JSON payloads place the colon immediately after the
+        /// property name, so check that byte first and only fall back to the
+        /// whitespace-tolerant path when needed.
+        let inline advancePastColon (current: JsonSource) =
+            let data = current.Data
+            let offset = current.Offset
+
+            if offset < data.Length && data[offset] = 58uy then
+                current.Advance(1)
+            else
+                let current = skipWhitespace current
+
+                if current.Offset >= data.Length || data[current.Offset] <> 58uy then
+                    failwith "Expected :"
+
+                current.Advance(1)
+
         let numberToken (allowFractionAndExponent: bool) (src: JsonSource) =
             let src = skipWhitespace src
 
@@ -322,6 +340,7 @@ module Json =
             // Unknown-field skipping should stay linear even for escaped text,
             // so scan forward once instead of recounting backslashes at every
             // candidate quote.
+#if !FABLE_COMPILER
             while i < data.Length && not finished do
                 match data[i] with
                 | 34uy -> finished <- true
@@ -341,6 +360,27 @@ module Json =
 
                 if not finished then
                     i <- i + 1
+#else
+            while i < data.Length && not finished do
+                match data[i] with
+                | 34uy -> finished <- true
+                | 92uy ->
+                    hadEscapes <- true
+                    i <- i + 1
+
+                    if i >= data.Length then
+                        failwith "Unterminated escape sequence"
+
+                    if data[i] = 117uy then
+                        if i + 4 >= data.Length then
+                            failwith "Unterminated unicode escape"
+
+                        i <- i + 4
+                | _ -> ()
+
+                if not finished then
+                    i <- i + 1
+#endif
 
             if not finished then
                 failwith "Unterminated string"
@@ -491,12 +531,9 @@ module Json =
 
                 while looping do
                     let struct (key, afterKey) = stringDecoder current
-                    let afterColon = skipWhitespace afterKey
+                    let afterColon = advancePastColon afterKey
 
-                    if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
-                        failwith "Expected :"
-
-                    let struct (value, next) = jsonValueDecoderAt (depth + 1) (afterColon.Advance(1))
+                    let struct (value, next) = jsonValueDecoderAt (depth + 1) afterColon
                     fields.Add(key, value)
 
                     let struct (nextCurrent, continueLoop) =
@@ -539,16 +576,10 @@ module Json =
 
                     while continueLoop do
                         let struct (_, _, _, afterKey) = stringRaw current
-                        let afterColon = skipWhitespace afterKey
-
-                        if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
-                            failwith "Expected :"
+                        let afterColon = advancePastColon afterKey
 
                         let struct (nextCurrent, keepLooping) =
-                            readSeparatorOrClose
-                                125uy
-                                (skipValueAt (depth + 1) (afterColon.Advance(1)))
-                                "Expected , or }"
+                            readSeparatorOrClose 125uy (skipValueAt (depth + 1) afterColon) "Expected , or }"
 
                         current <- nextCurrent
                         continueLoop <- keepLooping
