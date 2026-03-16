@@ -1,5 +1,18 @@
 # Release Notes
 
+## 0.3.0 - 2026-03-16
+
+- Added explicit authored tagged-union support across JSON, XML, YAML, and KeyValue, including recursive unions via `Schema.delay`
+- Added JSON Schema export for authored tagged unions, recursive tagged unions with local `$defs` / `$ref`, inline tagged unions, and string enums
+- Added KeyValue support for recursive tagged unions and tightened malformed-payload handling across JSON, XML, YAML, and KeyValue
+- Added readable tagged-union error-behavior tests and linked them from the docs as executable malformed-input examples
+- Aligned the tagged-union authoring terminology around `tag`, `tagWith`, and `TaggedCase`
+- Added `inlineUnion` / `inlineUnionNamed` for contracts that inline payload members next to the discriminator
+- Added `stringEnum` / `stringEnumNamed` for finite string-valued contracts
+- Added `message`, `messageWith`, `envelope`, `envelopeNamed`, `inlineEnvelope`, and `inlineEnvelopeNamed` for message and event contract authoring
+- Expanded the docs with tagged-union wire-shape reference material, recursive tagged-union guidance, and updated JSON Schema export guidance
+- Extended the AOT and Fable compatibility sentinels to cover the new recursive tagged-union surface
+
 ## 0.2.0 - 2026-03-15
 
 - Fixed `DateTime`, `DateTimeOffset`, and `TimeSpan` parsing for Fable when consumed as a published NuGet package
