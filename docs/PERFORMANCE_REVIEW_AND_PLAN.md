@@ -129,6 +129,7 @@ Current strategic direction:
   - numeric token scanning
   - object and array loop overhead
 - [ ] Apply the first focused handwritten-parser optimization and rerun parser-only comparisons.
+- [x] Apply the first focused handwritten-parser optimization and rerun parser-only comparisons.
 - [ ] Generalize the typed record-decode lane beyond hand-written benchmark shapes.
 - [ ] Compare generalized typed decode against the current erased path on the release scenarios again.
 - [ ] Decide whether the production runtime should adopt the typed lane, the parser changes, both, or neither.
@@ -170,3 +171,39 @@ So the first parser optimization pass should focus on:
 
 String work still matters, but it is not the best first target from the
 current measurements.
+
+## Accepted parser changes
+
+### Separator and whitespace loop cleanup
+
+The first accepted parser-core optimization did two things:
+
+- added a cheap fast path in `skipWhitespace` when the current byte is already
+  non-whitespace
+- centralized comma-or-close handling for object and array loops so repeated
+  separator checks do less duplicated work
+
+Measured effect on the parser diagnostics:
+
+- `parser-flat-objects-400`: `1084.619 ms` -> `945.349 ms`
+- `parser-numbers-4000`: `1738.543 ms` -> `1620.375 ms`
+
+This is not enough to close the gap to `Utf8JsonReader`, but it is a clear
+directional win and worth keeping.
+
+## Failed experiments
+
+### `numberToken` digit-scan extraction
+
+A follow-up attempt factored repeated digit loops in `numberToken` into a small
+helper.
+
+That change lost:
+
+- numeric diagnostic regressed instead of improving
+- flat-object diagnostic also gave back part of the earlier gain
+
+Conclusion:
+
+- do not assume cleaner-looking helpers are free in the parser hot path
+- keep future numeric parsing changes benchmarked in isolation

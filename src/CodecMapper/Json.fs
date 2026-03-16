@@ -105,15 +105,22 @@ module Json =
             | :? JsonDecodeException -> reraise ()
             | ex -> raise (asDecodeException ("Validation failed: " + ex.Message) [] ex)
 
+        let inline isWhitespaceByte (b: byte) =
+            b = 32uy || b = 10uy || b = 13uy || b = 9uy
+
         let inline skipWhitespace (src: JsonSource) =
-            let mutable i = src.Offset
             let data = src.Data
+            let offset = src.Offset
 
-            while i < data.Length
-                  && (data[i] = 32uy || data[i] = 10uy || data[i] = 13uy || data[i] = 9uy) do
-                i <- i + 1
+            if offset >= data.Length || not (isWhitespaceByte data[offset]) then
+                src
+            else
+                let mutable i = offset + 1
 
-            ByteSource(data, i)
+                while i < data.Length && isWhitespaceByte data[i] do
+                    i <- i + 1
+
+                ByteSource(data, i)
 
         ///
         /// Benchmark-only typed experiments live in a separate friend assembly,
@@ -122,6 +129,25 @@ module Json =
         let skipWhitespaceShared (src: JsonSource) = skipWhitespace src
 
         let inline isDigit (b: byte) = b >= 48uy && b <= 57uy
+
+        ///
+        /// Object and array parsing repeatedly need the same "skip trailing
+        /// whitespace, then inspect comma or closing delimiter" logic.
+        /// Centralizing that keeps the hot loops shorter and removes duplicate
+        /// whitespace scans at each call site.
+        let inline readSeparatorOrClose (closeByte: byte) (current: JsonSource) (errorMessage: string) =
+            let current = skipWhitespace current
+            let data = current.Data
+
+            if current.Offset >= data.Length then
+                failwith errorMessage
+
+            if data[current.Offset] = 44uy then
+                struct (skipWhitespace (current.Advance(1)), true)
+            elif data[current.Offset] = closeByte then
+                struct (current.Advance(1), false)
+            else
+                failwith errorMessage
 
         let numberToken (allowFractionAndExponent: bool) (src: JsonSource) =
             let src = skipWhitespace src
@@ -447,15 +473,11 @@ module Json =
                     let struct (item, next) = jsonValueDecoderAt (depth + 1) current
                     items.Add(item)
 
-                    let afterItem = skipWhitespace next
+                    let struct (nextCurrent, continueLoop) =
+                        readSeparatorOrClose 93uy next "Expected , or ]"
 
-                    if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
-                        current <- skipWhitespace (afterItem.Advance(1))
-                    elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
-                        current <- afterItem.Advance(1)
-                        looping <- false
-                    else
-                        failwith "Expected , or ]"
+                    current <- nextCurrent
+                    looping <- continueLoop
 
                 struct (JArray(List.ofSeq items), current)
             | 123uy ->
@@ -477,15 +499,11 @@ module Json =
                     let struct (value, next) = jsonValueDecoderAt (depth + 1) (afterColon.Advance(1))
                     fields.Add(key, value)
 
-                    let afterValue = skipWhitespace next
+                    let struct (nextCurrent, continueLoop) =
+                        readSeparatorOrClose 125uy next "Expected , or }"
 
-                    if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
-                        current <- skipWhitespace (afterValue.Advance(1))
-                    elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
-                        current <- afterValue.Advance(1)
-                        looping <- false
-                    else
-                        failwith "Expected , or }"
+                    current <- nextCurrent
+                    looping <- continueLoop
 
                 struct (JObject(List.ofSeq fields), current)
             | _ ->
@@ -526,15 +544,14 @@ module Json =
                         if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                             failwith "Expected :"
 
-                        let afterValue = skipWhitespace (skipValueAt (depth + 1) (afterColon.Advance(1)))
+                        let struct (nextCurrent, keepLooping) =
+                            readSeparatorOrClose
+                                125uy
+                                (skipValueAt (depth + 1) (afterColon.Advance(1)))
+                                "Expected , or }"
 
-                        if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
-                            current <- skipWhitespace (afterValue.Advance(1))
-                        elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
-                            current <- afterValue.Advance(1)
-                            continueLoop <- false
-                        else
-                            failwith "Expected , or }"
+                        current <- nextCurrent
+                        continueLoop <- keepLooping
 
                     current
                 | 91uy ->
@@ -546,15 +563,11 @@ module Json =
                         continueLoop <- false
 
                     while continueLoop do
-                        let afterItem = skipWhitespace (skipValueAt (depth + 1) current)
+                        let struct (nextCurrent, keepLooping) =
+                            readSeparatorOrClose 93uy (skipValueAt (depth + 1) current) "Expected , or ]"
 
-                        if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
-                            current <- skipWhitespace (afterItem.Advance(1))
-                        elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
-                            current <- afterItem.Advance(1)
-                            continueLoop <- false
-                        else
-                            failwith "Expected , or ]"
+                        current <- nextCurrent
+                        continueLoop <- keepLooping
 
                     current
                 | 34uy ->
