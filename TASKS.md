@@ -68,9 +68,7 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Keep the guide focused on practical migration steps rather than abstract comparisons.
 
 - [ ] **Task 42: Evaluate a non-erased typed codec path for hot-path performance**
-  - Prototype a compile/runtime path that keeps more concrete type information instead of routing through erased `obj`-based schema nodes in the hottest encode/decode paths.
-  - Measure whether that materially improves the current string-heavy and numeric-heavy benchmark weak spots without breaking AOT or Fable support.
-  - Treat this as a benchmark-driven architecture decision, not an automatic rewrite.
+  - See [docs/PERFORMANCE_REVIEW_AND_PLAN.md](/home/adam/projects/mylibs/CodecMapper/main/docs/PERFORMANCE_REVIEW_AND_PLAN.md) for the current findings, evidence, and task list.
 
 - [ ] **Task 43: Improve the C# schema authoring DSL and add opt-in source generation**
   - Expand the C# schema authoring surface so common record/class/message contracts are less verbose to write by hand.

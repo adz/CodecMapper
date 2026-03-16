@@ -115,6 +115,12 @@ module Json =
 
             ByteSource(data, i)
 
+        ///
+        /// Benchmark-only typed experiments live in a separate friend assembly,
+        /// so they need a non-inline entrypoint to reuse the handwritten
+        /// parser without tripping cross-assembly inline restrictions.
+        let skipWhitespaceShared (src: JsonSource) = skipWhitespace src
+
         let inline isDigit (b: byte) = b >= 48uy && b <= 57uy
 
         let numberToken (allowFractionAndExponent: bool) (src: JsonSource) =
@@ -582,6 +588,11 @@ module Json =
                     if a[i] <> b[offset + i] then equal <- false else i <- i + 1
 
                 equal
+
+        ///
+        /// Keep the benchmark experiment comparing the same raw-key matching
+        /// logic without forcing the friend assembly through inline expansion.
+        let bytesEqualShared (a: byte[]) (b: byte[]) (offset: int) (len: int) = bytesEqual a b offset len
 
 #if !FABLE_COMPILER
         let private listBuilders = ConcurrentDictionary<System.Type, obj array -> obj>()

@@ -53,22 +53,40 @@ module Runner =
         | "codecmapper-deserialize-bytes" ->
             Some(fun (workload: Workloads.Workload) ->
                 fun () -> workload.HashValue(workload.CodecMapperDeserializeBytes()))
+        | "our-parser-scan-bytes" -> Some(fun (workload: Workloads.Workload) -> workload.OurParserScanBytes)
+        | "utf8jsonreader-scan-bytes" -> Some(fun (workload: Workloads.Workload) -> workload.Utf8JsonReaderScanBytes)
+        | "typed-experiment-deserialize-bytes" ->
+            Some(fun (workload: Workloads.Workload) ->
+                match workload.TypedExperimentDeserializeBytes with
+                | Some decode -> fun () -> workload.HashValue(decode ())
+                | None -> failwithf "Scenario '%s' does not have a typed experiment decoder." workload.Name)
         | "newtonsoft-deserialize" ->
             Some(fun (workload: Workloads.Workload) -> fun () -> workload.HashValue(workload.NewtonsoftDeserialize()))
         | _ -> None
 
-    let private measureScenario (workload: Workloads.Workload) = [
-        "STJ serialize", measure workload.SerializeIterations 3 workload.StjSerialize workload.HashSerialized
-        "CodecMapper serialize",
-        measure workload.SerializeIterations 3 workload.CodecMapperSerialize workload.HashSerialized
-        "Newtonsoft serialize",
-        measure (max 1 (workload.SerializeIterations / 2)) 3 workload.NewtonsoftSerialize workload.HashSerialized
-        "STJ deserialize", measure workload.DeserializeIterations 3 workload.StjDeserialize workload.HashValue
-        "CodecMapper deserialize bytes",
-        measure workload.DeserializeIterations 3 workload.CodecMapperDeserializeBytes workload.HashValue
-        "Newtonsoft deserialize",
-        measure (max 1 (workload.DeserializeIterations / 2)) 3 workload.NewtonsoftDeserialize workload.HashValue
-    ]
+    ///
+    /// The typed experiment is optional per workload, so keep the summary list
+    /// data-driven instead of forcing every scenario to pretend it has one.
+    let private measureScenario (workload: Workloads.Workload) =
+        [
+            "STJ serialize", measure workload.SerializeIterations 3 workload.StjSerialize workload.HashSerialized
+            "CodecMapper serialize",
+            measure workload.SerializeIterations 3 workload.CodecMapperSerialize workload.HashSerialized
+            "Newtonsoft serialize",
+            measure (max 1 (workload.SerializeIterations / 2)) 3 workload.NewtonsoftSerialize workload.HashSerialized
+            "STJ deserialize", measure workload.DeserializeIterations 3 workload.StjDeserialize workload.HashValue
+            "Our parser scan bytes", measure workload.DeserializeIterations 3 workload.OurParserScanBytes id
+            "Utf8JsonReader scan bytes", measure workload.DeserializeIterations 3 workload.Utf8JsonReaderScanBytes id
+            "CodecMapper deserialize bytes",
+            measure workload.DeserializeIterations 3 workload.CodecMapperDeserializeBytes workload.HashValue
+            "Newtonsoft deserialize",
+            measure (max 1 (workload.DeserializeIterations / 2)) 3 workload.NewtonsoftDeserialize workload.HashValue
+        ]
+        @ match workload.TypedExperimentDeserializeBytes with
+          | Some decode -> [
+              "Typed experiment deserialize bytes", measure workload.DeserializeIterations 3 decode workload.HashValue
+            ]
+          | None -> []
 
     let runAll () =
         printfn "Manual Release benchmark summary"
@@ -112,7 +130,7 @@ module Runner =
             eprintfn "Unknown operation '%s'." operation
 
             eprintfn
-                "Expected one of: stj-serialize, codecmapper-serialize, newtonsoft-serialize, stj-deserialize, codecmapper-deserialize-bytes, newtonsoft-deserialize"
+                "Expected one of: stj-serialize, codecmapper-serialize, newtonsoft-serialize, stj-deserialize, our-parser-scan-bytes, utf8jsonreader-scan-bytes, codecmapper-deserialize-bytes, typed-experiment-deserialize-bytes, newtonsoft-deserialize"
 
             1
         | Ok workload, Some runOperation ->
