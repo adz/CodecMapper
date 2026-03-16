@@ -79,6 +79,8 @@ If you use `Schema.missingAsNone` inside a record field, the field is removed fr
 - objects with properties and required fields
 - nullable option shapes
 - authored tagged unions as `oneOf` object branches with `const` discriminators
+- authored inline tagged unions as `oneOf` object branches with merged payload properties
+- authored string enums as `"type":"string"` plus explicit `enum` values
 - recursive authored schemas through local `$defs` / `$ref` when the recursion is anchored with `Schema.delay`
 - mapped wrapper types as their underlying wire form
 
@@ -107,6 +109,10 @@ let schemaText = JsonSchema.generate statusSchema
 ```
 
 That exported schema uses one branch per case, with a `const` discriminator for the case name.
+
+`Schema.inlineUnion` exports the same `oneOf` structure, but merges payload properties into the same object branch as the discriminator instead of nesting them under a separate payload field.
+
+`Schema.stringEnum` exports as a string schema with an explicit `enum` list of allowed wire values.
 
 ## Export recursive authored schemas
 

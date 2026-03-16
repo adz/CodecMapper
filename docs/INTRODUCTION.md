@@ -48,7 +48,8 @@ That makes it useful when:
 - the wire shape matters and should stay reviewable
 - JSON and XML should stay symmetric
 - domain refinement should be explicit with `Schema.map` or `Schema.tryMap`
-- tagged unions and recursive case trees should stay explicit in normal schema code
+- tagged unions, inline tagged unions, and recursive case trees should stay explicit in normal schema code
+- common string enums and message envelopes should still read like authored contracts rather than serializer magic
 - AOT and Fable compatibility matter more than serializer magic
 
 ## The first path to learn

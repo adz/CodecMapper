@@ -186,6 +186,70 @@ module Xml =
 
                 if actual = tag then Some(ByteSource(data, i + 1)) else None
 
+        /// Captures all bytes up to the matching close tag for the current element content.
+        ///
+        /// This is used by inline tagged unions to wrap merged child elements
+        /// back into one synthetic payload root for reuse of existing codecs.
+        let sliceUntilCloseTag (tag: string) (src: XmlSource) =
+            let current = skipWhitespace src
+            let data = current.Data
+            let start = current.Offset
+            let mutable i = current.Offset
+            let mutable depth = 0
+            let mutable found = false
+            let mutable closeStart = current.Offset
+            let mutable nextOffset = current.Offset
+
+            while i < data.Length && not found do
+                if data[i] = 60uy then
+                    let mutable j = i + 1
+
+                    if j < data.Length && data[j] = 47uy then
+                        j <- j + 1
+                        let nameStart = j
+
+                        while j < data.Length && data[j] <> 62uy do
+                            j <- j + 1
+
+                        if j >= data.Length then
+                            failwith "Unterminated tag"
+
+#if !FABLE_COMPILER
+                        let actual = Encoding.UTF8.GetString(data, nameStart, j - nameStart)
+#else
+                        let actual = Encoding.UTF8.GetString(data.[nameStart .. j - 1])
+#endif
+
+                        if depth = 0 && actual = tag then
+                            found <- true
+                            closeStart <- i
+                            nextOffset <- j + 1
+                        else
+                            depth <- depth - 1
+                            i <- j + 1
+                    else
+                        while j < data.Length && data[j] <> 62uy do
+                            j <- j + 1
+
+                        if j >= data.Length then
+                            failwith "Unterminated tag"
+
+                        depth <- depth + 1
+                        i <- j + 1
+                else
+                    i <- i + 1
+
+            if not found then
+                failwithf "Expected </%s>" tag
+
+            let length = closeStart - start
+            let slice = Array.zeroCreate<byte> length
+
+            if length > 0 then
+                System.Array.Copy(data, start, slice, 0, length)
+
+            struct (slice, ByteSource(data, nextOffset))
+
         ///
         /// Text nodes must escape structural characters or the decoder cannot
         /// distinguish content from markup.
@@ -436,6 +500,29 @@ module Xml =
                                 | _ -> failwith "Expected true or false")
                         MissingValue = None
                       }
+                    | StringEnum(_, tryGetName, parseName) -> {
+                        Encode =
+                            (fun w tag v ->
+                                match tryGetName v with
+                                | Some name ->
+                                    w.WriteByte(60uy)
+                                    w.WriteString(tag)
+                                    w.WriteByte(62uy)
+                                    w.WriteString(Runtime.escapeText name)
+                                    w.WriteByte(60uy)
+                                    w.WriteByte(47uy)
+                                    w.WriteString(tag)
+                                    w.WriteByte(62uy)
+                                | None ->
+                                    failwithf "No string enum name matched value for type %O" schema.TargetType)
+                        Decode =
+                            (fun src tag ->
+                                let current = Runtime.expectOpenTag tag src
+                                let struct (text, current) = Runtime.readTextNode current
+                                let current = Runtime.expectCloseTag tag current
+                                struct (parseName text, current))
+                        MissingValue = None
+                      }
                     | RawJsonValue ->
                         let fail () =
                             failwith "Schema.jsonValue is JSON-only; XML has no symmetric raw JSON DOM representation"
@@ -670,6 +757,107 @@ module Xml =
             
                                         let current = Runtime.expectCloseTag tag currentAfterValue
                                         struct (compiled.Case.Construct valueOpt, current)
+                                    | None -> failwithf "Unknown union case '%s'" caseName)
+                            MissingValue = None
+                        }
+                    | InlineUnion(discriminatorName, cases) ->
+                        let compiledCases =
+                            cases
+                            |> Array.map (fun case -> {|
+                                Case = case
+                                Codec =
+                                    case.Schema
+                                    |> Option.map (fun payloadSchema ->
+                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                            failwithf
+                                                "Inline union case '%s' payload schema must be object-shaped"
+                                                case.Name
+
+                                        loop payloadSchema)
+                            |})
+
+                        let inlinePayloadTag = "payload"
+                        let stringCodec = loop (Schema.string :> ISchema)
+
+                        let encodeInlinePayload (codec: CompiledCodec) (fieldValue: obj) =
+                            let writer = ResizableBuffer.Create(128)
+
+                            try
+                                codec.Encode writer inlinePayloadTag fieldValue
+                                let afterOpen = Runtime.expectOpenTag inlinePayloadTag (ByteSource(writer.InternalData, 0))
+                                let struct (innerBytes, _) = Runtime.sliceUntilCloseTag inlinePayloadTag afterOpen
+                                Encoding.UTF8.GetString(innerBytes)
+                            finally
+                                writer.Release()
+
+                        let decodeInlinePayload (codec: CompiledCodec) (contentBytes: byte[]) =
+                            let openTag = "<" + inlinePayloadTag + ">"
+                            let closeTag = "</" + inlinePayloadTag + ">"
+                            let content = Encoding.UTF8.GetString(contentBytes)
+                            let wrapped = openTag + content + closeTag
+                            let wrappedBytes = Encoding.UTF8.GetBytes(wrapped)
+                            let struct (fieldValue, rest) = codec.Decode(ByteSource(wrappedBytes, 0)) inlinePayloadTag
+                            let rest = Runtime.skipWhitespace rest
+
+                            if rest.Offset <> wrappedBytes.Length then
+                                failwith "Inline union payload had trailing XML content"
+
+                            fieldValue
+
+                        {
+                            Encode =
+                                (fun writer tag value ->
+                                    match
+                                        compiledCases
+                                        |> Array.tryPick (fun compiled ->
+                                            compiled.Case.TryGetValue value
+                                            |> Option.map (fun fieldValue -> compiled, fieldValue))
+                                    with
+                                    | Some(compiled, fieldValue) ->
+                                        writer.WriteByte(60uy)
+                                        writer.WriteString(tag)
+                                        writer.WriteByte(62uy)
+                                        stringCodec.Encode writer discriminatorName (box compiled.Case.Name)
+
+                                        match compiled.Codec with
+                                        | Some codec ->
+                                            let innerXml = encodeInlinePayload codec fieldValue
+                                            writer.WriteString(innerXml)
+                                        | None -> ()
+
+                                        writer.WriteByte(60uy)
+                                        writer.WriteByte(47uy)
+                                        writer.WriteString(tag)
+                                        writer.WriteByte(62uy)
+                                    | None ->
+                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                            Decode =
+                                (fun src tag ->
+                                    let mutable current = Runtime.expectOpenTag tag src
+                                    current <- Runtime.skipWhitespace current
+
+                                    let struct (rawCaseName, afterCase) =
+                                        Runtime.withPath (Element discriminatorName) (fun () ->
+                                            stringCodec.Decode current discriminatorName)
+
+                                    let caseName = unbox<string> rawCaseName
+                                    current <- Runtime.skipWhitespace afterCase
+
+                                    match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                    | Some compiled ->
+                                        match compiled.Codec with
+                                        | None ->
+                                            match Runtime.tryReadCloseTag tag current with
+                                            | Some next -> struct (compiled.Case.Construct None, next)
+                                            | None ->
+                                                failwithf
+                                                    "Union case '%s' does not accept payload elements alongside <%s>"
+                                                    caseName
+                                                    discriminatorName
+                                        | Some codec ->
+                                            let struct (payloadBytes, next) = Runtime.sliceUntilCloseTag tag current
+                                            let fieldValue = decodeInlinePayload codec payloadBytes
+                                            struct (compiled.Case.Construct(Some fieldValue), next)
                                     | None -> failwithf "Unknown union case '%s'" caseName)
                             MissingValue = None
                         }

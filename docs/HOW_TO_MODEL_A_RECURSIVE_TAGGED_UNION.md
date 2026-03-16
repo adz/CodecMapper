@@ -1,6 +1,6 @@
 # How To Model A Recursive Tagged Union
 
-Use `Schema.union` when the JSON/XML/YAML/KeyValue wire shape should be an explicit tagged contract, and use `Schema.delay` when one of those cases needs to recurse back to the same schema.
+Use `Schema.union` when the JSON/XML/YAML/KeyValue wire shape should be an explicit tagged contract with a separate payload field. Use `Schema.inlineUnion` when payload members should sit next to the discriminator at the same level. Use `Schema.delay` when one of those tags needs to recurse back to the same schema.
 
 This is the authored-schema path for recursive tree-like contracts. The wire contract stays explicit:
 
@@ -78,9 +78,11 @@ value.value.value=ok
 Use these helpers:
 
 - `tag` for a tag without payload
-- `tagWith` for a tag with exactly one payload value
+- `tagWith` for a tag with one payload value
 - `union` for the default field names `"case"` and `"value"`
 - `unionNamed` when another system expects different field names
+- `inlineUnion` when payload members should be merged next to the discriminator
+- `inlineUnionNamed` when that inline shape needs a custom discriminator name
 
 If you need the exact emitted JSON, XML, YAML, or KeyValue shapes, see [Tagged Union Wire Shape Reference](TAGGED_UNION_REFERENCE.md).
 

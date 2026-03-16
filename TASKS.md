@@ -48,7 +48,11 @@ Completed rename, parser, bridge, compatibility, JSON Schema, docs, and projecti
   - Add one configuration-loading guide that shows layered environment/file input, explicit defaults, startup validation, and friendly failure reporting.
   - Keep the examples grounded in the existing stable DSL rather than introducing framework-specific schema systems.
 
-- [ ] **Task 39: Improve union and enum authoring ergonomics for app contracts**
+- [x] **Task 39: Improve union and enum authoring ergonomics for app contracts**
+  - Shipped the terminology cleanup from `case0` / `case1` to `tag` / `tagWith`, and aligned the public/docs wording around tagged unions and `TaggedCase`.
+  - Added `inlineUnion` / `inlineUnionNamed` for inline payload-member contracts, with readable docs plus malformed-input coverage.
+  - Added `stringEnum` / `stringEnumNamed` as first-class string-valued contracts, including JSON Schema `enum` export.
+  - Added `message`, `messageWith`, `envelope`, `envelopeNamed`, `inlineEnvelope`, and `inlineEnvelopeNamed` for common message and event contract shapes.
   - Add higher-level helpers for common string-enum, message-envelope, and public API union shapes so users do not have to hand-write projector/injector code for the most common cases.
   - Keep the explicit authored contract visible rather than hiding it behind reflection or attributes.
   - Cover JSON, XML, YAML, KeyValue, and JSON Schema export behavior for any new helpers.

@@ -308,6 +308,174 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
     test <@ Yaml.deserialize yamlCodec yaml = value @>
 
 [<Fact>]
+let ``Inline tagged unions round-trip across JSON XML YAML and KeyValue`` () =
+    let payloadSchema =
+        Schema.define<CreatedData>
+        |> Schema.construct makeCreatedData
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.build
+
+    let schema =
+        Schema.inlineUnion [
+            Schema.tag "ping" Ping ((=) Ping)
+            Schema.tagWith
+                "created"
+                (function
+                | Created value -> Some value
+                | _ -> None)
+                Created
+                payloadSchema
+        ]
+
+    let value = Created { Id = 7; Name = "Ada" }
+
+    let jsonCodec = Json.compile schema
+    let xmlCodec = Xml.compile schema
+    let yamlCodec = Yaml.compile schema
+    let keyValueCodec = KeyValue.compile schema
+
+    let json = Json.serialize jsonCodec value
+    let xml = Xml.serialize xmlCodec value
+    let yaml = Yaml.serialize yamlCodec value
+    let keyValue = KeyValue.serialize keyValueCodec value
+
+    test <@ json = """{"case":"created","id":7,"name":"Ada"}""" @>
+    test <@ xml = "<event><case>created</case><id>7</id><name>Ada</name></event>" @>
+    test <@ yaml.Contains("case: created") @>
+    test <@ yaml.Contains("id: 7") @>
+    test <@ yaml.Contains("name: Ada") @>
+    test <@ keyValue = Map.ofList [ "case", "created"; "id", "7"; "name", "Ada" ] @>
+
+    test <@ Json.deserialize jsonCodec json = value @>
+    test <@ Xml.deserialize xmlCodec xml = value @>
+    test <@ Yaml.deserialize yamlCodec yaml = value @>
+    test <@ KeyValue.deserialize keyValueCodec keyValue = value @>
+
+[<Fact>]
+let ``String enums round-trip across JSON XML YAML and KeyValue`` () =
+    let modeSchema =
+        Schema.stringEnum [
+            "strict", Strict
+            "lenient", Lenient
+            "off", Off
+        ]
+
+    let configSchema =
+        Schema.define<ModeConfig>
+        |> Schema.construct makeModeConfig
+        |> Schema.fieldWith "mode" _.Mode modeSchema
+        |> Schema.build
+
+    let value = Lenient
+    let jsonCodec = Json.compile modeSchema
+    let xmlCodec = Xml.compile modeSchema
+    let yamlCodec = Yaml.compile modeSchema
+    let keyValueCodec = KeyValue.compile configSchema
+
+    let json = Json.serialize jsonCodec value
+    let xml = Xml.serialize xmlCodec value
+    let yaml = Yaml.serialize yamlCodec value
+    let keyValue = KeyValue.serialize keyValueCodec { Mode = value }
+
+    test <@ json = "\"lenient\"" @>
+    test <@ xml = "<mode>lenient</mode>" @>
+    test <@ yaml = "lenient" @>
+    test <@ keyValue = Map.ofList [ "mode", "lenient" ] @>
+
+    test <@ Json.deserialize jsonCodec json = value @>
+    test <@ Xml.deserialize xmlCodec xml = value @>
+    test <@ Yaml.deserialize yamlCodec yaml = value @>
+    test <@ KeyValue.deserialize keyValueCodec keyValue = { Mode = value } @>
+
+[<Fact>]
+let ``Envelope helpers use type and data field names across formats`` () =
+    let payloadSchema =
+        Schema.define<CreatedData>
+        |> Schema.construct makeCreatedData
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.build
+
+    let schema =
+        Schema.envelope [
+            Schema.message "ping" Ping ((=) Ping)
+            Schema.messageWith
+                "created"
+                (function
+                | Created payload -> Some payload
+                | _ -> None)
+                Created
+                payloadSchema
+        ]
+
+    let value = Created { Id = 7; Name = "Ada" }
+    let jsonCodec = Json.compile schema
+    let xmlCodec = Xml.compile schema
+    let yamlCodec = Yaml.compile schema
+    let keyValueCodec = KeyValue.compile schema
+
+    let json = Json.serialize jsonCodec value
+    let xml = Xml.serialize xmlCodec value
+    let yaml = Yaml.serialize yamlCodec value
+    let keyValue = KeyValue.serialize keyValueCodec value
+
+    test <@ json = """{"type":"created","data":{"id":7,"name":"Ada"}}""" @>
+    test <@ xml = "<event><type>created</type><data><id>7</id><name>Ada</name></data></event>" @>
+    test <@ yaml.Contains("type: created") @>
+    test <@ yaml.Contains("data:") @>
+    test <@ keyValue = Map.ofList [ "type", "created"; "data.id", "7"; "data.name", "Ada" ] @>
+
+    test <@ Json.deserialize jsonCodec json = value @>
+    test <@ Xml.deserialize xmlCodec xml = value @>
+    test <@ Yaml.deserialize yamlCodec yaml = value @>
+    test <@ KeyValue.deserialize keyValueCodec keyValue = value @>
+
+[<Fact>]
+let ``Inline envelope helpers inline payload fields next to type`` () =
+    let payloadSchema =
+        Schema.define<CreatedData>
+        |> Schema.construct makeCreatedData
+        |> Schema.field "id" _.Id
+        |> Schema.field "name" _.Name
+        |> Schema.build
+
+    let schema =
+        Schema.inlineEnvelope [
+            Schema.message "ping" Ping ((=) Ping)
+            Schema.messageWith
+                "created"
+                (function
+                | Created payload -> Some payload
+                | _ -> None)
+                Created
+                payloadSchema
+        ]
+
+    let value = Created { Id = 7; Name = "Ada" }
+    let jsonCodec = Json.compile schema
+    let xmlCodec = Xml.compile schema
+    let yamlCodec = Yaml.compile schema
+    let keyValueCodec = KeyValue.compile schema
+
+    let json = Json.serialize jsonCodec value
+    let xml = Xml.serialize xmlCodec value
+    let yaml = Yaml.serialize yamlCodec value
+    let keyValue = KeyValue.serialize keyValueCodec value
+
+    test <@ json = """{"type":"created","id":7,"name":"Ada"}""" @>
+    test <@ xml = "<event><type>created</type><id>7</id><name>Ada</name></event>" @>
+    test <@ yaml.Contains("type: created") @>
+    test <@ yaml.Contains("id: 7") @>
+    test <@ yaml.Contains("name: Ada") @>
+    test <@ keyValue = Map.ofList [ "type", "created"; "id", "7"; "name", "Ada" ] @>
+
+    test <@ Json.deserialize jsonCodec json = value @>
+    test <@ Xml.deserialize xmlCodec xml = value @>
+    test <@ Yaml.deserialize yamlCodec yaml = value @>
+    test <@ KeyValue.deserialize keyValueCodec keyValue = value @>
+
+[<Fact>]
 let ``Pipeline DSL can use opened Schema module at file scope`` () =
     let addressSchema =
         define<Address>

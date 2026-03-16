@@ -59,6 +59,13 @@ let commonTypeSchema =
     |> Schema.field "duration" _.Duration
     |> Schema.build
 
+let createdDataSchema =
+    Schema.define<CreatedData>
+    |> Schema.construct makeCreatedData
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
+
 [<Fact>]
 let ``Authored tagged unions export deterministic discriminator schema`` () =
     let schema =
@@ -106,6 +113,84 @@ let ``Recursive delayed unions export local defs and refs`` () =
     test <@ actual.Contains("\"case\":{\"const\":\"leaf\"}") @>
     test <@ actual.Contains("\"case\":{\"const\":\"branch\"}") @>
     test <@ actual.Contains("\"$ref\":\"#/$defs/RecursiveNode\"") @>
+
+[<Fact>]
+let ``Inline tagged unions export merged object contracts`` () =
+    let schema =
+        Schema.inlineUnion [
+            Schema.tag "ping" Ping ((=) Ping)
+            Schema.tagWith
+                "created"
+                (function
+                | Created payload -> Some payload
+                | _ -> None)
+                Created
+                createdDataSchema
+        ]
+
+    let actual = JsonSchema.generate schema
+
+    test <@ actual.Contains("\"oneOf\":[") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"ping\"}") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"created\"}") @>
+    test <@ actual.Contains("\"id\":{\"type\":\"integer\"}") @>
+    test <@ actual.Contains("\"name\":{\"type\":\"string\"}") @>
+    test <@ not (actual.Contains("\"value\":")) @>
+
+[<Fact>]
+let ``String enums export JSON Schema enum values`` () =
+    let schema =
+        Schema.stringEnum [
+            "strict", Strict
+            "lenient", Lenient
+            "off", Off
+        ]
+
+    let actual = JsonSchema.generate schema
+
+    test <@ actual.Contains("\"type\":\"string\"") @>
+    test <@ actual.Contains("\"enum\":[\"strict\",\"lenient\",\"off\"]") @>
+
+[<Fact>]
+let ``Envelope helpers export type and data field names`` () =
+    let schema =
+        Schema.envelope [
+            Schema.message "ping" Ping ((=) Ping)
+            Schema.messageWith
+                "created"
+                (function
+                | Created payload -> Some payload
+                | _ -> None)
+                Created
+                createdDataSchema
+        ]
+
+    let actual = JsonSchema.generate schema
+
+    test <@ actual.Contains("\"type\":{\"const\":\"ping\"}") @>
+    test <@ actual.Contains("\"type\":{\"const\":\"created\"}") @>
+    test <@ actual.Contains("\"data\":{\"type\":\"object\"") @>
+
+[<Fact>]
+let ``Inline envelope helpers export merged payload properties under type discriminator`` () =
+    let schema =
+        Schema.inlineEnvelope [
+            Schema.message "ping" Ping ((=) Ping)
+            Schema.messageWith
+                "created"
+                (function
+                | Created payload -> Some payload
+                | _ -> None)
+                Created
+                createdDataSchema
+        ]
+
+    let actual = JsonSchema.generate schema
+
+    test <@ actual.Contains("\"type\":{\"const\":\"created\"}") @>
+    test <@ actual.Contains("\"id\":{\"type\":\"integer\"}") @>
+    test <@ actual.Contains("\"name\":{\"type\":\"string\"}") @>
+    test <@ not (actual.Contains("\"data\":")) @>
 
 [<Fact>]
 let ``Nested record schema exports deterministic object contract`` () =

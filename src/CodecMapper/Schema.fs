@@ -49,11 +49,13 @@ and SchemaTaggedCase = {
 /// The structural schema shapes understood by the compiler backends.
 and SchemaDefinition =
     | Primitive of System.Type
+    | StringEnum of names: string[] * tryGetName: (obj -> string option) * parseName: (string -> obj)
     | Record of System.Type * SchemaField[] * (obj[] -> obj)
     | List of ISchema
     | Array of ISchema
     | Option of ISchema
     | Union of discriminatorName: string * valueName: string * SchemaTaggedCase[]
+    | InlineUnion of discriminatorName: string * SchemaTaggedCase[]
     | Delay of (unit -> ISchema)
     | MissingAsNone of ISchema
     | MissingAsValue of obj * ISchema
@@ -93,6 +95,22 @@ module Schema =
     /// Exposes the erased schema view for advanced integrations.
     let unwrap (s: ISchema) = s
 
+    ///
+    /// Inline tagged unions merge payload members into the same object scope
+    /// as the discriminator, so only object-shaped payload schemas fit that
+    /// contract cleanly across JSON, XML, YAML, KeyValue, and JSON Schema.
+    let rec internal supportsInlinePayloadShape (schema: ISchema) =
+        match schema.Definition with
+        | Record _ -> true
+        | Delay factory -> supportsInlinePayloadShape (factory ())
+        | MissingAsNone innerSchema
+        | MissingAsValue(_, innerSchema)
+        | NullAsValue(_, innerSchema)
+        | EmptyCollectionAsValue(_, innerSchema)
+        | EmptyStringAsNone innerSchema
+        | Map(innerSchema, _, _) -> supportsInlinePayloadShape innerSchema
+        | _ -> false
+
     /// Creates a schema from a raw structural definition.
     ///
     /// This is public for advanced integrations, but most callers should
@@ -123,6 +141,34 @@ module Schema =
 
     /// A schema for `string`.
     let string: Schema<string> = create (Primitive typeof<string>)
+
+    /// Builds a finite string-valued contract for a small set of named cases.
+    ///
+    /// This keeps the wire shape explicit as strings while still compiling to
+    /// strongly typed values and exporting a JSON Schema `enum`.
+    let inline stringEnum (cases: (string * 'T) list) : Schema<'T> =
+        let entries = cases |> List.toArray
+        let names = entries |> Array.map fst
+
+        create (
+            StringEnum(
+                names,
+                (fun candidate ->
+                    entries
+                    |> Array.tryPick (fun (name, value) ->
+                        if unbox<'T> candidate = value then Some name else None)),
+                (fun name ->
+                    entries
+                    |> Array.tryPick (fun (expectedName, value) ->
+                        if expectedName = name then Some(box value) else None)
+                    |> Option.defaultWith (fun () -> failwithf "Unknown string enum value '%s'" name))
+            )
+        )
+
+    /// Builds a finite string-valued contract while keeping a domain-level
+    /// name available at the call site for readability.
+    let inline stringEnumNamed (_enumName: string) (cases: (string * 'T) list) : Schema<'T> =
+        stringEnum cases
 
     /// A schema for `bool`.
     let bool: Schema<bool> = create (Primitive typeof<bool>)
@@ -362,7 +408,7 @@ module Schema =
             }
         }
 
-    /// Creates a tag with one payload value.
+    /// Creates a tag with a payload value.
     let inline tagWith
         (name: string)
         (project: 'T -> 'Field option)
@@ -395,6 +441,40 @@ module Schema =
     /// Builds an explicit tagged-union schema with custom wire field names.
     let inline unionNamed (discriminatorName: string) (valueName: string) (cases: TaggedCase<'T> list) : Schema<'T> =
         create (Union(discriminatorName, valueName, cases |> List.map _.Untyped |> List.toArray))
+
+    /// Builds an explicit tagged-union schema that inlines payload fields next to the discriminator.
+    let inline inlineUnion (cases: TaggedCase<'T> list) : Schema<'T> =
+        create (InlineUnion("case", cases |> List.map _.Untyped |> List.toArray))
+
+    /// Builds an explicit tagged-union schema with a custom inline discriminator field name.
+    let inline inlineUnionNamed (discriminatorName: string) (cases: TaggedCase<'T> list) : Schema<'T> =
+        create (InlineUnion(discriminatorName, cases |> List.map _.Untyped |> List.toArray))
+
+    /// Creates a message tag with no payload for envelope-style contracts.
+    let inline message (name: string) (value: 'T) (matches: 'T -> bool) : TaggedCase<'T> = tag name value matches
+
+    /// Creates a message tag with a payload for envelope-style contracts.
+    let inline messageWith
+        (name: string)
+        (project: 'T -> 'Field option)
+        (inject: 'Field -> 'T)
+        (schema: Schema<'Field>)
+        : TaggedCase<'T> =
+        tagWith name project inject schema
+
+    /// Builds a message envelope using `type` and `data` as the default field names.
+    let inline envelope (cases: TaggedCase<'T> list) : Schema<'T> = unionNamed "type" "data" cases
+
+    /// Builds a message envelope with custom discriminator and payload field names.
+    let inline envelopeNamed (discriminatorName: string) (valueName: string) (cases: TaggedCase<'T> list) : Schema<'T> =
+        unionNamed discriminatorName valueName cases
+
+    /// Builds an inline message envelope using `type` as the default discriminator field name.
+    let inline inlineEnvelope (cases: TaggedCase<'T> list) : Schema<'T> = inlineUnionNamed "type" cases
+
+    /// Builds an inline message envelope with a custom discriminator field name.
+    let inline inlineEnvelopeNamed (discriminatorName: string) (cases: TaggedCase<'T> list) : Schema<'T> =
+        inlineUnionNamed discriminatorName cases
 
     /// Builds a schema for arbitrary JSON values.
     ///

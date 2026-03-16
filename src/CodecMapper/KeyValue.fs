@@ -179,6 +179,19 @@ module KeyValue =
                                 |> Option.map (fun value -> withPath path (fun () -> parsePrimitive targetType value)))
                         MissingValue = None
                       }
+                    | StringEnum(_, tryGetName, parseName) -> {
+                        Encode =
+                            (fun path value ->
+                                match tryGetName value with
+                                | Some name -> [ keyName options path, name ]
+                                | None ->
+                                    failwithf "No string enum name matched value for type %O" schema.TargetType)
+                        Decode =
+                            (fun path values ->
+                                tryFindValue options path values
+                                |> Option.map (fun name -> withPath path (fun () -> parseName name)))
+                        MissingValue = None
+                      }
                     | Record(_, fields, ctor) ->
                         let compiledFields =
                             fields
@@ -352,6 +365,82 @@ module KeyValue =
                                                 | None ->
                                                     let valuePath = path @ [ valueName ]
                                                     decodeFailure valuePath (sprintf "Missing required key '%s'" (keyName options valuePath)))
+                            MissingValue = None
+                        }
+                    | InlineUnion(discriminatorName, cases) ->
+                        let compiledCases =
+                            cases
+                            |> Array.map (fun case -> {|
+                                Case = case
+                                Codec =
+                                    case.Schema
+                                    |> Option.map (fun payloadSchema ->
+                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                            failwithf
+                                                "Inline union case '%s' payload schema must be object-shaped"
+                                                case.Name
+
+                                        loop payloadSchema)
+                            |})
+
+                        {
+                            Encode =
+                                (fun path value ->
+                                    match
+                                        compiledCases
+                                        |> Array.tryPick (fun compiled ->
+                                            compiled.Case.TryGetValue value
+                                            |> Option.map (fun fieldValue -> compiled, fieldValue))
+                                    with
+                                    | Some(compiled, fieldValue) ->
+                                        let caseKey = keyName options (path @ [ discriminatorName ])
+                                        let caseEntry = [ caseKey, compiled.Case.Name ]
+
+                                        match compiled.Codec with
+                                        | Some codec ->
+                                            let payloadEntries = codec.Encode path fieldValue
+
+                                            if payloadEntries |> List.exists (fun (key, _) -> key = caseKey) then
+                                                failwithf
+                                                    "Inline union case '%s' payload cannot reuse discriminator field '%s'"
+                                                    compiled.Case.Name
+                                                    caseKey
+
+                                            caseEntry @ payloadEntries
+                                        | None -> caseEntry
+                                    | None ->
+                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                            Decode =
+                                (fun path values ->
+                                    match tryFindValue options (path @ [ discriminatorName ]) values with
+                                    | None -> None
+                                    | Some caseName ->
+                                        let caseKey = keyName options (path @ [ discriminatorName ])
+                                        let payloadValues = values |> Map.remove caseKey
+
+                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                        | None -> decodeFailure (path @ [ discriminatorName ]) (sprintf "Unknown union case '%s'" caseName)
+                                        | Some compiled ->
+                                            match compiled.Codec with
+                                            | None ->
+                                                if payloadValues |> Map.isEmpty then
+                                                    Some(compiled.Case.Construct None)
+                                                else
+                                                    decodeFailure
+                                                        path
+                                                        (sprintf
+                                                            "Union case '%s' does not accept payload fields alongside '%s'"
+                                                            caseName
+                                                            caseKey)
+                                            | Some codec ->
+                                                match codec.Decode path payloadValues with
+                                                | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))
+                                                | None ->
+                                                    decodeFailure
+                                                        path
+                                                        (sprintf
+                                                            "Missing required inline payload fields for union case '%s'"
+                                                            caseName))
                             MissingValue = None
                         }
                     | Delay factory -> loop (factory ())

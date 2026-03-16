@@ -17,7 +17,7 @@ let accountSchema =
 [<Fact>]
 let ``Smart-constructor wrapper round-trips JSON`` () =
     let codec = Json.compile accountSchema
-    let value = { Id = UserId 42; Name = "Ada" }
+    let value : Account = { Id = UserId 42; Name = "Ada" }
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
 
@@ -26,7 +26,7 @@ let ``Smart-constructor wrapper round-trips JSON`` () =
 [<Fact>]
 let ``Smart-constructor wrapper round-trips XML`` () =
     let codec = Xml.compile accountSchema
-    let value = { Id = UserId 42; Name = "Ada" }
+    let value : Account = { Id = UserId 42; Name = "Ada" }
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml
 

@@ -6,6 +6,14 @@ This page is for lookup once you already know the authored tagged-union API:
 - `Schema.tagWith`
 - `Schema.union`
 - `Schema.unionNamed`
+- `Schema.inlineUnion`
+- `Schema.inlineUnionNamed`
+- `Schema.message`
+- `Schema.messageWith`
+- `Schema.envelope`
+- `Schema.envelopeNamed`
+- `Schema.inlineEnvelope`
+- `Schema.inlineEnvelopeNamed`
 - `Schema.delay`
 
 It describes the exact wire shapes currently emitted by the built-in codecs.
@@ -145,6 +153,117 @@ kind=failed
 details=boom
 ```
 
+## Inline payload fields with `inlineUnion`
+
+`Schema.inlineUnion` keeps the discriminator field, but merges payload members
+ into the same object level instead of nesting them under a separate payload
+ field.
+
+Example:
+
+```fsharp
+type CreatedData = { Id: int; Name: string }
+type Event =
+    | Ping
+    | Created of CreatedData
+
+let createdDataSchema =
+    define<CreatedData>
+    |> construct (fun id name -> { Id = id; Name = name })
+    |> field "id" _.Id
+    |> field "name" _.Name
+    |> build
+
+let eventSchema =
+    inlineUnion [
+        tag "ping" Ping ((=) Ping)
+        tagWith
+            "created"
+            (function Created payload -> Some payload | _ -> None)
+            Created
+            createdDataSchema
+    ]
+```
+
+JSON:
+
+```json
+{"case":"created","id":7,"name":"Ada"}
+```
+
+XML:
+
+```xml
+<event><case>created</case><id>7</id><name>Ada</name></event>
+```
+
+YAML:
+
+```yaml
+case: created
+id: 7
+name: Ada
+```
+
+KeyValue:
+
+```text
+case=created
+id=7
+name=Ada
+```
+
+Inline payload schemas must be object-shaped so the payload can contribute
+ named members cleanly across all formats. Record schemas are the intended
+ fit here.
+
+## Custom discriminator names with `inlineUnionNamed`
+
+`Schema.inlineUnionNamed discriminatorName` changes only the discriminator
+ field name for the inline shape.
+
+JSON:
+
+```json
+{"kind":"created","id":7,"name":"Ada"}
+```
+
+## Message and envelope helpers
+
+For message and event contracts, the helper names can read more directly than
+ the generic tagged-union names:
+
+- `message` is the same authored tag shape as `tag`
+- `messageWith` is the same authored tag shape as `tagWith`
+- `envelope` uses `"type"` / `"data"` field names by default
+- `inlineEnvelope` uses `"type"` and inlines payload members next to it
+
+Example envelope:
+
+```fsharp
+let eventSchema =
+    envelope [
+        message "ping" Ping ((=) Ping)
+        messageWith
+            "created"
+            (function Created payload -> Some payload | _ -> None)
+            Created
+            createdDataSchema
+    ]
+```
+
+JSON:
+
+```json
+{"type":"created","data":{"id":7,"name":"Ada"}}
+```
+
+Inline envelope JSON:
+
+```json
+{"type":"created","id":7,"name":"Ada"}
+```
+
 ## Recursive unions with `delay`
 
 `Schema.delay` lets a union point back to itself:
@@ -186,6 +305,9 @@ The codecs currently reject:
 - unknown case names
 - missing payload fields for payload cases
 - stray payload keys for payload-free KeyValue cases
+- unknown inline case names
+- missing inline payload fields for payload tags
+- stray inline payload fields for payload-free tags
 
 For KeyValue specifically, the payload-free case check matters because extra flattened keys would otherwise be easy to miss.
 

@@ -829,6 +829,23 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
                         MissingValue = None
                       }
+                    | StringEnum(_, tryGetName, parseName) ->
+                        {
+                            Encode =
+                                (fun w v ->
+                                    match tryGetName v with
+                                    | Some name ->
+                                        w.WriteByte(34uy)
+                                        w.WriteString(name)
+                                        w.WriteByte(34uy)
+                                    | None ->
+                                        failwithf "No string enum name matched value for type %O" schema.TargetType)
+                            Decode =
+                                (fun src ->
+                                    let struct (name, next) = Runtime.stringDecoder src
+                                    struct (parseName name, next))
+                            MissingValue = None
+                        }
                     | RawJsonValue ->
                         let writeEscapedString (writer: IByteWriter) (value: string) =
                             writer.WriteByte(34uy)
@@ -1325,6 +1342,134 @@ module Json =
                                                     struct (compiled.Case.Construct(Some fieldValue), next)
                                                 finally
                                                     writer.Release()
+                                        | None -> failwithf "Unknown union case '%s'" caseName
+                                    | _ -> failwith "Expected union object")
+                            MissingValue = None
+                        }
+                    | InlineUnion(discriminatorName, cases) ->
+                        let compiledCases =
+                            cases
+                            |> Array.map (fun case -> {|
+                                Case = case
+                                Codec =
+                                    case.Schema
+                                    |> Option.map (fun payloadSchema ->
+                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                            failwithf
+                                                "Inline union case '%s' payload schema must be object-shaped"
+                                                case.Name
+
+                                        loop payloadSchema)
+                            |})
+
+                        let rawJsonCodec = loop (Schema.jsonValue :> ISchema)
+
+                        let encodeCaseName (writer: IByteWriter) (name: string) =
+                            writer.WriteByte(34uy)
+                            writer.WriteString(name)
+                            writer.WriteByte(34uy)
+
+                        let encodeInlinePayload (codec: CompiledCodec) (fieldValue: obj) =
+                            let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
+
+                            try
+                                codec.Encode writer fieldValue
+
+                                let struct (rawPayload, rest) = rawJsonCodec.Decode(ByteSource(writer.InternalData, 0))
+                                let rest = Runtime.skipWhitespace rest
+
+                                if rest.Offset <> writer.InternalCount then
+                                    failwith "Inline union payload had trailing JSON content"
+
+                                match unbox<JsonValue> rawPayload with
+                                | JObject properties -> properties
+                                | _ -> failwith "Inline union payload schema must encode as a JSON object"
+                            finally
+                                writer.Release()
+
+                        let decodeInlinePayload (codec: CompiledCodec) (properties: (string * JsonValue) list) =
+                            let payloadObject = JObject properties
+                            let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
+
+                            try
+                                rawJsonCodec.Encode writer (box payloadObject)
+                                let struct (fieldValue, rest) = codec.Decode(ByteSource(writer.InternalData, 0))
+                                let rest = Runtime.skipWhitespace rest
+
+                                if rest.Offset <> writer.InternalCount then
+                                    failwith "Inline union payload had trailing JSON content"
+
+                                fieldValue
+                            finally
+                                writer.Release()
+
+                        {
+                            Encode =
+                                (fun writer value ->
+                                    match
+                                        compiledCases
+                                        |> Array.tryPick (fun compiled ->
+                                            compiled.Case.TryGetValue value
+                                            |> Option.map (fun fieldValue -> compiled, fieldValue))
+                                    with
+                                    | Some(compiled, fieldValue) ->
+                                        let payloadProperties =
+                                            match compiled.Codec with
+                                            | Some codec -> encodeInlinePayload codec fieldValue
+                                            | None -> []
+
+                                        writer.WriteByte(123uy)
+                                        encodeCaseName writer discriminatorName
+                                        writer.WriteByte(58uy)
+                                        encodeCaseName writer compiled.Case.Name
+
+                                        for propertyName, propertyValue in payloadProperties do
+                                            if propertyName = discriminatorName then
+                                                failwithf
+                                                    "Inline union case '%s' payload cannot reuse discriminator field '%s'"
+                                                    compiled.Case.Name
+                                                    discriminatorName
+
+                                            writer.WriteByte(44uy)
+                                            encodeCaseName writer propertyName
+                                            writer.WriteByte(58uy)
+                                            rawJsonCodec.Encode writer (box propertyValue)
+
+                                        writer.WriteByte(125uy)
+                                    | None ->
+                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                            Decode =
+                                (fun src ->
+                                    let struct (rawValue, next) = Runtime.jsonValueDecoder src
+
+                                    match rawValue with
+                                    | JObject properties ->
+                                        let tryFind name =
+                                            properties |> List.tryFind (fun (key, _) -> key = name) |> Option.map snd
+
+                                        let caseName =
+                                            match tryFind discriminatorName with
+                                            | Some(JString value) -> value
+                                            | Some _ -> failwithf "Union discriminator '%s' must be a string" discriminatorName
+                                            | None -> failwithf "Missing union discriminator '%s'" discriminatorName
+
+                                        let payloadProperties =
+                                            properties |> List.filter (fun (key, _) -> key <> discriminatorName)
+
+                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                        | Some compiled ->
+                                            match compiled.Codec with
+                                            | None ->
+                                                if List.isEmpty payloadProperties then
+                                                    struct (compiled.Case.Construct None, next)
+                                                else
+                                                    failwithf
+                                                        "Union case '%s' does not accept payload fields alongside '%s'"
+                                                        caseName
+                                                        discriminatorName
+                                            | Some codec ->
+                                                let fieldValue = decodeInlinePayload codec payloadProperties
+                                                struct (compiled.Case.Construct(Some fieldValue), next)
                                         | None -> failwithf "Unknown union case '%s'" caseName
                                     | _ -> failwith "Expected union object")
                             MissingValue = None

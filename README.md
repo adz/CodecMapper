@@ -46,7 +46,7 @@ That is the core model of the library:
 - encode and decode come from the same definition
 - contract changes stay visible in one place
 
-That same authored path also covers explicit tagged unions and recursive case trees through `Schema.union`, `Schema.unionNamed`, and `Schema.delay`.
+That same authored path also covers explicit tagged unions, string-valued enums, message envelopes, and recursive case trees through `Schema.union`, `Schema.inlineUnion`, `Schema.envelope`, `Schema.stringEnum`, and `Schema.delay`.
 
 ## Why use it
 

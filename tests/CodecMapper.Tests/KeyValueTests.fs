@@ -97,7 +97,7 @@ let ``KeyValue supports env-style key naming through options`` () =
 [<Fact>]
 let ``KeyValue preserves validated wrapper mappings through scalar leaves`` () =
     let codec = KeyValue.compile accountSchema
-    let value = { Id = UserId 7; Name = "Ada" }
+    let value : Account = { Id = UserId 7; Name = "Ada" }
 
     let encoded = KeyValue.serialize codec value
     let decoded = KeyValue.deserialize codec encoded

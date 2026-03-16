@@ -128,6 +128,11 @@ module JsonSchema =
         else
             schemaObject (allProperties @ [ "required", stringArray required ])
 
+    let private expectObjectContract context (node: JsonValue) =
+        match node with
+        | JObject properties -> properties
+        | _ -> failwithf "Inline union payload schema for %O must export as an object contract" context
+
     let private primitiveNode typeName = schemaObject [ "type", JString typeName ]
 
     let rec private exportSchema (context: ExportContext) (isRoot: bool) (schema: ISchema) : JsonValue =
@@ -142,6 +147,11 @@ module JsonSchema =
         | Primitive targetType when targetType = typeof<System.DateTimeOffset> -> primitiveNode "string"
         | Primitive targetType when targetType = typeof<System.TimeSpan> -> primitiveNode "string"
         | Primitive _ -> primitiveNode "integer"
+        | StringEnum(names, _, _) ->
+            schemaObject [
+                "type", JString "string"
+                "enum", stringArray (Array.toList names)
+            ]
         | List innerSchema
         | Array innerSchema ->
             schemaObject [
@@ -205,6 +215,54 @@ module JsonSchema =
                         match case.Schema with
                         | Some payloadSchema ->
                             baseProperties @ [ valueName, exportSchema context false payloadSchema ], baseRequired @ [ valueName ]
+                        | None -> baseProperties, baseRequired
+
+                    objectNode None properties required)
+                |> Array.toList
+
+            schemaObject [ "oneOf", JArray caseNodes ]
+        | InlineUnion(discriminatorName, cases) ->
+            let caseNodes =
+                cases
+                |> Array.map (fun case ->
+                    let baseProperties = [ discriminatorName, schemaObject [ "const", JString case.Name ] ]
+                    let baseRequired = [ discriminatorName ]
+
+                    let properties, required =
+                        match case.Schema with
+                        | Some payloadSchema ->
+                            if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                failwithf
+                                    "Inline union case '%s' payload schema must be object-shaped"
+                                    case.Name
+
+                            let payloadContract = expectObjectContract payloadSchema.TargetType (exportSchema context false payloadSchema)
+
+                            let mergedProperties =
+                                match payloadContract |> List.tryFind (fun (name, _) -> name = "properties") with
+                                | Some(_, JObject properties) ->
+                                    properties
+                                    |> List.filter (fun (name, _) ->
+                                        if name = discriminatorName then
+                                            failwithf
+                                                "Inline union case '%s' payload cannot reuse discriminator field '%s'"
+                                                case.Name
+                                                discriminatorName
+
+                                        true)
+                                | _ ->
+                                    failwithf "Inline union payload schema for %O must export named object properties" payloadSchema.TargetType
+
+                            let mergedRequired =
+                                match payloadContract |> List.tryFind (fun (name, _) -> name = "required") with
+                                | Some(_, JArray values) ->
+                                    values
+                                    |> List.choose (function
+                                        | JString value -> Some value
+                                        | _ -> None)
+                                | _ -> []
+
+                            baseProperties @ mergedProperties, baseRequired @ mergedRequired
                         | None -> baseProperties, baseRequired
 
                     objectNode None properties required)

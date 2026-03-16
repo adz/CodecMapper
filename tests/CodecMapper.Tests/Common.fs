@@ -108,6 +108,21 @@ module Domain =
     type IdOnly = { Id: int }
     let makeIdOnly id = { Id = id }
 
+    type CreatedData = { Id: int; Name: string }
+    let makeCreatedData id name = { Id = id; Name = name }
+
+    type Event =
+        | Ping
+        | Created of CreatedData
+
+    type Mode =
+        | Strict
+        | Lenient
+        | Off
+
+    type ModeConfig = { Mode: Mode }
+    let makeModeConfig mode = { Mode = mode }
+
     type LargeRecord = {
         F1: int
         F2: int
