@@ -1,3 +1,5 @@
+#nowarn "40"
+
 module JsonSchemaTests
 
 open Xunit

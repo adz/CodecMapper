@@ -1,5 +1,7 @@
 namespace CodecMapper.CompatibilitySentinel
 
+#nowarn "40"
+
 open System
 open System.Collections.Generic
 open CodecMapper

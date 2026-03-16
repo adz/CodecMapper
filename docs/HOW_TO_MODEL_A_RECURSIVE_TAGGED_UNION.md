@@ -40,6 +40,8 @@ let rec nodeSchema : Schema<RecursiveNode> =
 
 `delay` is the recursive anchor. Without it, the schema would try to construct itself immediately and never finish.
 
+F# may warn about recursive object initialization (`FS0040`) when you author a recursive schema value with `let rec`. That warning is expected for this pattern. `Schema.delay` is the part that keeps the schema construction itself well-founded.
+
 ## Compile once and reuse across formats
 
 ```fsharp
