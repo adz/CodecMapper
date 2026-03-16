@@ -306,29 +306,6 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
     test <@ Yaml.deserialize yamlCodec yaml = value @>
 
 [<Fact>]
-let ``Recursive tagged unions fail clearly for KeyValue`` () =
-    let rec nodeSchema : Schema<RecursiveNode> =
-        Schema.delay (fun () ->
-            Schema.union [
-                Schema.case1
-                    "leaf"
-                    (function
-                    | Leaf value -> Some value
-                    | _ -> None)
-                    Leaf
-                    Schema.string
-                Schema.case1
-                    "branch"
-                    (function
-                    | Branch value -> Some value
-                    | _ -> None)
-                    Branch
-                    nodeSchema
-            ])
-
-    expectFailure "tagged unions or recursive delayed schemas" (fun () -> KeyValue.compile nodeSchema |> ignore)
-
-[<Fact>]
 let ``Pipeline DSL can use opened Schema module at file scope`` () =
     let addressSchema =
         define<Address>

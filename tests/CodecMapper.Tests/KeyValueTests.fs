@@ -123,3 +123,41 @@ let ``KeyValue rejects collection schemas that do not flatten deterministically`
         Assert.Throws<System.Exception>(fun () -> KeyValue.compile listSchema |> ignore)
 
     test <@ error.Message.Contains("flattened record and scalar schemas") @>
+
+[<Fact>]
+let ``KeyValue round-trips recursive tagged unions with flattened discriminator paths`` () =
+    let rec nodeSchema : Schema<RecursiveNode> =
+        Schema.delay (fun () ->
+            Schema.union [
+                Schema.case1
+                    "leaf"
+                    (function
+                    | Leaf value -> Some value
+                    | _ -> None)
+                    Leaf
+                    Schema.string
+                Schema.case1
+                    "branch"
+                    (function
+                    | Branch value -> Some value
+                    | _ -> None)
+                    Branch
+                    nodeSchema
+            ])
+
+    let codec = KeyValue.compile nodeSchema
+    let value = Branch(Branch(Leaf "ok"))
+
+    let encoded = KeyValue.serialize codec value
+    let decoded = KeyValue.deserialize codec encoded
+
+    let expected =
+        Map.ofList [
+            "case", "branch"
+            "value.case", "branch"
+            "value.value.case", "leaf"
+            "value.value.value", "ok"
+        ]
+
+    test <@ encoded = expected @>
+    test <@ decoded = value @>

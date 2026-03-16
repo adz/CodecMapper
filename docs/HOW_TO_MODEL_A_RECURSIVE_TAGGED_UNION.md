@@ -1,6 +1,6 @@
 # How To Model A Recursive Tagged Union
 
-Use `Schema.union` when the JSON/XML/YAML wire shape should be an explicit tagged object, and use `Schema.delay` when one of those cases needs to recurse back to the same schema.
+Use `Schema.union` when the JSON/XML/YAML/KeyValue wire shape should be an explicit tagged contract, and use `Schema.delay` when one of those cases needs to recurse back to the same schema.
 
 This is the authored-schema path for recursive tree-like contracts. The wire contract stays explicit:
 
@@ -46,18 +46,29 @@ let rec nodeSchema : Schema<RecursiveNode> =
 let jsonCodec = Json.compile nodeSchema
 let xmlCodec = Xml.compile nodeSchema
 let yamlCodec = Yaml.compile nodeSchema
+let keyValueCodec = KeyValue.compile nodeSchema
 
 let value = Branch(Branch(Leaf "ok"))
 
 let json = Json.serialize jsonCodec value
 let xml = Xml.serialize xmlCodec value
 let yaml = Yaml.serialize yamlCodec value
+let keyValues = KeyValue.serialize keyValueCodec value
 ```
 
 For the value above, JSON uses the default wire field names:
 
 ```json
 {"case":"branch","value":{"case":"branch","value":{"case":"leaf","value":"ok"}}}
+```
+
+KeyValue flattens the same authored shape into dotted paths:
+
+```text
+case=branch
+value.case=branch
+value.value.case=leaf
+value.value.value=ok
 ```
 
 ## Choose the case helpers deliberately
@@ -100,9 +111,6 @@ Recursive tagged unions currently compile for:
 - JSON
 - XML
 - YAML
-
-They currently do not compile for:
-
 - KeyValue
 
-`JsonSchema.generate` can now export these authored tagged unions, including recursive shapes, using `oneOf`, `const`, and local `$defs` / `$ref`.
+`JsonSchema.generate` can also export these authored tagged unions, including recursive shapes, using `oneOf`, `const`, and local `$defs` / `$ref`.

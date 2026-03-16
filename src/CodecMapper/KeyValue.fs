@@ -3,6 +3,7 @@ namespace CodecMapper
 open System.Text
 open System.Collections.Generic
 open System.Globalization
+open System.Runtime.CompilerServices
 open Microsoft.FSharp.Reflection
 
 /// Flat `string,string` contract projection for config-style schemas.
@@ -137,153 +138,227 @@ module KeyValue =
         else
             failwithf "KeyValue does not support primitive type %O" targetType
 
-    let rec private compileUntyped (options: Options) (schema: ISchema) : CompiledCodec =
-        match schema.Definition with
-        | Primitive targetType -> {
-            Encode = (fun path value -> [ keyName options path, formatPrimitive targetType value ])
-            Decode =
-                (fun path values ->
-                    tryFindValue options path values
-                    |> Option.map (fun value -> withPath path (fun () -> parsePrimitive targetType value)))
-            MissingValue = None
-          }
-        | Record(_, fields, ctor) ->
-            let compiledFields =
-                fields
-                |> Array.mapi (fun index field -> {|
-                    Index = index
-                    Field = field
-                    Codec = compileUntyped options field.Schema
-                |})
+    type private SchemaRefComparer() =
+        interface IEqualityComparer<ISchema> with
+            member _.Equals(left, right) = obj.ReferenceEquals(left, right)
+            member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
-            {
-                Encode =
-                    (fun path value ->
-                        compiledFields
-                        |> Array.toList
-                        |> List.collect (fun field ->
-                            field.Codec.Encode (path @ [ field.Field.Name ]) (field.Field.GetValue value)))
-                Decode =
-                    (fun path values ->
-                        let decodedFields =
-                            compiledFields
-                            |> Array.map (fun field -> field, field.Codec.Decode (path @ [ field.Field.Name ]) values)
+    let private compileUntyped (options: Options) (rootSchema: ISchema) : CompiledCodec =
+        let cache = Dictionary<ISchema, CompiledCodec>(SchemaRefComparer())
 
-                        if decodedFields |> Array.forall (fun (_, decoded) -> decoded.IsNone) then
-                            None
-                        else
-                            let args =
-                                decodedFields
-                                |> Array.map (fun (field, decoded) ->
-                                    match decoded with
-                                    | Some value -> value
-                                    | None ->
-                                        match field.Codec.MissingValue with
-                                        | Some value -> value
-                                        | None ->
-                                            let fieldPath = path @ [ field.Field.Name ]
+        let rec loop (schema: ISchema) : CompiledCodec =
+            match cache.TryGetValue(schema) with
+            | true, codec -> codec
+            | false, _ ->
+                let mutable encodeImpl = Unchecked.defaultof<string list -> obj -> (string * string) list>
+                let mutable decodeImpl = Unchecked.defaultof<string list -> Map<string, string> -> obj option>
+                let mutable missingValueImpl = None
 
-                                            decodeFailure
-                                                fieldPath
-                                                (sprintf "Missing required key '%s'" (keyName options fieldPath)))
-
-                            Some(ctor args))
-                MissingValue = None
-            }
-        | Option innerSchema ->
-            let innerCodec = compileUntyped options innerSchema
-            let optionType = schema.TargetType
-
-            {
-                Encode =
-                    (fun path value ->
-                        if isNull value then
-                            []
-                        else
-                            let _, fields = FSharpValue.GetUnionFields(value, optionType)
-                            innerCodec.Encode path fields[0])
-                Decode =
-                    (fun path values ->
-                        match innerCodec.Decode path values with
-                        | Some value -> Some(Xml.Runtime.makeOptionSome optionType value)
-                        | None -> Some(Xml.Runtime.makeOptionNone optionType))
-                MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
-            }
-        | MissingAsNone innerSchema ->
-            let innerCodec = compileUntyped options innerSchema
-            let optionType = schema.TargetType
-
-            {
-                Encode = innerCodec.Encode
-                Decode = innerCodec.Decode
-                MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
-            }
-        | MissingAsValue(defaultValue, innerSchema) ->
-            let innerCodec = compileUntyped options innerSchema
-
-            {
-                Encode = innerCodec.Encode
-                Decode = innerCodec.Decode
-                MissingValue = Some defaultValue
-            }
-        | NullAsValue(defaultValue, innerSchema) ->
-            let innerCodec = compileUntyped options innerSchema
-
-            {
-                Encode = innerCodec.Encode
-                Decode =
-                    (fun path values ->
-                        //
-                        // KeyValue has no distinct null token, so the policy only
-                        // applies when callers choose the literal "null" sentinel.
-                        match tryFindValue options path values with
-                        | Some "null" -> Some defaultValue
-                        | Some _ -> innerCodec.Decode path values
-                        | None -> innerCodec.Decode path values)
-                MissingValue = innerCodec.MissingValue
-            }
-        | EmptyCollectionAsValue(_, innerSchema) ->
-            //
-            // Flat key/value payloads do not support collection shapes, so this
-            // wrapper delegates to the underlying schema until that changes.
-            compileUntyped
-                options
-                { new ISchema with
-                    member _.TargetType = innerSchema.TargetType
-                    member _.Definition = innerSchema.Definition
+                let placeholder = {
+                    Encode = (fun path value -> encodeImpl path value)
+                    Decode = (fun path values -> decodeImpl path values)
+                    MissingValue = None
                 }
-        | EmptyStringAsNone innerSchema ->
-            let innerCodec = compileUntyped options innerSchema
-            let optionType = schema.TargetType
-            let noneValue = Xml.Runtime.makeOptionNone optionType
 
-            {
-                Encode = innerCodec.Encode
-                Decode =
-                    (fun path values ->
-                        match tryFindValue options path values with
-                        | Some "" -> Some noneValue
-                        | _ -> innerCodec.Decode path values)
-                MissingValue = innerCodec.MissingValue
-            }
-        | Map(innerSchema, wrap, unwrap) ->
-            let innerCodec = compileUntyped options innerSchema
+                cache[schema] <- placeholder
 
-            {
-                Encode = (fun path value -> innerCodec.Encode path (unwrap value))
-                Decode =
-                    (fun path values ->
-                        innerCodec.Decode path values
-                        |> Option.map (fun value -> withValidationContext path (fun () -> wrap value)))
-                MissingValue = innerCodec.MissingValue |> Option.map wrap
-            }
-        | Union _
-        | Delay _ ->
-            failwithf "KeyValue does not support tagged unions or recursive delayed schemas, got %O" schema.Definition
-        | List _
-        | Array _
-        | RawJsonValue ->
-            failwithf "KeyValue only supports flattened record and scalar schemas, got %O" schema.Definition
+                let compiled =
+                    match schema.Definition with
+                    | Primitive targetType -> {
+                        Encode = (fun path value -> [ keyName options path, formatPrimitive targetType value ])
+                        Decode =
+                            (fun path values ->
+                                tryFindValue options path values
+                                |> Option.map (fun value -> withPath path (fun () -> parsePrimitive targetType value)))
+                        MissingValue = None
+                      }
+                    | Record(_, fields, ctor) ->
+                        let compiledFields =
+                            fields
+                            |> Array.mapi (fun index field -> {|
+                                Index = index
+                                Field = field
+                                Codec = loop field.Schema
+                            |})
+
+                        {
+                            Encode =
+                                (fun path value ->
+                                    compiledFields
+                                    |> Array.toList
+                                    |> List.collect (fun field ->
+                                        field.Codec.Encode (path @ [ field.Field.Name ]) (field.Field.GetValue value)))
+                            Decode =
+                                (fun path values ->
+                                    let decodedFields =
+                                        compiledFields
+                                        |> Array.map (fun field -> field, field.Codec.Decode (path @ [ field.Field.Name ]) values)
+
+                                    if decodedFields |> Array.forall (fun (_, decoded) -> decoded.IsNone) then
+                                        None
+                                    else
+                                        let args =
+                                            decodedFields
+                                            |> Array.map (fun (field, decoded) ->
+                                                match decoded with
+                                                | Some value -> value
+                                                | None ->
+                                                    match field.Codec.MissingValue with
+                                                    | Some value -> value
+                                                    | None ->
+                                                        let fieldPath = path @ [ field.Field.Name ]
+
+                                                        decodeFailure
+                                                            fieldPath
+                                                            (sprintf "Missing required key '%s'" (keyName options fieldPath)))
+
+                                        Some(ctor args))
+                            MissingValue = None
+                        }
+                    | Option innerSchema ->
+                        let innerCodec = loop innerSchema
+                        let optionType = schema.TargetType
+
+                        {
+                            Encode =
+                                (fun path value ->
+                                    if isNull value then
+                                        []
+                                    else
+                                        let _, fields = FSharpValue.GetUnionFields(value, optionType)
+                                        innerCodec.Encode path fields[0])
+                            Decode =
+                                (fun path values ->
+                                    match innerCodec.Decode path values with
+                                    | Some value -> Some(Xml.Runtime.makeOptionSome optionType value)
+                                    | None -> Some(Xml.Runtime.makeOptionNone optionType))
+                            MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
+                        }
+                    | MissingAsNone innerSchema ->
+                        let innerCodec = loop innerSchema
+                        let optionType = schema.TargetType
+
+                        {
+                            Encode = innerCodec.Encode
+                            Decode = innerCodec.Decode
+                            MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
+                        }
+                    | MissingAsValue(defaultValue, innerSchema) ->
+                        let innerCodec = loop innerSchema
+
+                        {
+                            Encode = innerCodec.Encode
+                            Decode = innerCodec.Decode
+                            MissingValue = Some defaultValue
+                        }
+                    | NullAsValue(defaultValue, innerSchema) ->
+                        let innerCodec = loop innerSchema
+
+                        {
+                            Encode = innerCodec.Encode
+                            Decode =
+                                (fun path values ->
+                                    match tryFindValue options path values with
+                                    | Some "null" -> Some defaultValue
+                                    | Some _ -> innerCodec.Decode path values
+                                    | None -> innerCodec.Decode path values)
+                            MissingValue = innerCodec.MissingValue
+                        }
+                    | EmptyCollectionAsValue(_, innerSchema) ->
+                        loop
+                            { new ISchema with
+                                member _.TargetType = innerSchema.TargetType
+                                member _.Definition = innerSchema.Definition
+                            }
+                    | EmptyStringAsNone innerSchema ->
+                        let innerCodec = loop innerSchema
+                        let optionType = schema.TargetType
+                        let noneValue = Xml.Runtime.makeOptionNone optionType
+
+                        {
+                            Encode = innerCodec.Encode
+                            Decode =
+                                (fun path values ->
+                                    match tryFindValue options path values with
+                                    | Some "" -> Some noneValue
+                                    | _ -> innerCodec.Decode path values)
+                            MissingValue = innerCodec.MissingValue
+                        }
+                    | Map(innerSchema, wrap, unwrap) ->
+                        let innerCodec = loop innerSchema
+
+                        {
+                            Encode = (fun path value -> innerCodec.Encode path (unwrap value))
+                            Decode =
+                                (fun path values ->
+                                    innerCodec.Decode path values
+                                    |> Option.map (fun value -> withValidationContext path (fun () -> wrap value)))
+                            MissingValue = innerCodec.MissingValue |> Option.map wrap
+                        }
+                    | Union(discriminatorName, valueName, cases) ->
+                        let compiledCases =
+                            cases
+                            |> Array.map (fun case -> {|
+                                Case = case
+                                Codec = case.Schema |> Option.map loop
+                            |})
+
+                        {
+                            Encode =
+                                (fun path value ->
+                                    match
+                                        compiledCases
+                                        |> Array.tryPick (fun compiled ->
+                                            compiled.Case.TryGetValue value
+                                            |> Option.map (fun fieldValue -> compiled, fieldValue))
+                                    with
+                                    | Some(compiled, fieldValue) ->
+                                        let caseEntries =
+                                            [ keyName options (path @ [ discriminatorName ]), compiled.Case.Name ]
+
+                                        match compiled.Codec with
+                                        | Some codec -> caseEntries @ codec.Encode (path @ [ valueName ]) fieldValue
+                                        | None -> caseEntries
+                                    | None ->
+                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                            Decode =
+                                (fun path values ->
+                                    match tryFindValue options (path @ [ discriminatorName ]) values with
+                                    | None -> None
+                                    | Some caseName ->
+                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                        | None -> decodeFailure (path @ [ discriminatorName ]) (sprintf "Unknown union case '%s'" caseName)
+                                        | Some compiled ->
+                                            match compiled.Codec with
+                                            | None -> Some(compiled.Case.Construct None)
+                                            | Some codec ->
+                                                match codec.Decode (path @ [ valueName ]) values with
+                                                | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))
+                                                | None ->
+                                                    let valuePath = path @ [ valueName ]
+                                                    decodeFailure valuePath (sprintf "Missing required key '%s'" (keyName options valuePath)))
+                            MissingValue = None
+                        }
+                    | Delay factory -> loop (factory ())
+                    | List _
+                    | Array _
+                    | RawJsonValue ->
+                        failwithf "KeyValue only supports flattened record and scalar schemas, got %O" schema.Definition
+
+                encodeImpl <- compiled.Encode
+                decodeImpl <- compiled.Decode
+                missingValueImpl <- compiled.MissingValue
+
+                let finalized = {
+                    Encode = (fun path value -> encodeImpl path value)
+                    Decode = (fun path values -> decodeImpl path values)
+                    MissingValue = missingValueImpl
+                }
+
+                cache[schema] <- finalized
+                finalized
+
+        loop rootSchema
 
     /// Compiles a schema into a reusable flat key/value codec using explicit options.
     let compileUsing (options: Options) (schema: Schema<'T>) : Codec<'T> =
