@@ -20,6 +20,8 @@ Those are related, but they are not the same workflow and they do not target the
 - objects with `properties`
 - object `required`
 - nullable values via `anyOf [inner, null]`
+- authored tagged unions via `oneOf` plus per-case `const` discriminators
+- recursive authored schemas via local `$defs` / `$ref` when recursion is anchored with `Schema.delay`
 
 These `Schema` features map directly:
 
@@ -30,6 +32,8 @@ These `Schema` features map directly:
 - `Schema.list inner`, `Schema.array inner` -> `array`
 - record schemas -> `object`
 - `Schema.option inner` -> `anyOf [inner, null]`
+- `Schema.union ...` -> `oneOf` of object branches with explicit discriminator constants
+- `Schema.delay ...` -> local `$defs` / `$ref` when a recursive export needs a reusable anchor
 - `Schema.missingAsNone` -> omit that property from the enclosing object's `required`
 - `Schema.map`, `Schema.tryMap` -> the underlying wire shape
 
@@ -42,8 +46,7 @@ These `Schema` features map directly:
 - object constraints such as `additionalProperties`, `patternProperties`, `propertyNames`
 - array constraints such as `prefixItems`, `contains`, `minItems`, `maxItems`, `uniqueItems`
 - `enum`, `const`
-- `$defs`, `$ref`
-- `oneOf`, `allOf`, conditional keywords, or discriminator-style composition beyond nullable option shapes
+- `allOf`, conditional keywords, or validator-style composition beyond the authored structural cases above
 
 ## Import model for external JSON Schema
 
@@ -150,7 +153,7 @@ These shapes do not fit the normal `Schema<'T>` model directly:
 - arbitrary-key objects
 - `patternProperties`
 - heterogeneous tuple arrays
-- recursive schemas
+- arbitrary external recursive schemas that do not already have one explicit authored parse shape
 - ambiguous unions without a deterministic discriminator
 - composition that must be normalized before a single parse shape is known
 

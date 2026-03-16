@@ -19,6 +19,7 @@ Recommended order after that:
 2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
 4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 ## How-To Guides
 
@@ -34,6 +35,8 @@ How-to guides are for goal-oriented tasks.
   Use `Schema.tryMap` for smart-constructor domain types.
 - [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
   Add an explicit version envelope for evolving messages and config.
+- [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
+  Use `Schema.union` and `Schema.delay` for explicit recursive case trees.
 - [Configuration As An Explicit Contract](CONFIG_CONTRACTS.md)
   Model versioned application configuration in JSON, YAML, XML, or key/value form.
 - [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md)

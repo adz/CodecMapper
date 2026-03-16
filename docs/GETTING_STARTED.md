@@ -131,6 +131,7 @@ Take the next pages in this order:
 2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
 4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 Once the authored-schema path is clear:
 

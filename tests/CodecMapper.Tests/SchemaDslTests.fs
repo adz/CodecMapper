@@ -268,6 +268,67 @@ let ``Round-trip using typed pipeline with 20 fields`` () =
     test <@ decoded = value @>
 
 [<Fact>]
+let ``Recursive tagged union round-trips JSON XML and YAML`` () =
+    let rec nodeSchema : Schema<RecursiveNode> =
+        Schema.delay (fun () ->
+            Schema.union [
+                Schema.case1
+                    "leaf"
+                    (function
+                    | Leaf value -> Some value
+                    | _ -> None)
+                    Leaf
+                    Schema.string
+                Schema.case1
+                    "branch"
+                    (function
+                    | Branch value -> Some value
+                    | _ -> None)
+                    Branch
+                    nodeSchema
+            ])
+
+    let value = Branch(Branch(Leaf "ok"))
+    let jsonCodec = Json.compile nodeSchema
+    let xmlCodec = Xml.compile nodeSchema
+    let yamlCodec = Yaml.compile nodeSchema
+
+    let json = Json.serialize jsonCodec value
+    let xml = Xml.serialize xmlCodec value
+    let yaml = Yaml.serialize yamlCodec value
+
+    test <@ json = """{"case":"branch","value":{"case":"branch","value":{"case":"leaf","value":"ok"}}}""" @>
+
+    test <@ xml = "<recursivenode><case>branch</case><value><case>branch</case><value><case>leaf</case><value>ok</value></value></value></recursivenode>" @>
+
+    test <@ Json.deserialize jsonCodec json = value @>
+    test <@ Xml.deserialize xmlCodec xml = value @>
+    test <@ Yaml.deserialize yamlCodec yaml = value @>
+
+[<Fact>]
+let ``Recursive tagged unions fail clearly for KeyValue`` () =
+    let rec nodeSchema : Schema<RecursiveNode> =
+        Schema.delay (fun () ->
+            Schema.union [
+                Schema.case1
+                    "leaf"
+                    (function
+                    | Leaf value -> Some value
+                    | _ -> None)
+                    Leaf
+                    Schema.string
+                Schema.case1
+                    "branch"
+                    (function
+                    | Branch value -> Some value
+                    | _ -> None)
+                    Branch
+                    nodeSchema
+            ])
+
+    expectFailure "tagged unions or recursive delayed schemas" (fun () -> KeyValue.compile nodeSchema |> ignore)
+
+[<Fact>]
 let ``Pipeline DSL can use opened Schema module at file scope`` () =
     let addressSchema =
         define<Address>

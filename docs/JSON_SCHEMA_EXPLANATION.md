@@ -56,8 +56,8 @@ Some JSON Schemas do not describe one deterministic parse shape. Those cases nee
 
 - dynamic-key objects
 - tuple arrays
-- recursive schemas
-- ambiguous unions
+- external recursive schemas that are not already authored through one explicit `Schema.delay` anchor
+- ambiguous unions without one explicit discriminator contract
 - composition that needs normalization before parsing
 
 For those cases, the intended direction is:
@@ -79,6 +79,8 @@ They do not lower cleanly into the normal authored `Schema<'T>` record/list mode
 3. letting you refine the accepted raw value further if you need stronger domain types
 
 That is why the advanced JSON Schema importer lives alongside the normal schema DSL instead of replacing it. For contracts you control, prefer explicit authored schemas. For external contracts with dynamic or branch-selected shapes, use the importer and treat the result as an advanced receive-side boundary.
+
+Authored tagged unions are the main exception on the export side: when you model the discriminator explicitly with `Schema.union`, `CodecMapper` can export that authored shape as `oneOf` with `const` case markers. If the authored contract is recursive and anchored with `Schema.delay`, the exporter can also publish local `$defs` / `$ref` links for that same deterministic shape.
 
 For now, keywords such as `dependentSchemas`, `not`, and recursive-schema shapes stay explicitly outside the lowered authored-schema subset. They are reported as fallback or unsupported areas rather than being partially modeled.
 

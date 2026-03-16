@@ -19,6 +19,7 @@ Recommended learning order:
 2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
 4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 Quick jump list:
 
@@ -26,6 +27,7 @@ Quick jump list:
 - [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 - [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
 - [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+- [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 ## Related Guides
 

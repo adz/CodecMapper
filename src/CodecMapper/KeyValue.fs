@@ -277,6 +277,9 @@ module KeyValue =
                         |> Option.map (fun value -> withValidationContext path (fun () -> wrap value)))
                 MissingValue = innerCodec.MissingValue |> Option.map wrap
             }
+        | Union _
+        | Delay _ ->
+            failwithf "KeyValue does not support tagged unions or recursive delayed schemas, got %O" schema.Definition
         | List _
         | Array _
         | RawJsonValue ->

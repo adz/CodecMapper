@@ -78,9 +78,64 @@ If you use `Schema.missingAsNone` inside a record field, the field is removed fr
 - arrays
 - objects with properties and required fields
 - nullable option shapes
+- authored tagged unions as `oneOf` object branches with `const` discriminators
+- recursive authored schemas through local `$defs` / `$ref` when the recursion is anchored with `Schema.delay`
 - mapped wrapper types as their underlying wire form
 
 It does not infer extra validation keywords from smart constructors or arbitrary business rules. If your type enforces domain constraints through `Schema.tryMap`, keep doing that on decode; the exported JSON Schema remains the structural contract.
+
+## Export authored tagged unions
+
+`Schema.union` exports as a discriminated `oneOf` contract:
+
+```fsharp
+type Status =
+    | Pending
+    | Failed of string
+
+let statusSchema =
+    Schema.union [
+        Schema.case0 "pending" Pending ((=) Pending)
+        Schema.case1
+            "failed"
+            (function Failed message -> Some message | _ -> None)
+            Failed
+            Schema.string
+    ]
+
+let schemaText = JsonSchema.generate statusSchema
+```
+
+That exported schema uses one branch per case, with a `const` discriminator for the case name.
+
+## Export recursive authored schemas
+
+When recursion is authored explicitly with `Schema.delay`, `JsonSchema.generate` exports a local definition and references it from recursive branches:
+
+```fsharp
+type RecursiveNode =
+    | Leaf of string
+    | Branch of RecursiveNode
+
+let rec nodeSchema : Schema<RecursiveNode> =
+    Schema.delay (fun () ->
+        Schema.union [
+            Schema.case1
+                "leaf"
+                (function Leaf value -> Some value | _ -> None)
+                Leaf
+                Schema.string
+            Schema.case1
+                "branch"
+                (function Branch value -> Some value | _ -> None)
+                Branch
+                nodeSchema
+        ])
+
+let schemaText = JsonSchema.generate nodeSchema
+```
+
+The exported document uses local `$defs` / `$ref` rather than unrolling the recursive shape inline.
 
 ## Use the raw fallback for non-deterministic imported shapes
 

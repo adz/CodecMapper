@@ -18,24 +18,33 @@ type JsonValue =
     | JArray of JsonValue list
     | JObject of (string * JsonValue) list
 
+/// Erased schema abstraction used internally and by advanced integrations.
+///
+/// Most callers should stay on `Schema<'T>`, but codecs and bridges compile
+/// against this untyped representation.
+type ISchema =
+    abstract member TargetType: System.Type
+    abstract member Definition: SchemaDefinition
+
 /// Captures one named field inside a record schema.
 ///
 /// A `SchemaField` binds the wire name, CLR type, getter, and nested schema
 /// for a single record member.
-type SchemaField = {
+and SchemaField = {
     Name: string
     Type: System.Type
     GetValue: obj -> obj
     Schema: ISchema
 }
 
-/// Erased schema abstraction used internally and by advanced integrations.
-///
-/// Most callers should stay on `Schema<'T>`, but codecs and bridges compile
-/// against this untyped representation.
-and ISchema =
-    abstract member TargetType: System.Type
-    abstract member Definition: SchemaDefinition
+/// Captures one case inside an explicit tagged-union schema.
+and SchemaUnionCase = {
+    Name: string
+    FieldType: System.Type option
+    Schema: ISchema option
+    TryGetValue: obj -> obj option
+    Construct: obj option -> obj
+}
 
 /// The structural schema shapes understood by the compiler backends.
 and SchemaDefinition =
@@ -44,6 +53,8 @@ and SchemaDefinition =
     | List of ISchema
     | Array of ISchema
     | Option of ISchema
+    | Union of discriminatorName: string * valueName: string * SchemaUnionCase[]
+    | Delay of (unit -> ISchema)
     | MissingAsNone of ISchema
     | MissingAsValue of obj * ISchema
     | NullAsValue of obj * ISchema
@@ -327,6 +338,63 @@ module Schema =
     /// The default semantics are strict: `None` is explicit on the wire, and
     /// missing fields still fail unless you add a field-policy wrapper.
     let inline option (inner: Schema<'T>) : Schema<'T option> = create (Option(inner :> ISchema))
+
+    /// Defers schema construction so authored contracts can be recursive.
+    let inline delay (factory: unit -> Schema<'T>) : Schema<'T> =
+        create (Delay(fun () -> factory () :> ISchema))
+
+    /// Represents one explicit case in a tagged-union schema.
+    type UnionCase<'T> = private {
+        Untyped: SchemaUnionCase
+    }
+
+    /// Creates a case with no payload.
+    let case0 (name: string) (value: 'T) (matches: 'T -> bool) : UnionCase<'T> =
+        {
+            Untyped = {
+                Name = name
+                FieldType = None
+                Schema = None
+                TryGetValue =
+                    (fun candidate ->
+                        if matches (unbox candidate) then Some null else None)
+                Construct = (fun _ -> box value)
+            }
+        }
+
+    /// Creates a case with one payload value.
+    let case1
+        (name: string)
+        (project: 'T -> 'Field option)
+        (inject: 'Field -> 'T)
+        (schema: Schema<'Field>)
+        : UnionCase<'T> =
+        {
+            Untyped = {
+                Name = name
+                FieldType = Some typeof<'Field>
+                Schema = Some(schema :> ISchema)
+                TryGetValue =
+                    (fun candidate ->
+                        project (unbox candidate)
+                        |> Option.map box)
+                Construct =
+                    (fun value ->
+                        value
+                        |> Option.map unbox<'Field>
+                        |> Option.map inject
+                        |> Option.defaultWith (fun () -> failwithf "Union case '%s' requires a value" name)
+                        |> box)
+            }
+        }
+
+    /// Builds an explicit tagged-union schema using default wire field names.
+    let union (cases: UnionCase<'T> list) : Schema<'T> =
+        create (Union("case", "value", cases |> List.map _.Untyped |> List.toArray))
+
+    /// Builds an explicit tagged-union schema with custom wire field names.
+    let unionNamed (discriminatorName: string) (valueName: string) (cases: UnionCase<'T> list) : Schema<'T> =
+        create (Union(discriminatorName, valueName, cases |> List.map _.Untyped |> List.toArray))
 
     /// Builds a schema for arbitrary JSON values.
     ///

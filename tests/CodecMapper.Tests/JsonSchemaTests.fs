@@ -58,6 +58,54 @@ let commonTypeSchema =
     |> Schema.build
 
 [<Fact>]
+let ``Authored tagged unions export deterministic discriminator schema`` () =
+    let schema =
+        Schema.union [
+            Schema.case0 "none" None Option.isNone
+            Schema.case1
+                "some"
+                id
+                Some
+                Schema.string
+        ]
+
+    let actual = JsonSchema.generate schema
+
+    test <@ actual.Contains("\"oneOf\":[") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"none\"}") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"some\"}") @>
+    test <@ actual.Contains("\"value\":{\"type\":\"string\"}") @>
+
+[<Fact>]
+let ``Recursive delayed unions export local defs and refs`` () =
+    let rec nodeSchema : Schema<RecursiveNode> =
+        Schema.delay (fun () ->
+            Schema.union [
+                Schema.case1
+                    "leaf"
+                    (function
+                    | Leaf value -> Some value
+                    | _ -> None)
+                    Leaf
+                    Schema.string
+                Schema.case1
+                    "branch"
+                    (function
+                    | Branch value -> Some value
+                    | _ -> None)
+                    Branch
+                    nodeSchema
+            ])
+
+    let actual = JsonSchema.generate nodeSchema
+
+    test <@ actual.Contains("\"$defs\":{\"RecursiveNode\":") @>
+    test <@ actual.Contains("\"oneOf\":[") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"leaf\"}") @>
+    test <@ actual.Contains("\"case\":{\"const\":\"branch\"}") @>
+    test <@ actual.Contains("\"$ref\":\"#/$defs/RecursiveNode\"") @>
+
+[<Fact>]
 let ``Nested record schema exports deterministic object contract`` () =
     let actual = JsonSchema.generate personSchema
 

@@ -3,6 +3,7 @@ namespace CodecMapper
 open System.Text
 open System.Collections.Generic
 open System.Globalization
+open System.Runtime.CompilerServices
 open Microsoft.FSharp.Reflection
 
 /// JSON Schema export for the JSON wire shape described by `Schema<'T>`.
@@ -70,185 +71,182 @@ module JsonSchema =
         Warnings: string list
     }
 
-    type private Node =
-        | Any
-        | Null
-        | Boolean
-        | Integer
-        | Number
-        | String
-        | ArrayNode of Node
-        | ObjectNode of title: string option * properties: (string * Node) array * required: string array
-        | AnyOfNode of Node array
+    type private SchemaRefComparer() =
+        interface IEqualityComparer<ISchema> with
+            member _.Equals(left, right) = obj.ReferenceEquals(left, right)
+            member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
-    let private escapeJsonString (value: string) =
-        let builder = StringBuilder(value.Length + 8)
+    type private ExportContext = {
+        DelayNames: Dictionary<ISchema, string>
+        DelayBodies: Dictionary<ISchema, JsonValue>
+        DelayOrder: ResizeArray<ISchema>
+        DelayInProgress: HashSet<ISchema>
+        UsedNames: Dictionary<string, int>
+    }
 
-        for ch in value do
-            match ch with
-            | '"' -> builder.Append("\\\"") |> ignore
-            | '\\' -> builder.Append("\\\\") |> ignore
-            | '\b' -> builder.Append("\\b") |> ignore
-            | '\f' -> builder.Append("\\f") |> ignore
-            | '\n' -> builder.Append("\\n") |> ignore
-            | '\r' -> builder.Append("\\r") |> ignore
-            | '\t' -> builder.Append("\\t") |> ignore
-            | c when int c < 32 ->
-                builder.Append("\\u") |> ignore
-                builder.Append((int c).ToString("x4")) |> ignore
-            | c -> builder.Append(c) |> ignore
+    let private rawJsonCodec = Json.compile Schema.jsonValue
 
-        builder.ToString()
+    let private schemaObject (properties: (string * JsonValue) list) = JObject properties
+    let private stringArray values = values |> List.map JString |> JArray
+    let private schemaRef name = schemaObject [ "$ref", JString("#/$defs/" + name) ]
 
-    let private appendQuoted (builder: StringBuilder) (value: string) =
-        builder.Append('"') |> ignore
-        builder.Append(escapeJsonString value) |> ignore
-        builder.Append('"') |> ignore
+    let private allocateDefinitionName (context: ExportContext) (targetType: System.Type) =
+        let baseName = targetType.Name
 
-    let rec private appendNode (builder: StringBuilder) (node: Node) =
-        let appendTypeObject typeName =
-            builder.Append("{\"type\":") |> ignore
-            appendQuoted builder typeName
-            builder.Append('}') |> ignore
+        match context.UsedNames.TryGetValue(baseName) with
+        | true, count ->
+            let next = count + 1
+            context.UsedNames[baseName] <- next
+            baseName + string next
+        | false, _ ->
+            context.UsedNames[baseName] <- 0
+            baseName
 
-        match node with
-        | Any -> builder.Append("{}") |> ignore
-        | Null -> appendTypeObject "null"
-        | Boolean -> appendTypeObject "boolean"
-        | Integer -> appendTypeObject "integer"
-        | Number -> appendTypeObject "number"
-        | String -> appendTypeObject "string"
-        | ArrayNode items ->
-            builder.Append("{\"type\":\"array\",\"items\":") |> ignore
-            appendNode builder items
-            builder.Append('}') |> ignore
-        | ObjectNode(title, properties, required) ->
-            builder.Append("{\"type\":\"object\"") |> ignore
-
-            match title with
-            | Some value ->
-                builder.Append(",\"title\":") |> ignore
-                appendQuoted builder value
-            | None -> ()
-
-            builder.Append(",\"properties\":{") |> ignore
-
-            for i in 0 .. properties.Length - 1 do
-                if i > 0 then
-                    builder.Append(',') |> ignore
-
-                let name, propertyNode = properties[i]
-                appendQuoted builder name
-                builder.Append(':') |> ignore
-                appendNode builder propertyNode
-
-            builder.Append('}') |> ignore
-
-            if required.Length > 0 then
-                builder.Append(",\"required\":[") |> ignore
-
-                for i in 0 .. required.Length - 1 do
-                    if i > 0 then
-                        builder.Append(',') |> ignore
-
-                    appendQuoted builder required[i]
-
-                builder.Append(']') |> ignore
-
-            builder.Append('}') |> ignore
-        | AnyOfNode nodes ->
-            builder.Append("{\"anyOf\":[") |> ignore
-
-            for i in 0 .. nodes.Length - 1 do
-                if i > 0 then
-                    builder.Append(',') |> ignore
-
-                appendNode builder nodes[i]
-
-            builder.Append("]}") |> ignore
-
-    let rec private exportNode (schema: ISchema) =
+    let private isMissingAllowed (schema: ISchema) =
         match schema.Definition with
-        | RawJsonValue -> Any
-        | Primitive targetType when targetType = typeof<bool> -> Boolean
-        | Primitive targetType when targetType = typeof<float> || targetType = typeof<decimal> -> Number
-        | Primitive targetType when targetType = typeof<string> -> String
-        | Primitive targetType when targetType = typeof<char> -> String
-        | Primitive targetType when targetType = typeof<System.Guid> -> String
-        | Primitive targetType when targetType = typeof<System.DateTime> -> String
-        | Primitive targetType when targetType = typeof<System.DateTimeOffset> -> String
-        | Primitive targetType when targetType = typeof<System.TimeSpan> -> String
-        | Primitive _ -> Integer
+        | MissingAsNone _
+        | MissingAsValue _ -> true
+        | _ -> false
+
+    let private objectNode titleOpt properties required =
+        let allProperties =
+            match titleOpt with
+            | Some title ->
+                [
+                    "type", JString "object"
+                    "title", JString title
+                    "properties", schemaObject properties
+                ]
+            | None ->
+                [
+                    "type", JString "object"
+                    "properties", schemaObject properties
+                ]
+
+        if List.isEmpty required then
+            schemaObject allProperties
+        else
+            schemaObject (allProperties @ [ "required", stringArray required ])
+
+    let private primitiveNode typeName = schemaObject [ "type", JString typeName ]
+
+    let rec private exportSchema (context: ExportContext) (isRoot: bool) (schema: ISchema) : JsonValue =
+        match schema.Definition with
+        | RawJsonValue -> schemaObject []
+        | Primitive targetType when targetType = typeof<bool> -> primitiveNode "boolean"
+        | Primitive targetType when targetType = typeof<float> || targetType = typeof<decimal> -> primitiveNode "number"
+        | Primitive targetType when targetType = typeof<string> -> primitiveNode "string"
+        | Primitive targetType when targetType = typeof<char> -> primitiveNode "string"
+        | Primitive targetType when targetType = typeof<System.Guid> -> primitiveNode "string"
+        | Primitive targetType when targetType = typeof<System.DateTime> -> primitiveNode "string"
+        | Primitive targetType when targetType = typeof<System.DateTimeOffset> -> primitiveNode "string"
+        | Primitive targetType when targetType = typeof<System.TimeSpan> -> primitiveNode "string"
+        | Primitive _ -> primitiveNode "integer"
         | List innerSchema
-        | Array innerSchema -> ArrayNode(exportNode innerSchema)
-        | Option innerSchema -> AnyOfNode [| exportNode innerSchema; Null |]
-        | MissingAsNone innerSchema -> exportNode innerSchema
-        | MissingAsValue(_, innerSchema) -> exportNode innerSchema
-        | NullAsValue(_, innerSchema) -> exportNode innerSchema
-        | EmptyCollectionAsValue(_, innerSchema) -> exportNode innerSchema
-        | EmptyStringAsNone innerSchema -> exportNode innerSchema
-        | Map(innerSchema, _, _) -> exportNode innerSchema
+        | Array innerSchema ->
+            schemaObject [
+                "type", JString "array"
+                "items", exportSchema context false innerSchema
+            ]
+        | Option innerSchema ->
+            schemaObject [
+                "anyOf", JArray [ exportSchema context false innerSchema; primitiveNode "null" ]
+            ]
+        | MissingAsNone innerSchema -> exportSchema context isRoot innerSchema
+        | MissingAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
+        | NullAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
+        | EmptyCollectionAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
+        | EmptyStringAsNone innerSchema -> exportSchema context isRoot innerSchema
+        | Map(innerSchema, _, _) -> exportSchema context isRoot innerSchema
+        | Delay factory ->
+            let definitionName =
+                match context.DelayNames.TryGetValue(schema) with
+                | true, existing -> existing
+                | false, _ ->
+                    let created = allocateDefinitionName context schema.TargetType
+                    context.DelayNames[schema] <- created
+                    context.DelayOrder.Add(schema)
+                    created
+
+            if not (context.DelayBodies.ContainsKey(schema)) && not (context.DelayInProgress.Contains(schema)) then
+                context.DelayInProgress.Add(schema) |> ignore
+                let body = exportSchema context false (factory ())
+                context.DelayInProgress.Remove(schema) |> ignore
+                context.DelayBodies[schema] <- body
+
+            if isRoot then
+                context.DelayBodies[schema]
+            else
+                schemaRef definitionName
         | Record(targetType, fields, _) ->
             let properties =
-                fields |> Array.map (fun field -> field.Name, exportNode field.Schema)
+                fields
+                |> Array.map (fun field -> field.Name, exportSchema context false field.Schema)
+                |> Array.toList
 
             let required =
                 fields
                 |> Array.choose (fun field ->
-                    match field.Schema.Definition with
-                    | MissingAsNone _ -> None
-                    | MissingAsValue _ -> None
-                    | NullAsValue _ -> Some field.Name
-                    | EmptyCollectionAsValue _ -> Some field.Name
-                    | _ -> Some field.Name)
+                    if isMissingAllowed field.Schema then
+                        None
+                    else
+                        Some field.Name)
+                |> Array.toList
 
-            ObjectNode(Some targetType.Name, properties, required)
+            objectNode (Some targetType.Name) properties required
+        | Union(discriminatorName, valueName, cases) ->
+            let caseNodes =
+                cases
+                |> Array.map (fun case ->
+                    let baseProperties = [ discriminatorName, schemaObject [ "const", JString case.Name ] ]
+                    let baseRequired = [ discriminatorName ]
 
-    let private appendRootNode (builder: StringBuilder) (node: Node) =
-        match node with
-        | Any -> ()
-        | Null -> builder.Append(",\"type\":\"null\"") |> ignore
-        | Boolean -> builder.Append(",\"type\":\"boolean\"") |> ignore
-        | Integer -> builder.Append(",\"type\":\"integer\"") |> ignore
-        | Number -> builder.Append(",\"type\":\"number\"") |> ignore
-        | String -> builder.Append(",\"type\":\"string\"") |> ignore
-        | ArrayNode items ->
-            builder.Append(",\"type\":\"array\",\"items\":") |> ignore
-            appendNode builder items
-        | ObjectNode(_, properties, required) ->
-            builder.Append(",\"type\":\"object\",\"properties\":{") |> ignore
+                    let properties, required =
+                        match case.Schema with
+                        | Some payloadSchema ->
+                            baseProperties @ [ valueName, exportSchema context false payloadSchema ], baseRequired @ [ valueName ]
+                        | None -> baseProperties, baseRequired
 
-            for i in 0 .. properties.Length - 1 do
-                if i > 0 then
-                    builder.Append(',') |> ignore
+                    objectNode None properties required)
+                |> Array.toList
 
-                let name, propertyNode = properties[i]
-                appendQuoted builder name
-                builder.Append(':') |> ignore
-                appendNode builder propertyNode
+            schemaObject [ "oneOf", JArray caseNodes ]
 
-            builder.Append('}') |> ignore
+    let private buildRootDocument (schema: ISchema) =
+        let context = {
+            DelayNames = Dictionary<ISchema, string>(SchemaRefComparer())
+            DelayBodies = Dictionary<ISchema, JsonValue>(SchemaRefComparer())
+            DelayOrder = ResizeArray()
+            DelayInProgress = HashSet<ISchema>(SchemaRefComparer())
+            UsedNames = Dictionary<string, int>()
+        }
 
-            if required.Length > 0 then
-                builder.Append(",\"required\":[") |> ignore
+        let body = exportSchema context true schema
 
-                for i in 0 .. required.Length - 1 do
-                    if i > 0 then
-                        builder.Append(',') |> ignore
+        let definitions =
+            context.DelayOrder
+            |> Seq.choose (fun delayedSchema ->
+                match context.DelayNames.TryGetValue(delayedSchema), context.DelayBodies.TryGetValue(delayedSchema) with
+                | (true, name), (true, definition) -> Some(name, definition)
+                | _ -> None)
+            |> Seq.toList
 
-                    appendQuoted builder required[i]
+        let rootProperties =
+            match body with
+            | JObject properties -> properties |> List.filter (fun (name, _) -> name <> "title")
+            | _ -> failwithf "Expected exported schema object for %O" schema.TargetType
 
-                builder.Append(']') |> ignore
-        | AnyOfNode nodes ->
-            builder.Append(",\"anyOf\":[") |> ignore
+        let baseDocument = [
+            "$schema", JString "https://json-schema.org/draft/2020-12/schema"
+            "title", JString schema.TargetType.Name
+        ]
 
-            for i in 0 .. nodes.Length - 1 do
-                if i > 0 then
-                    builder.Append(',') |> ignore
+        let withBody = baseDocument @ rootProperties
 
-                appendNode builder nodes[i]
-
-            builder.Append(']') |> ignore
+        if List.isEmpty definitions then
+            schemaObject withBody
+        else
+            schemaObject (withBody @ [ "$defs", schemaObject definitions ])
 
     let private tryFindProperty (name: string) (properties: (string * JsonValue) list) =
         properties |> List.tryFind (fun (key, _) -> key = name) |> Option.map snd
@@ -1119,23 +1117,7 @@ module JsonSchema =
     /// details and business-rule semantics inside mapping functions are not
     /// representable here and therefore export as the underlying wire form.
     let generate (schema: Schema<'T>) =
-        let rootNode = exportNode schema
-        let builder = StringBuilder()
-        let title = schema.TargetType.Name
-
-        builder.Append("{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\"")
-        |> ignore
-
-        builder.Append(",\"title\":") |> ignore
-        //
-        // The schema already captures the concrete target type when it is built.
-        // Reusing that value avoids a runtime generic type lookup that Fable
-        // cannot preserve after erasure.
-        appendQuoted builder title
-        appendRootNode builder rootNode
-
-        builder.Append('}') |> ignore
-        builder.ToString()
+        buildRootDocument (schema :> ISchema) |> Json.serialize rawJsonCodec
 
     /// Imports the deterministic JSON Schema subset into a JSON-only `Schema<JsonValue>`.
     ///

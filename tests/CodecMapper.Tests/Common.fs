@@ -154,6 +154,10 @@ module Domain =
         F20 = f20
     }
 
+    type RecursiveNode =
+        | Leaf of string
+        | Branch of RecursiveNode
+
 let expectFailure (expectedFragment: string) f =
     try
         f () |> ignore
