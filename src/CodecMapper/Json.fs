@@ -1132,8 +1132,9 @@ module Json =
 
                             hash
 
-                        let rawFieldIndices =
-                            Dictionary<struct (uint64 * int), int array>(compiledFields.Length)
+                        let rawFieldIndices = Dictionary<struct (uint64 * int), int>(compiledFields.Length)
+
+                        let rawFieldCollisions = Dictionary<struct (uint64 * int), int array>()
 
                         do
                             let buckets =
@@ -1151,7 +1152,10 @@ module Json =
                                     buckets[key] <- bucket
 
                             for KeyValue(key, bucket) in buckets do
-                                rawFieldIndices[key] <- bucket.ToArray()
+                                if bucket.Count = 1 then
+                                    rawFieldIndices[key] <- bucket[0]
+                                else
+                                    rawFieldCollisions[key] <- bucket.ToArray()
 
                         ///
                         /// Object decode used to linearly scan every field name for every
@@ -1191,20 +1195,23 @@ module Json =
                                 let key = struct (hashRawBytes data start length, length)
 
                                 match rawFieldIndices.TryGetValue(key) with
-                                | false, _ -> None
-                                | true, candidates ->
-                                    let mutable candidateIndex = 0
-                                    let mutable matched: int option = None
+                                | true, index -> Some index
+                                | false, _ ->
+                                    match rawFieldCollisions.TryGetValue(key) with
+                                    | false, _ -> None
+                                    | true, candidates ->
+                                        let mutable candidateIndex = 0
+                                        let mutable matched: int option = None
 
-                                    while candidateIndex < candidates.Length && matched.IsNone do
-                                        let candidate = compiledFields[candidates[candidateIndex]].RawName
+                                        while candidateIndex < candidates.Length && matched.IsNone do
+                                            let candidate = compiledFields[candidates[candidateIndex]].RawName
 
-                                        if Runtime.bytesEqual candidate data start length then
-                                            matched <- Some candidates[candidateIndex]
+                                            if Runtime.bytesEqual candidate data start length then
+                                                matched <- Some candidates[candidateIndex]
 
-                                        candidateIndex <- candidateIndex + 1
+                                            candidateIndex <- candidateIndex + 1
 
-                                    matched
+                                        matched
 
                             let data = src.Data
                             let mutable current = src.Advance(1)

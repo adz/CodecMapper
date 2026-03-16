@@ -128,18 +128,23 @@ Current strategic direction:
   - string scanning
   - numeric token scanning
   - object and array loop overhead
-- [ ] Apply the first focused handwritten-parser optimization and rerun parser-only comparisons.
 - [x] Apply the first focused handwritten-parser optimization and rerun parser-only comparisons.
+- [x] Apply the first production JSON record-decode hot-path optimization and rerun release scenarios.
+- [x] Split unique raw property-name matches from collision buckets in the compiled record decoder and rerun release scenarios.
 - [ ] Generalize the typed record-decode lane beyond hand-written benchmark shapes.
 - [ ] Compare generalized typed decode against the current erased path on the release scenarios again.
 - [ ] Decide whether the production runtime should adopt the typed lane, the parser changes, both, or neither.
+- [ ] Continue targeted parser work on the next likely losses:
+  - escaped string scanning
+  - numeric token scanning
+  - record field matching beyond raw-key lookup
 
 ## Immediate next steps
 
-1. Add parser diagnostic scenarios that stay profile-only and out of the release summary.
-2. Benchmark those diagnostics against `Utf8JsonReader`.
-3. Use the result to pick the first parser optimization target.
-4. Keep the production runtime unchanged until one optimization pass has a clear measured win.
+1. Keep the production runtime work focused on the current record-heavy wins.
+2. Continue narrow experiments on numeric parsing, escaped-string scanning, and field matching.
+3. Generalize the typed record-decode lane once the parser-side wins start to flatten out.
+4. Keep all close comparisons sequential and rerun before accepting a change.
 
 ## Parser diagnostic results
 
@@ -228,6 +233,26 @@ Measured effect:
 
 This is a solid follow-up win, especially on normal record-heavy payloads.
 
+### Split unique raw-key hits from collision buckets
+
+The next accepted pass removes the candidate-array loop from the common record
+decoder case where a raw property-name hash maps to exactly one compiled field.
+
+The decoder now:
+
+- stores unique raw-key matches in a direct dictionary
+- keeps the slower candidate-array path only for real collisions
+- preserves the same byte-for-byte collision check when hashes overlap
+
+Measured effect from the current sequential baseline:
+
+- `person-batch-25-unknown-fields`: `638.155 ms` -> `584.182 ms`
+- `person-batch-250`: `1393.216 ms` -> `1230.507 ms`
+- `telemetry-500`: `4205.965 ms` -> `3806.777 ms`
+
+This is the strongest record-heavy improvement so far, and it justifies
+keeping the raw-key fast path separate from the collision fallback.
+
 ## Failed experiments
 
 ### `numberToken` digit-scan extraction
@@ -284,6 +309,25 @@ Conclusion:
 - the collection decode loop has different enough behavior that the generic
   separator helper is not automatically a win there
 - future list/array work should be measured separately from object-loop work
+
+### Direct integer-token decode
+
+Another experiment tried folding integer token scanning and integer parsing
+into a single pass for `int`, `int64`, `uint32`, and `uint64`.
+
+Why it was rejected:
+
+- `person-batch-250` regressed
+- `telemetry-500` regressed more clearly
+- the simpler-looking "scan once" idea did not translate into a real win in
+  this runtime shape
+
+Conclusion:
+
+- the numeric cost is real, but this particular direct-token approach is not
+  the right answer
+- future numeric work should target a narrower hypothesis than "replace
+  `numberToken` + byte parse entirely"
 
 ## Measurement discipline note
 
