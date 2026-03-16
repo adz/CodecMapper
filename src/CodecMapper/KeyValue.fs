@@ -82,6 +82,13 @@ module KeyValue =
     let private tryFindValue (options: Options) (segments: string list) (values: Map<string, string>) =
         values |> Map.tryFind (keyName options segments)
 
+    let private hasValueAtPath (options: Options) (segments: string list) (values: Map<string, string>) =
+        let key = keyName options segments
+        let prefix = key + options.Separator
+
+        values
+        |> Map.exists (fun candidate _ -> candidate = key || candidate.StartsWith(prefix, System.StringComparison.Ordinal))
+
     let private parsePrimitive (targetType: System.Type) (text: string) =
         if targetType = typeof<int> then
             box (Core.parseInt32Invariant "int" text)
@@ -330,7 +337,15 @@ module KeyValue =
                                         | None -> decodeFailure (path @ [ discriminatorName ]) (sprintf "Unknown union case '%s'" caseName)
                                         | Some compiled ->
                                             match compiled.Codec with
-                                            | None -> Some(compiled.Case.Construct None)
+                                            | None ->
+                                                let valuePath = path @ [ valueName ]
+
+                                                if hasValueAtPath options valuePath values then
+                                                    decodeFailure
+                                                        valuePath
+                                                        (sprintf "Union case '%s' does not accept key '%s'" caseName (keyName options valuePath))
+
+                                                Some(compiled.Case.Construct None)
                                             | Some codec ->
                                                 match codec.Decode (path @ [ valueName ]) values with
                                                 | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))

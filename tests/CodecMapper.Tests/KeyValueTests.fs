@@ -161,3 +161,42 @@ let ``KeyValue round-trips recursive tagged unions with flattened discriminator 
 
     test <@ encoded = expected @>
     test <@ decoded = value @>
+
+[<Fact>]
+let ``KeyValue rejects unknown tagged union cases`` () =
+    let schema =
+        Schema.union [
+            Schema.case0 "pending" None Option.isNone
+            Schema.case1 "ready" id Some Schema.string
+        ]
+
+    let codec = KeyValue.compile schema
+
+    expectFailure "KeyValue decode error at $.case: Unknown union case 'broken'" (fun () ->
+        KeyValue.deserialize codec (Map.ofList [ "case", "broken" ]))
+
+[<Fact>]
+let ``KeyValue rejects missing payloads for payload cases`` () =
+    let schema =
+        Schema.union [
+            Schema.case0 "pending" None Option.isNone
+            Schema.case1 "ready" id Some Schema.string
+        ]
+
+    let codec = KeyValue.compile schema
+
+    expectFailure "KeyValue decode error at $.value: Missing required key 'value'" (fun () ->
+        KeyValue.deserialize codec (Map.ofList [ "case", "ready" ]))
+
+[<Fact>]
+let ``KeyValue rejects stray payload keys for payload-free cases`` () =
+    let schema =
+        Schema.union [
+            Schema.case0 "pending" None Option.isNone
+            Schema.case1 "ready" id Some Schema.string
+        ]
+
+    let codec = KeyValue.compile schema
+
+    expectFailure "KeyValue decode error at $.value: Union case 'pending' does not accept key 'value'" (fun () ->
+        KeyValue.deserialize codec (Map.ofList [ "case", "pending"; "value", "unexpected" ]))
