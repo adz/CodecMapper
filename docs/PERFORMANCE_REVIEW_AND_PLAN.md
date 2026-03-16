@@ -267,6 +267,24 @@ Conclusion:
 - any future `stringRaw` work should be treated as its own measured experiment,
   not bundled into larger parser changes
 
+### List and array separator helper reuse
+
+A follow-up attempt reused the shared separator helper in the compiled `List`
+and `Array` decoders.
+
+Why it was rejected:
+
+- it regressed against the new record-decoder baseline
+- `person-batch-250` and `telemetry-500` both gave back part of the earlier
+  gain
+- `escaped-articles-20` stayed roughly flat, so the trade was not worth it
+
+Conclusion:
+
+- the collection decode loop has different enough behavior that the generic
+  separator helper is not automatically a win there
+- future list/array work should be measured separately from object-loop work
+
 ## Measurement discipline note
 
 The benchmark runner should be treated as sequential when comparing close
