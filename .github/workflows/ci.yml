@@ -15,7 +15,7 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
-  validate:
+  format-and-unit:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,11 +39,47 @@ jobs:
       - name: Run test suite
         run: dotnet test tests/CodecMapper.Tests/CodecMapper.Tests.fsproj --nologo -v minimal
 
+  compat:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore CodecMapper.sln --nologo
+
       - name: Run AOT sentinel
         run: dotnet run --project tests/CodecMapper.AotTests/CodecMapper.AotTests.fsproj --nologo
 
       - name: Run Fable sentinel
         run: dotnet run --project tests/CodecMapper.FableTests/CodecMapper.FableTests.fsproj --nologo
+
+  fable-transpile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore CodecMapper.sln --nologo
 
       - name: Check Fable transpilation
         run: bash scripts/check-fable-compat.sh
@@ -51,11 +87,47 @@ jobs:
       - name: Check Fable 5 transpilation
         run: bash scripts/check-fable5-compat.sh
 
+  fable-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore CodecMapper.sln --nologo
+
       - name: Check packaged Fable transpilation
         run: bash scripts/check-fable-package-compat.sh
 
       - name: Check packaged Fable 5 transpilation
         run: bash scripts/check-fable5-package-compat.sh
+
+  docs-and-bench:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore local tools
+        run: dotnet tool restore
+
+      - name: Restore solution
+        run: dotnet restore CodecMapper.sln --nologo
 
       - name: Validate benchmark snapshot generator
         run: bash scripts/generate-benchmark-snapshot.sh --stdout-only
@@ -81,7 +153,12 @@ jobs:
 
   deploy-pages:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    needs: validate
+    needs:
+      - format-and-unit
+      - compat
+      - fable-transpile
+      - fable-package
+      - docs-and-bench
     runs-on: ubuntu-latest
     permissions:
       pages: write
