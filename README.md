@@ -46,6 +46,8 @@ That is the core model of the library:
 - encode and decode come from the same definition
 - contract changes stay visible in one place
 
+That same authored path also covers explicit tagged unions and recursive case trees through `Schema.union`, `Schema.unionNamed`, and `Schema.delay`.
+
 ## Why use it
 
 `CodecMapper` fits when:
@@ -66,6 +68,8 @@ The same authored schema can compile into:
 - config-oriented YAML codecs
 - flat KeyValue projections
 
+Authored tagged unions stay on that same contract path instead of switching to a separate codegen or reflection model.
+
 The core library stays focused on explicit schemas and handwritten runtimes. The separate bridge assembly exists for `.NET` interoperability with existing C# serializer contracts.
 
 ## Start here
@@ -75,11 +79,13 @@ The core library stays focused on explicit schemas and handwritten runtimes. The
 - [How To Model A Basic Record](docs/HOW_TO_MODEL_A_BASIC_RECORD.md)
 - [How To Model A Nested Record](docs/HOW_TO_MODEL_A_NESTED_RECORD.md)
 - [How To Model A Validated Wrapper](docs/HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
+- [How To Model A Recursive Tagged Union](docs/HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 Use these after the core authored path is clear:
 
 - [How To Import Existing C# Contracts](docs/HOW_TO_IMPORT_CSHARP_CONTRACTS.md)
 - [How To Export JSON Schema](docs/HOW_TO_EXPORT_JSON_SCHEMA.md)
+- [Tagged Union Wire Shape Reference](docs/TAGGED_UNION_REFERENCE.md)
 - [JSON Schema in CodecMapper](docs/JSON_SCHEMA_EXPLANATION.md)
 - [API Reference](https://adz.github.io/CodecMapper/reference/index.html)
 

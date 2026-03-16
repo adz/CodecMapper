@@ -308,6 +308,45 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
     test <@ Yaml.deserialize yamlCodec yaml = value @>
 
 [<Fact>]
+let ``Tagged unions reject malformed discriminator and payload shapes across text formats`` () =
+    let schema =
+        Schema.union [
+            Schema.case0 "pending" None Option.isNone
+            Schema.case1 "ready" id Some Schema.string
+        ]
+
+    let jsonCodec = Json.compile schema
+    let xmlCodec = Xml.compile schema
+    let yamlCodec = Yaml.compile schema
+
+    expectFailure "Unknown union case 'broken'" (fun () ->
+        Json.deserialize jsonCodec """{"case":"broken"}""")
+
+    expectFailure "Missing union payload 'value' for case 'ready'" (fun () ->
+        Json.deserialize jsonCodec """{"case":"ready"}""")
+
+    expectFailure "Union case 'pending' does not accept payload 'value'" (fun () ->
+        Json.deserialize jsonCodec """{"case":"pending","value":"unexpected"}""")
+
+    expectFailure "Unknown union case 'broken'" (fun () ->
+        Xml.deserialize xmlCodec "<fsharpoption`1><case>broken</case></fsharpoption`1>")
+
+    expectFailure "Expected <value>" (fun () ->
+        Xml.deserialize xmlCodec "<fsharpoption`1><case>ready</case></fsharpoption`1>")
+
+    expectFailure "Union case 'pending' does not accept a <value> element" (fun () ->
+        Xml.deserialize xmlCodec "<fsharpoption`1><case>pending</case><value>unexpected</value></fsharpoption`1>")
+
+    expectFailure "Unknown union case 'broken'" (fun () ->
+        Yaml.deserialize yamlCodec "case: broken")
+
+    expectFailure "Missing union payload 'value' for case 'ready'" (fun () ->
+        Yaml.deserialize yamlCodec "case: ready")
+
+    expectFailure "Union case 'pending' does not accept payload 'value'" (fun () ->
+        Yaml.deserialize yamlCodec "case: pending\nvalue: unexpected")
+
+[<Fact>]
 let ``Pipeline DSL can use opened Schema module at file scope`` () =
     let addressSchema =
         define<Address>

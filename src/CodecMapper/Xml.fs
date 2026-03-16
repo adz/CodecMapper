@@ -662,7 +662,11 @@ module Xml =
                                                     Runtime.withPath (Element valueName) (fun () -> codec.Decode current valueName)
             
                                                 Some payload, Runtime.skipWhitespace next
-                                            | None -> None, current
+                                            | None ->
+                                                match Runtime.tryReadCloseTag tag current with
+                                                | Some _ -> None, current
+                                                | None ->
+                                                    failwithf "Union case '%s' does not accept a <%s> element" caseName valueName
             
                                         let current = Runtime.expectCloseTag tag currentAfterValue
                                         struct (compiled.Case.Construct valueOpt, current)

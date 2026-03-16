@@ -1301,7 +1301,11 @@ module Json =
                                         match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
                                         | Some compiled ->
                                             match compiled.Codec with
-                                            | None -> struct (compiled.Case.Construct None, next)
+                                            | None ->
+                                                match tryFind valueName with
+                                                | Some _ ->
+                                                    failwithf "Union case '%s' does not accept payload '%s'" caseName valueName
+                                                | None -> struct (compiled.Case.Construct None, next)
                                             | Some codec ->
                                                 let payload =
                                                     match tryFind valueName with

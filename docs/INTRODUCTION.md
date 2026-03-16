@@ -48,6 +48,7 @@ That makes it useful when:
 - the wire shape matters and should stay reviewable
 - JSON and XML should stay symmetric
 - domain refinement should be explicit with `Schema.map` or `Schema.tryMap`
+- tagged unions and recursive case trees should stay explicit in normal schema code
 - AOT and Fable compatibility matter more than serializer magic
 
 ## The first path to learn
@@ -58,5 +59,6 @@ Start with one simple progression:
 2. [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
 3. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 4. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
+5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 Take the C# bridge, JSON Schema, and config-specific guides only after that core model feels natural.
