@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Common.fs" />
     <Compile Include="SchemaDslTests.fs" />
+    <Compile Include="TaggedUnionErrorTests.fs" />
     <Compile Include="JsonParserTests.fs" />
     <Compile Include="OptionTests.fs" />
     <Compile Include="FieldPolicyTests.fs" />

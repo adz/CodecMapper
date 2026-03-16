@@ -95,8 +95,8 @@ type Status =
 
 let statusSchema =
     Schema.union [
-        Schema.case0 "pending" Pending ((=) Pending)
-        Schema.case1
+        Schema.tag "pending" Pending ((=) Pending)
+        Schema.tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
@@ -120,12 +120,12 @@ type RecursiveNode =
 let rec nodeSchema : Schema<RecursiveNode> =
     Schema.delay (fun () ->
         Schema.union [
-            Schema.case1
+            Schema.tagWith
                 "leaf"
                 (function Leaf value -> Some value | _ -> None)
                 Leaf
                 Schema.string
-            Schema.case1
+            Schema.tagWith
                 "branch"
                 (function Branch value -> Some value | _ -> None)
                 Branch

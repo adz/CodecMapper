@@ -63,8 +63,8 @@ let commonTypeSchema =
 let ``Authored tagged unions export deterministic discriminator schema`` () =
     let schema =
         Schema.union [
-            Schema.case0 "none" None Option.isNone
-            Schema.case1
+            Schema.tag "none" None Option.isNone
+            Schema.tagWith
                 "some"
                 id
                 Some
@@ -83,14 +83,14 @@ let ``Recursive delayed unions export local defs and refs`` () =
     let rec nodeSchema : Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
-                Schema.case1
+                Schema.tagWith
                     "leaf"
                     (function
                     | Leaf value -> Some value
                     | _ -> None)
                     Leaf
                     Schema.string
-                Schema.case1
+                Schema.tagWith
                     "branch"
                     (function
                     | Branch value -> Some value

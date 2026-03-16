@@ -2,8 +2,8 @@
 
 This page is for lookup once you already know the authored tagged-union API:
 
-- `Schema.case0`
-- `Schema.case1`
+- `Schema.tag`
+- `Schema.tagWith`
 - `Schema.union`
 - `Schema.unionNamed`
 - `Schema.delay`
@@ -29,8 +29,8 @@ type Status =
 
 let statusSchema =
     union [
-        case0 "pending" Pending ((=) Pending)
-        case1
+        tag "pending" Pending ((=) Pending)
+        tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
@@ -108,8 +108,8 @@ Example:
 ```fsharp
 let statusSchema =
     unionNamed "kind" "details" [
-        case0 "pending" Pending ((=) Pending)
-        case1
+        tag "pending" Pending ((=) Pending)
+        tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
@@ -157,12 +157,12 @@ type RecursiveNode =
 let rec nodeSchema : Schema<RecursiveNode> =
     delay (fun () ->
         union [
-            case1
+            tagWith
                 "leaf"
                 (function Leaf value -> Some value | _ -> None)
                 Leaf
                 string
-            case1
+            tagWith
                 "branch"
                 (function Branch value -> Some value | _ -> None)
                 Branch
@@ -188,3 +188,5 @@ The codecs currently reject:
 - stray payload keys for payload-free KeyValue cases
 
 For KeyValue specifically, the payload-free case check matters because extra flattened keys would otherwise be easy to miss.
+
+For readable, executable examples of malformed payloads and the expected error messages across JSON, XML, YAML, and KeyValue, see [`tests/CodecMapper.Tests/TaggedUnionErrorTests.fs`](../tests/CodecMapper.Tests/TaggedUnionErrorTests.fs).

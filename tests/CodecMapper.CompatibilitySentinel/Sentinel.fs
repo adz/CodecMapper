@@ -175,14 +175,14 @@ module Schemas =
     let rec recursiveNode : Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
-                Schema.case1
+                Schema.tagWith
                     "leaf"
                     (function
                     | Leaf value -> Some value
                     | _ -> None)
                     Leaf
                     Schema.string
-                Schema.case1
+                Schema.tagWith
                     "branch"
                     (function
                     | Branch value -> Some value

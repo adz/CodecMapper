@@ -37,8 +37,8 @@ and SchemaField = {
     Schema: ISchema
 }
 
-/// Captures one case inside an explicit tagged-union schema.
-and SchemaUnionCase = {
+/// Captures one tag inside an explicit tagged-union schema.
+and SchemaTaggedCase = {
     Name: string
     FieldType: System.Type option
     Schema: ISchema option
@@ -53,7 +53,7 @@ and SchemaDefinition =
     | List of ISchema
     | Array of ISchema
     | Option of ISchema
-    | Union of discriminatorName: string * valueName: string * SchemaUnionCase[]
+    | Union of discriminatorName: string * valueName: string * SchemaTaggedCase[]
     | Delay of (unit -> ISchema)
     | MissingAsNone of ISchema
     | MissingAsValue of obj * ISchema
@@ -344,12 +344,12 @@ module Schema =
         create (Delay(fun () -> factory () :> ISchema))
 
     /// Represents one explicit case in a tagged-union schema.
-    type UnionCase<'T> = {
-        Untyped: SchemaUnionCase
+    type TaggedCase<'T> = {
+        Untyped: SchemaTaggedCase
     }
 
-    /// Creates a case with no payload.
-    let inline case0 (name: string) (value: 'T) (matches: 'T -> bool) : UnionCase<'T> =
+    /// Creates a tag with no payload.
+    let inline tag (name: string) (value: 'T) (matches: 'T -> bool) : TaggedCase<'T> =
         {
             Untyped = {
                 Name = name
@@ -362,13 +362,13 @@ module Schema =
             }
         }
 
-    /// Creates a case with one payload value.
-    let inline case1
+    /// Creates a tag with one payload value.
+    let inline tagWith
         (name: string)
         (project: 'T -> 'Field option)
         (inject: 'Field -> 'T)
         (schema: Schema<'Field>)
-        : UnionCase<'T> =
+        : TaggedCase<'T> =
         {
             Untyped = {
                 Name = name
@@ -389,11 +389,11 @@ module Schema =
         }
 
     /// Builds an explicit tagged-union schema using default wire field names.
-    let inline union (cases: UnionCase<'T> list) : Schema<'T> =
+    let inline union (cases: TaggedCase<'T> list) : Schema<'T> =
         create (Union("case", "value", cases |> List.map _.Untyped |> List.toArray))
 
     /// Builds an explicit tagged-union schema with custom wire field names.
-    let inline unionNamed (discriminatorName: string) (valueName: string) (cases: UnionCase<'T> list) : Schema<'T> =
+    let inline unionNamed (discriminatorName: string) (valueName: string) (cases: TaggedCase<'T> list) : Schema<'T> =
         create (Union(discriminatorName, valueName, cases |> List.map _.Untyped |> List.toArray))
 
     /// Builds a schema for arbitrary JSON values.

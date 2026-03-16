@@ -21,14 +21,14 @@ type RecursiveNode =
 let rec nodeSchema : Schema<RecursiveNode> =
     delay (fun () ->
         union [
-            case1
+            tagWith
                 "leaf"
                 (function
                 | Leaf value -> Some value
                 | _ -> None)
                 Leaf
                 string
-            case1
+            tagWith
                 "branch"
                 (function
                 | Branch value -> Some value
@@ -77,12 +77,14 @@ value.value.value=ok
 
 Use these helpers:
 
-- `case0` for a case with no payload
-- `case1` for a case with exactly one payload value
+- `tag` for a tag without payload
+- `tagWith` for a tag with exactly one payload value
 - `union` for the default field names `"case"` and `"value"`
 - `unionNamed` when another system expects different field names
 
 If you need the exact emitted JSON, XML, YAML, or KeyValue shapes, see [Tagged Union Wire Shape Reference](TAGGED_UNION_REFERENCE.md).
+
+If you want concrete malformed payload examples and the exact failure messages the codecs are expected to produce, see [`tests/CodecMapper.Tests/TaggedUnionErrorTests.fs`](../tests/CodecMapper.Tests/TaggedUnionErrorTests.fs).
 
 Example with a payload-free case and custom field names:
 
@@ -93,8 +95,8 @@ type Status =
 
 let statusSchema =
     unionNamed "kind" "details" [
-        case0 "pending" Pending ((=) Pending)
-        case1
+        tag "pending" Pending ((=) Pending)
+        tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
