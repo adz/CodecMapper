@@ -85,6 +85,10 @@ module Domain =
     type EnumRecord = { Status: OrderStatus }
     let makeEnumRecord status = { Status = status }
 
+    type RecursiveNode =
+        | Leaf of string
+        | Branch of RecursiveNode
+
 module Schemas =
     let address =
         Schema.define<Address>
@@ -165,6 +169,25 @@ module Schemas =
         |> Schema.field "name" _.Name
         |> Schema.fieldWith "home" _.Home address
         |> Schema.build
+
+    let rec recursiveNode : Schema<RecursiveNode> =
+        Schema.delay (fun () ->
+            Schema.union [
+                Schema.case1
+                    "leaf"
+                    (function
+                    | Leaf value -> Some value
+                    | _ -> None)
+                    Leaf
+                    Schema.string
+                Schema.case1
+                    "branch"
+                    (function
+                    | Branch value -> Some value
+                    | _ -> None)
+                    Branch
+                    recursiveNode
+            ])
 
 module Sentinel =
     let private test name actual expected =
@@ -326,6 +349,30 @@ module Sentinel =
         let yamlEncoded = Yaml.serialize yamlCodec p
         let yamlDecoded = Yaml.deserialize yamlCodec yamlEncoded
         test "Yaml round-trip" yamlDecoded p
+
+        let recursiveValue = Branch(Branch(Leaf platformLabel))
+
+        let recursiveJsonCodec = Json.compile Schemas.recursiveNode
+        let recursiveJson = Json.serialize recursiveJsonCodec recursiveValue
+        let recursiveJsonDecoded = Json.deserialize recursiveJsonCodec recursiveJson
+        test "Recursive union JSON round-trip" recursiveJsonDecoded recursiveValue
+
+        let recursiveXmlCodec = Xml.compile Schemas.recursiveNode
+        let recursiveXml = Xml.serialize recursiveXmlCodec recursiveValue
+        let recursiveXmlDecoded = Xml.deserialize recursiveXmlCodec recursiveXml
+        test "Recursive union XML round-trip" recursiveXmlDecoded recursiveValue
+
+        let recursiveKeyValueCodec = KeyValue.compile Schemas.recursiveNode
+        let recursiveKeyValue = KeyValue.serialize recursiveKeyValueCodec recursiveValue
+        let recursiveKeyValueDecoded = KeyValue.deserialize recursiveKeyValueCodec recursiveKeyValue
+        test "Recursive union KeyValue round-trip" recursiveKeyValueDecoded recursiveValue
+
+        testSequence "Recursive union KeyValue shape" (Map.toList recursiveKeyValue) [
+            "case", "branch"
+            "value.case", "branch"
+            "value.value.case", "leaf"
+            "value.value.value", platformLabel
+        ]
 
         printfn "%s tests execution finished." platformLabel
         0

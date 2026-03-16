@@ -344,12 +344,12 @@ module Schema =
         create (Delay(fun () -> factory () :> ISchema))
 
     /// Represents one explicit case in a tagged-union schema.
-    type UnionCase<'T> = private {
+    type UnionCase<'T> = {
         Untyped: SchemaUnionCase
     }
 
     /// Creates a case with no payload.
-    let case0 (name: string) (value: 'T) (matches: 'T -> bool) : UnionCase<'T> =
+    let inline case0 (name: string) (value: 'T) (matches: 'T -> bool) : UnionCase<'T> =
         {
             Untyped = {
                 Name = name
@@ -363,7 +363,7 @@ module Schema =
         }
 
     /// Creates a case with one payload value.
-    let case1
+    let inline case1
         (name: string)
         (project: 'T -> 'Field option)
         (inject: 'Field -> 'T)
@@ -389,11 +389,11 @@ module Schema =
         }
 
     /// Builds an explicit tagged-union schema using default wire field names.
-    let union (cases: UnionCase<'T> list) : Schema<'T> =
+    let inline union (cases: UnionCase<'T> list) : Schema<'T> =
         create (Union("case", "value", cases |> List.map _.Untyped |> List.toArray))
 
     /// Builds an explicit tagged-union schema with custom wire field names.
-    let unionNamed (discriminatorName: string) (valueName: string) (cases: UnionCase<'T> list) : Schema<'T> =
+    let inline unionNamed (discriminatorName: string) (valueName: string) (cases: UnionCase<'T> list) : Schema<'T> =
         create (Union(discriminatorName, valueName, cases |> List.map _.Untyped |> List.toArray))
 
     /// Builds a schema for arbitrary JSON values.
