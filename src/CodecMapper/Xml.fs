@@ -315,7 +315,10 @@ module Xml =
             | true, codec -> codec
             | false, _ ->
                 let mutable encodeImpl = Unchecked.defaultof<IByteWriter -> string -> obj -> unit>
-                let mutable decodeImpl = Unchecked.defaultof<XmlSource -> string -> struct (obj * XmlSource)>
+
+                let mutable decodeImpl =
+                    Unchecked.defaultof<XmlSource -> string -> struct (obj * XmlSource)>
+
                 let mutable missingValueImpl = None
 
                 let placeholder = {
@@ -364,9 +367,9 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 let value = Core.parseInt64Invariant "int64" (text.Trim())
-            
+
                                 struct (box value, current))
                         MissingValue = None
                       }
@@ -386,9 +389,9 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 let value = Core.parseUInt32Invariant "uint32" (text.Trim())
-            
+
                                 struct (box value, current))
                         MissingValue = None
                       }
@@ -408,9 +411,9 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 let value = Core.parseUInt64Invariant "uint64" (text.Trim())
-            
+
                                 struct (box value, current))
                         MissingValue = None
                       }
@@ -430,9 +433,9 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 let value = Core.parseFloatInvariant "float" (text.Trim())
-            
+
                                 struct (box value, current))
                         MissingValue = None
                       }
@@ -452,9 +455,9 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 let value = Core.parseDecimalInvariant "decimal" (text.Trim())
-            
+
                                 struct (box value, current))
                         MissingValue = None
                       }
@@ -493,7 +496,7 @@ module Xml =
                                 let current = Runtime.expectOpenTag tag src
                                 let struct (text, current) = Runtime.readTextNode current
                                 let current = Runtime.expectCloseTag tag current
-            
+
                                 match text.Trim() with
                                 | "true" -> struct (box true, current)
                                 | "false" -> struct (box false, current)
@@ -513,8 +516,7 @@ module Xml =
                                     w.WriteByte(47uy)
                                     w.WriteString(tag)
                                     w.WriteByte(62uy)
-                                | None ->
-                                    failwithf "No string enum name matched value for type %O" schema.TargetType)
+                                | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -526,7 +528,7 @@ module Xml =
                     | RawJsonValue ->
                         let fail () =
                             failwith "Schema.jsonValue is JSON-only; XML has no symmetric raw JSON DOM representation"
-            
+
                         {
                             Encode = (fun _ _ _ -> fail ())
                             Decode = (fun _ _ -> fail ())
@@ -535,20 +537,20 @@ module Xml =
                     | Option innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
-            
+
                         {
                             Encode =
                                 (fun w tag v ->
                                     w.WriteByte(60uy)
                                     w.WriteString(tag)
                                     w.WriteByte(62uy)
-            
+
                                     if not (isNull v) then
                                         innerCodec.Encode
                                             w
                                             "some"
                                             (FSharpValue.GetUnionFields(v, optionType) |> snd |> Array.item 0)
-            
+
                                     w.WriteByte(60uy)
                                     w.WriteByte(47uy)
                                     w.WriteString(tag)
@@ -557,7 +559,7 @@ module Xml =
                                 (fun src tag ->
                                     let current = Runtime.expectOpenTag tag src
                                     let current = Runtime.skipWhitespace current
-            
+
                                     match Runtime.tryReadCloseTag tag current with
                                     | Some next -> struct (Runtime.makeOptionNone optionType, next)
                                     | None ->
@@ -570,7 +572,7 @@ module Xml =
                     | MissingAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
@@ -578,7 +580,7 @@ module Xml =
                         }
                     | MissingAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
@@ -586,14 +588,14 @@ module Xml =
                         }
                     | NullAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src tag ->
                                     let current = Runtime.expectOpenTag tag src
                                     let current = Runtime.skipWhitespace current
-            
+
                                     match Runtime.tryReadCloseTag tag current with
                                     | Some next -> struct (defaultValue, next)
                                     | None ->
@@ -603,13 +605,13 @@ module Xml =
                         }
                     | EmptyCollectionAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src tag ->
                                     let struct (value, next) = innerCodec.Decode src tag
-            
+
                                     if Core.isEmptyCollectionValue value then
                                         struct (defaultValue, next)
                                     else
@@ -620,18 +622,18 @@ module Xml =
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
                         let noneValue = Runtime.makeOptionNone optionType
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src tag ->
                                     let struct (value, next) = innerCodec.Decode src tag
-            
+
                                     if isNull value then
                                         struct (value, next)
                                     else
                                         let caseInfo, fields = FSharpValue.GetUnionFields(value, optionType)
-            
+
                                         if
                                             caseInfo.Name = "Some"
                                             && fields.Length = 1
@@ -651,17 +653,17 @@ module Xml =
                                 Codec = loop f.Schema
                                 GetValue = f.GetValue
                             |})
-            
+
                         {
                             Encode =
                                 (fun w tag vObj ->
                                     w.WriteByte(60uy)
                                     w.WriteString(tag)
                                     w.WriteByte(62uy)
-            
+
                                     for f in compiledFields do
                                         f.Codec.Encode w f.Name (f.GetValue vObj)
-            
+
                                     w.WriteByte(60uy)
                                     w.WriteByte(47uy)
                                     w.WriteString(tag)
@@ -669,12 +671,12 @@ module Xml =
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
-            
+
                                     let args =
                                         compiledFields
                                         |> Array.map (fun f ->
                                             current <- Runtime.skipWhitespace current
-            
+
                                             match Runtime.tryReadCloseTag tag current with
                                             | Some _ ->
                                                 match f.Codec.MissingValue with
@@ -684,11 +686,12 @@ module Xml =
                                                         Runtime.decodeFailure (sprintf "Expected <%s>" f.Name))
                                             | None ->
                                                 let struct (v, next) =
-                                                    Runtime.withPath (Element f.Name) (fun () -> f.Codec.Decode current f.Name)
-            
+                                                    Runtime.withPath (Element f.Name) (fun () ->
+                                                        f.Codec.Decode current f.Name)
+
                                                 current <- next
                                                 v)
-            
+
                                     current <- Runtime.expectCloseTag tag current
                                     struct (ctor args, current))
                             MissingValue = None
@@ -700,9 +703,9 @@ module Xml =
                                 Case = case
                                 Codec = case.Schema |> Option.map loop
                             |})
-            
+
                         let stringCodec = loop (Schema.string :> ISchema)
-            
+
                         {
                             Encode =
                                 (fun writer tag value ->
@@ -717,44 +720,49 @@ module Xml =
                                         writer.WriteString(tag)
                                         writer.WriteByte(62uy)
                                         stringCodec.Encode writer discriminatorName (box compiled.Case.Name)
-            
+
                                         match compiled.Codec with
                                         | Some codec -> codec.Encode writer valueName fieldValue
                                         | None -> ()
-            
+
                                         writer.WriteByte(60uy)
                                         writer.WriteByte(47uy)
                                         writer.WriteString(tag)
                                         writer.WriteByte(62uy)
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
                                     current <- Runtime.skipWhitespace current
-            
+
                                     let struct (rawCaseName, afterCase) =
                                         Runtime.withPath (Element discriminatorName) (fun () ->
                                             stringCodec.Decode current discriminatorName)
-            
+
                                     let caseName = unbox<string> rawCaseName
                                     current <- Runtime.skipWhitespace afterCase
-            
-                                    match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+
+                                    match
+                                        compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                    with
                                     | Some compiled ->
                                         let valueOpt, currentAfterValue =
                                             match compiled.Codec with
                                             | Some codec ->
                                                 let struct (payload, next) =
-                                                    Runtime.withPath (Element valueName) (fun () -> codec.Decode current valueName)
-            
+                                                    Runtime.withPath (Element valueName) (fun () ->
+                                                        codec.Decode current valueName)
+
                                                 Some payload, Runtime.skipWhitespace next
                                             | None ->
                                                 match Runtime.tryReadCloseTag tag current with
                                                 | Some _ -> None, current
                                                 | None ->
-                                                    failwithf "Union case '%s' does not accept a <%s> element" caseName valueName
-            
+                                                    failwithf
+                                                        "Union case '%s' does not accept a <%s> element"
+                                                        caseName
+                                                        valueName
+
                                         let current = Runtime.expectCloseTag tag currentAfterValue
                                         struct (compiled.Case.Construct valueOpt, current)
                                     | None -> failwithf "Unknown union case '%s'" caseName)
@@ -784,7 +792,10 @@ module Xml =
 
                             try
                                 codec.Encode writer inlinePayloadTag fieldValue
-                                let afterOpen = Runtime.expectOpenTag inlinePayloadTag (ByteSource(writer.InternalData, 0))
+
+                                let afterOpen =
+                                    Runtime.expectOpenTag inlinePayloadTag (ByteSource(writer.InternalData, 0))
+
                                 let struct (innerBytes, _) = Runtime.sliceUntilCloseTag inlinePayloadTag afterOpen
                                 Encoding.UTF8.GetString(innerBytes)
                             finally
@@ -796,7 +807,10 @@ module Xml =
                             let content = Encoding.UTF8.GetString(contentBytes)
                             let wrapped = openTag + content + closeTag
                             let wrappedBytes = Encoding.UTF8.GetBytes(wrapped)
-                            let struct (fieldValue, rest) = codec.Decode(ByteSource(wrappedBytes, 0)) inlinePayloadTag
+
+                            let struct (fieldValue, rest) =
+                                codec.Decode (ByteSource(wrappedBytes, 0)) inlinePayloadTag
+
                             let rest = Runtime.skipWhitespace rest
 
                             if rest.Offset <> wrappedBytes.Length then
@@ -829,8 +843,7 @@ module Xml =
                                         writer.WriteByte(47uy)
                                         writer.WriteString(tag)
                                         writer.WriteByte(62uy)
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
@@ -843,7 +856,9 @@ module Xml =
                                     let caseName = unbox<string> rawCaseName
                                     current <- Runtime.skipWhitespace afterCase
 
-                                    match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                    match
+                                        compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                    with
                                     | Some compiled ->
                                         match compiled.Codec with
                                         | None ->
@@ -864,19 +879,19 @@ module Xml =
                     | Delay factory -> loop (factory ())
                     | List innerSchema ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode =
                                 (fun w tag vObj ->
                                     let list = vObj :?> System.Collections.IEnumerable
-            
+
                                     w.WriteByte(60uy)
                                     w.WriteString(tag)
                                     w.WriteByte(62uy)
-            
+
                                     for item in list do
                                         innerCodec.Encode w "item" item
-            
+
                                     w.WriteByte(60uy)
                                     w.WriteByte(47uy)
                                     w.WriteString(tag)
@@ -887,38 +902,39 @@ module Xml =
                                     let results = ResizeArray<obj>()
                                     let mutable continueLoop = true
                                     let mutable index = 0
-            
+
                                     while continueLoop do
                                         current <- Runtime.skipWhitespace current
-            
+
                                         match Runtime.tryReadCloseTag tag current with
                                         | Some next ->
                                             current <- next
                                             continueLoop <- false
                                         | None ->
                                             let struct (item, next) =
-                                                Runtime.withPath (Item index) (fun () -> innerCodec.Decode current "item")
-            
+                                                Runtime.withPath (Item index) (fun () ->
+                                                    innerCodec.Decode current "item")
+
                                             results.Add(item)
                                             current <- next
                                             index <- index + 1
-            
+
                                     struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
                             MissingValue = None
                         }
                     | Array innerSchema ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode =
                                 (fun w tag vObj ->
                                     w.WriteByte(60uy)
                                     w.WriteString(tag)
                                     w.WriteByte(62uy)
-            
+
                                     for item in (vObj :?> System.Collections.IEnumerable) do
                                         innerCodec.Encode w "item" item
-            
+
                                     w.WriteByte(60uy)
                                     w.WriteByte(47uy)
                                     w.WriteString(tag)
@@ -929,38 +945,40 @@ module Xml =
                                     let results = ResizeArray<obj>()
                                     let mutable continueLoop = true
                                     let mutable index = 0
-            
+
                                     while continueLoop do
                                         current <- Runtime.skipWhitespace current
-            
+
                                         match Runtime.tryReadCloseTag tag current with
                                         | Some next ->
                                             current <- next
                                             continueLoop <- false
                                         | None ->
                                             let struct (item, next) =
-                                                Runtime.withPath (Item index) (fun () -> innerCodec.Decode current "item")
-            
+                                                Runtime.withPath (Item index) (fun () ->
+                                                    innerCodec.Decode current "item")
+
                                             results.Add(item)
                                             current <- next
                                             index <- index + 1
-            
-            #if !FABLE_COMPILER
-                                    let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
-            
+
+#if !FABLE_COMPILER
+                                    let targetArray =
+                                        System.Array.CreateInstance(innerSchema.TargetType, results.Count)
+
                                     for i in 0 .. results.Count - 1 do
                                         targetArray.SetValue(results[i], i)
-            
+
                                     struct (box targetArray, current)
-            #else
+#else
                                     struct (box (results.ToArray()), current)
-            #endif
+#endif
                                 )
                             MissingValue = None
                         }
                     | Map(inner, wrap, unwrapFunc) ->
                         let innerCodec = loop inner
-            
+
                         {
                             Encode = (fun w tag v -> innerCodec.Encode w tag (unwrapFunc v))
                             Decode =
@@ -970,14 +988,17 @@ module Xml =
                             MissingValue = innerCodec.MissingValue |> Option.map wrap
                         }
                     | _ -> failwithf "Unsupported XML schema type"
+
                 encodeImpl <- compiled.Encode
                 decodeImpl <- compiled.Decode
                 missingValueImpl <- compiled.MissingValue
+
                 let finalized = {
                     Encode = (fun writer tag value -> encodeImpl writer tag value)
                     Decode = (fun source tag -> decodeImpl source tag)
                     MissingValue = missingValueImpl
                 }
+
                 cache[schema] <- finalized
                 finalized
 

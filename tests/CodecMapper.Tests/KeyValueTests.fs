@@ -1,5 +1,3 @@
-#nowarn "40"
-
 module KeyValueTests
 
 open Swensen.Unquote
@@ -97,7 +95,7 @@ let ``KeyValue supports env-style key naming through options`` () =
 [<Fact>]
 let ``KeyValue preserves validated wrapper mappings through scalar leaves`` () =
     let codec = KeyValue.compile accountSchema
-    let value : Account = { Id = UserId 7; Name = "Ada" }
+    let value: Account = { Id = UserId 7; Name = "Ada" }
 
     let encoded = KeyValue.serialize codec value
     let decoded = KeyValue.deserialize codec encoded
@@ -128,7 +126,7 @@ let ``KeyValue rejects collection schemas that do not flatten deterministically`
 
 [<Fact>]
 let ``KeyValue round-trips recursive tagged unions with flattened discriminator paths`` () =
-    let rec nodeSchema : Schema<RecursiveNode> =
+    let rec nodeSchema: Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
                 Schema.tagWith

@@ -172,7 +172,7 @@ module Schemas =
         |> Schema.fieldWith "home" _.Home address
         |> Schema.build
 
-    let rec recursiveNode : Schema<RecursiveNode> =
+    let rec recursiveNode: Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
                 Schema.tagWith
@@ -366,7 +366,10 @@ module Sentinel =
 
         let recursiveKeyValueCodec = KeyValue.compile Schemas.recursiveNode
         let recursiveKeyValue = KeyValue.serialize recursiveKeyValueCodec recursiveValue
-        let recursiveKeyValueDecoded = KeyValue.deserialize recursiveKeyValueCodec recursiveKeyValue
+
+        let recursiveKeyValueDecoded =
+            KeyValue.deserialize recursiveKeyValueCodec recursiveKeyValue
+
         test "Recursive union KeyValue round-trip" recursiveKeyValueDecoded recursiveValue
 
         testSequence "Recursive union KeyValue shape" (Map.toList recursiveKeyValue) [

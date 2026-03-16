@@ -87,7 +87,8 @@ module KeyValue =
         let prefix = key + options.Separator
 
         values
-        |> Map.exists (fun candidate _ -> candidate = key || candidate.StartsWith(prefix, System.StringComparison.Ordinal))
+        |> Map.exists (fun candidate _ ->
+            candidate = key || candidate.StartsWith(prefix, System.StringComparison.Ordinal))
 
     let private parsePrimitive (targetType: System.Type) (text: string) =
         if targetType = typeof<int> then
@@ -157,8 +158,12 @@ module KeyValue =
             match cache.TryGetValue(schema) with
             | true, codec -> codec
             | false, _ ->
-                let mutable encodeImpl = Unchecked.defaultof<string list -> obj -> (string * string) list>
-                let mutable decodeImpl = Unchecked.defaultof<string list -> Map<string, string> -> obj option>
+                let mutable encodeImpl =
+                    Unchecked.defaultof<string list -> obj -> (string * string) list>
+
+                let mutable decodeImpl =
+                    Unchecked.defaultof<string list -> Map<string, string> -> obj option>
+
                 let mutable missingValueImpl = None
 
                 let placeholder = {
@@ -184,8 +189,7 @@ module KeyValue =
                             (fun path value ->
                                 match tryGetName value with
                                 | Some name -> [ keyName options path, name ]
-                                | None ->
-                                    failwithf "No string enum name matched value for type %O" schema.TargetType)
+                                | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
                         Decode =
                             (fun path values ->
                                 tryFindValue options path values
@@ -212,7 +216,8 @@ module KeyValue =
                                 (fun path values ->
                                     let decodedFields =
                                         compiledFields
-                                        |> Array.map (fun field -> field, field.Codec.Decode (path @ [ field.Field.Name ]) values)
+                                        |> Array.map (fun field ->
+                                            field, field.Codec.Decode (path @ [ field.Field.Name ]) values)
 
                                     if decodedFields |> Array.forall (fun (_, decoded) -> decoded.IsNone) then
                                         None
@@ -230,7 +235,9 @@ module KeyValue =
 
                                                         decodeFailure
                                                             fieldPath
-                                                            (sprintf "Missing required key '%s'" (keyName options fieldPath)))
+                                                            (sprintf
+                                                                "Missing required key '%s'"
+                                                                (keyName options fieldPath)))
 
                                         Some(ctor args))
                             MissingValue = None
@@ -333,21 +340,27 @@ module KeyValue =
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
-                                        let caseEntries =
-                                            [ keyName options (path @ [ discriminatorName ]), compiled.Case.Name ]
+                                        let caseEntries = [
+                                            keyName options (path @ [ discriminatorName ]), compiled.Case.Name
+                                        ]
 
                                         match compiled.Codec with
                                         | Some codec -> caseEntries @ codec.Encode (path @ [ valueName ]) fieldValue
                                         | None -> caseEntries
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun path values ->
                                     match tryFindValue options (path @ [ discriminatorName ]) values with
                                     | None -> None
                                     | Some caseName ->
-                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
-                                        | None -> decodeFailure (path @ [ discriminatorName ]) (sprintf "Unknown union case '%s'" caseName)
+                                        match
+                                            compiledCases
+                                            |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                        with
+                                        | None ->
+                                            decodeFailure
+                                                (path @ [ discriminatorName ])
+                                                (sprintf "Unknown union case '%s'" caseName)
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->
@@ -356,7 +369,10 @@ module KeyValue =
                                                 if hasValueAtPath options valuePath values then
                                                     decodeFailure
                                                         valuePath
-                                                        (sprintf "Union case '%s' does not accept key '%s'" caseName (keyName options valuePath))
+                                                        (sprintf
+                                                            "Union case '%s' does not accept key '%s'"
+                                                            caseName
+                                                            (keyName options valuePath))
 
                                                 Some(compiled.Case.Construct None)
                                             | Some codec ->
@@ -364,7 +380,12 @@ module KeyValue =
                                                 | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))
                                                 | None ->
                                                     let valuePath = path @ [ valueName ]
-                                                    decodeFailure valuePath (sprintf "Missing required key '%s'" (keyName options valuePath)))
+
+                                                    decodeFailure
+                                                        valuePath
+                                                        (sprintf
+                                                            "Missing required key '%s'"
+                                                            (keyName options valuePath)))
                             MissingValue = None
                         }
                     | InlineUnion(discriminatorName, cases) ->
@@ -408,8 +429,7 @@ module KeyValue =
 
                                             caseEntry @ payloadEntries
                                         | None -> caseEntry
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun path values ->
                                     match tryFindValue options (path @ [ discriminatorName ]) values with
@@ -418,8 +438,14 @@ module KeyValue =
                                         let caseKey = keyName options (path @ [ discriminatorName ])
                                         let payloadValues = values |> Map.remove caseKey
 
-                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
-                                        | None -> decodeFailure (path @ [ discriminatorName ]) (sprintf "Unknown union case '%s'" caseName)
+                                        match
+                                            compiledCases
+                                            |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                        with
+                                        | None ->
+                                            decodeFailure
+                                                (path @ [ discriminatorName ])
+                                                (sprintf "Unknown union case '%s'" caseName)
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->

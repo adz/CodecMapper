@@ -1,5 +1,3 @@
-#nowarn "40"
-
 module SchemaDslTests
 
 open Xunit
@@ -271,7 +269,7 @@ let ``Round-trip using typed pipeline with 20 fields`` () =
 
 [<Fact>]
 let ``Recursive tagged union round-trips JSON XML and YAML`` () =
-    let rec nodeSchema : Schema<RecursiveNode> =
+    let rec nodeSchema: Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
                 Schema.tagWith
@@ -301,7 +299,10 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
 
     test <@ json = """{"case":"branch","value":{"case":"branch","value":{"case":"leaf","value":"ok"}}}""" @>
 
-    test <@ xml = "<recursivenode><case>branch</case><value><case>branch</case><value><case>leaf</case><value>ok</value></value></value></recursivenode>" @>
+    test
+        <@
+            xml = "<recursivenode><case>branch</case><value><case>branch</case><value><case>leaf</case><value>ok</value></value></value></recursivenode>"
+        @>
 
     test <@ Json.deserialize jsonCodec json = value @>
     test <@ Xml.deserialize xmlCodec xml = value @>
@@ -355,11 +356,7 @@ let ``Inline tagged unions round-trip across JSON XML YAML and KeyValue`` () =
 [<Fact>]
 let ``String enums round-trip across JSON XML YAML and KeyValue`` () =
     let modeSchema =
-        Schema.stringEnum [
-            "strict", Strict
-            "lenient", Lenient
-            "off", Off
-        ]
+        Schema.stringEnum [ "strict", Strict; "lenient", Lenient; "off", Off ]
 
     let configSchema =
         Schema.define<ModeConfig>

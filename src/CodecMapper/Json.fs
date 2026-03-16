@@ -689,7 +689,10 @@ module Json =
             | true, codec -> codec
             | false, _ ->
                 let mutable encodeImpl = Unchecked.defaultof<IByteWriter -> obj -> unit>
-                let mutable decodeImpl = Unchecked.defaultof<JsonSource -> struct (obj * JsonSource)>
+
+                let mutable decodeImpl =
+                    Unchecked.defaultof<JsonSource -> struct (obj * JsonSource)>
+
                 let mutable missingValueImpl = None
 
                 let placeholder = {
@@ -752,23 +755,23 @@ module Json =
                             (fun w v ->
                                 let value: string = unbox v
                                 w.WriteByte(34uy)
-            
+
                                 ///
                                 /// JSON strings must escape structural and control
                                 /// characters or round-trip behavior becomes accidental.
                                 let mutable segmentStart = 0
-            
+
                                 let flushSegment endIdx =
                                     if endIdx > segmentStart then
                                         w.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
-            
+
                                 let writeUnicodeEscape (writer: IByteWriter) (c: char) =
                                     let hexDigit value =
                                         if value < 10 then
                                             byte (int '0' + value)
                                         else
                                             byte (int 'a' + value - 10)
-            
+
                                     let code = int c
                                     writer.WriteByte(92uy)
                                     writer.WriteByte(117uy)
@@ -776,7 +779,7 @@ module Json =
                                     writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
                                     writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
                                     writer.WriteByte(hexDigit (code &&& 0xF))
-            
+
                                 for i in 0 .. value.Length - 1 do
                                     match value[i] with
                                     | '"' ->
@@ -812,9 +815,9 @@ module Json =
                                         writeUnicodeEscape w c
                                         segmentStart <- i + 1
                                     | _ -> ()
-            
+
                                 flushSegment value.Length
-            
+
                                 w.WriteByte(34uy))
                         Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
                         MissingValue = None
@@ -829,39 +832,37 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | StringEnum(_, tryGetName, parseName) ->
-                        {
-                            Encode =
-                                (fun w v ->
-                                    match tryGetName v with
-                                    | Some name ->
-                                        w.WriteByte(34uy)
-                                        w.WriteString(name)
-                                        w.WriteByte(34uy)
-                                    | None ->
-                                        failwithf "No string enum name matched value for type %O" schema.TargetType)
-                            Decode =
-                                (fun src ->
-                                    let struct (name, next) = Runtime.stringDecoder src
-                                    struct (parseName name, next))
-                            MissingValue = None
-                        }
+                    | StringEnum(_, tryGetName, parseName) -> {
+                        Encode =
+                            (fun w v ->
+                                match tryGetName v with
+                                | Some name ->
+                                    w.WriteByte(34uy)
+                                    w.WriteString(name)
+                                    w.WriteByte(34uy)
+                                | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
+                        Decode =
+                            (fun src ->
+                                let struct (name, next) = Runtime.stringDecoder src
+                                struct (parseName name, next))
+                        MissingValue = None
+                      }
                     | RawJsonValue ->
                         let writeEscapedString (writer: IByteWriter) (value: string) =
                             writer.WriteByte(34uy)
                             let mutable segmentStart = 0
-            
+
                             let flushSegment endIdx =
                                 if endIdx > segmentStart then
                                     writer.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
-            
+
                             let writeUnicodeEscape (writer: IByteWriter) (c: char) =
                                 let hexDigit value =
                                     if value < 10 then
                                         byte (int '0' + value)
                                     else
                                         byte (int 'a' + value - 10)
-            
+
                                 let code = int c
                                 writer.WriteByte(92uy)
                                 writer.WriteByte(117uy)
@@ -869,7 +870,7 @@ module Json =
                                 writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
                                 writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
                                 writer.WriteByte(hexDigit (code &&& 0xF))
-            
+
                             for i in 0 .. value.Length - 1 do
                                 match value[i] with
                                 | '"' ->
@@ -905,10 +906,10 @@ module Json =
                                     writeUnicodeEscape writer c
                                     segmentStart <- i + 1
                                 | _ -> ()
-            
+
                             flushSegment value.Length
                             writer.WriteByte(34uy)
-            
+
                         let rec encodeJsonValue (writer: IByteWriter) (value: JsonValue) =
                             match value with
                             | JNull -> writer.WriteString("null")
@@ -918,30 +919,30 @@ module Json =
                             | JArray items ->
                                 writer.WriteByte(91uy)
                                 let mutable first = true
-            
+
                                 for item in items do
                                     if not first then
                                         writer.WriteByte(44uy)
-            
+
                                     encodeJsonValue writer item
                                     first <- false
-            
+
                                 writer.WriteByte(93uy)
                             | JObject properties ->
                                 writer.WriteByte(123uy)
                                 let mutable first = true
-            
+
                                 for key, item in properties do
                                     if not first then
                                         writer.WriteByte(44uy)
-            
+
                                     writeEscapedString writer key
                                     writer.WriteByte(58uy)
                                     encodeJsonValue writer item
                                     first <- false
-            
+
                                 writer.WriteByte(125uy)
-            
+
                         {
                             Encode = (fun writer value -> encodeJsonValue writer (unbox<JsonValue> value))
                             Decode =
@@ -956,7 +957,7 @@ module Json =
                         let cases = FSharpType.GetUnionCases(optionType)
                         let noneCase = cases |> Array.find (fun c -> c.Name = "None")
                         let someCase = cases |> Array.find (fun c -> c.Name = "Some")
-            
+
                         {
                             Encode =
                                 (fun w v ->
@@ -969,7 +970,7 @@ module Json =
                                 (fun src ->
                                     let src = Runtime.skipWhitespace src
                                     let data = src.Data
-            
+
                                     if src.Offset < data.Length && data[src.Offset] = 110uy then
                                         let next = Runtime.nullDecoder src
                                         struct (FSharpValue.MakeUnion(noneCase, [||]), next)
@@ -981,7 +982,7 @@ module Json =
                     | MissingAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
@@ -989,7 +990,7 @@ module Json =
                         }
                     | MissingAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
@@ -997,14 +998,14 @@ module Json =
                         }
                     | NullAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src ->
                                     let current = Runtime.skipWhitespace src
                                     let data = current.Data
-            
+
                                     if current.Offset < data.Length && data[current.Offset] = 110uy then
                                         let next = Runtime.nullDecoder current
                                         struct (defaultValue, next)
@@ -1014,13 +1015,13 @@ module Json =
                         }
                     | EmptyCollectionAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src ->
                                     let struct (value, next) = innerCodec.Decode src
-            
+
                                     if Core.isEmptyCollectionValue value then
                                         struct (defaultValue, next)
                                     else
@@ -1031,17 +1032,17 @@ module Json =
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
                         let noneValue = Runtime.makeOptionNone optionType
-            
+
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun src ->
                                     let src = Runtime.skipWhitespace src
                                     let data = src.Data
-            
+
                                     if src.Offset < data.Length && data[src.Offset] = 34uy then
                                         let struct (text, next) = Runtime.stringDecoder src
-            
+
                                         if text = "" then
                                             struct (noneValue, next)
                                         else
@@ -1057,7 +1058,7 @@ module Json =
                                 let codec = loop f.Schema
                                 let encodedName = "\"" + f.Name + "\":"
                                 let rawName = Encoding.UTF8.GetBytes(f.Name)
-            
+
                                 {|
                                     Name = f.Name
                                     EncodedName = encodedName
@@ -1065,68 +1066,68 @@ module Json =
                                     Index = i
                                     Codec = codec
                                 |})
-            
+
                         let inline hashRawBytes (data: byte[]) (start: int) (length: int) =
                             let mutable hash = 14695981039346656037UL
                             let mutable i = 0
-            
+
                             while i < length do
                                 hash <- (hash ^^^ uint64 data[start + i]) * 1099511628211UL
                                 i <- i + 1
-            
+
                             hash
-            
+
                         let rawFieldIndices =
                             Dictionary<struct (uint64 * int), int array>(compiledFields.Length)
-            
+
                         do
                             let buckets =
                                 Dictionary<struct (uint64 * int), ResizeArray<int>>(compiledFields.Length)
-            
+
                             for field in compiledFields do
                                 let key =
                                     struct (hashRawBytes field.RawName 0 field.RawName.Length, field.RawName.Length)
-            
+
                                 match buckets.TryGetValue(key) with
                                 | true, bucket -> bucket.Add(field.Index)
                                 | false, _ ->
                                     let bucket = ResizeArray()
                                     bucket.Add(field.Index)
                                     buckets[key] <- bucket
-            
+
                             for KeyValue(key, bucket) in buckets do
                                 rawFieldIndices[key] <- bucket.ToArray()
-            
+
                         ///
                         /// Object decode used to linearly scan every field name for every
                         /// property in the payload. A fixed lookup table keeps the compiled
                         /// cost up front and removes repeated per-property scans.
                         let fieldIndices = Dictionary<string, int>(compiledFields.Length)
-            
+
                         do
                             for field in compiledFields do
                                 fieldIndices[field.Name] <- field.Index
-            
+
                         let encoder (writer: IByteWriter) (vObj: obj) =
                             writer.WriteByte(123uy)
                             let mutable first = true
-            
+
                             for f in compiledFields do
                                 if not first then
                                     writer.WriteByte(44uy)
-            
+
                                 writer.WriteString(f.EncodedName)
                                 f.Codec.Encode writer (fields[f.Index].GetValue vObj)
                                 first <- false
-            
+
                             writer.WriteByte(125uy)
-            
+
                         let decoder (src: JsonSource) =
                             let src = Runtime.skipWhitespace src
-            
+
                             if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 123uy then
                                 failwith "Expected {"
-            
+
                             ///
                             /// Most schema field names are simple ASCII without escapes, so
                             /// compare the raw UTF-8 bytes first and only allocate a key
@@ -1134,95 +1135,95 @@ module Json =
                             let tryFindFieldIndexByRawKey (start: int) (length: int) (data: byte[]) : int option =
                                 let mutable i = 0
                                 let mutable hasEscapes = false
-            
+
                                 while i < length && not hasEscapes do
                                     if data[start + i] = 92uy then
                                         hasEscapes <- true
-            
+
                                     i <- i + 1
-            
+
                                 if hasEscapes then
                                     None
                                 else
                                     let key = struct (hashRawBytes data start length, length)
-            
+
                                     match rawFieldIndices.TryGetValue(key) with
                                     | false, _ -> None
                                     | true, candidates ->
                                         let mutable candidateIndex = 0
                                         let mutable matched: int option = None
-            
+
                                         while candidateIndex < candidates.Length && matched.IsNone do
                                             let candidate = compiledFields[candidates[candidateIndex]].RawName
-            
+
                                             if Runtime.bytesEqual candidate data start length then
                                                 matched <- Some candidates[candidateIndex]
-            
+
                                             candidateIndex <- candidateIndex + 1
-            
+
                                         matched
-            
+
                             let data = src.Data
                             let mutable current = src.Advance(1)
                             let fieldValues = Runtime.rentObjectArray compiledFields.Length
                             let useSeenMask = compiledFields.Length <= 64
                             let mutable fieldSeenMask = 0UL
-            
+
                             let fieldSeen =
                                 if useSeenMask then
                                     [||]
                                 else
                                     Array.zeroCreate compiledFields.Length
-            
+
                             let mutable looping = true
                             current <- Runtime.skipWhitespace current
-            
+
                             if current.Offset < data.Length && data[current.Offset] = 125uy then
                                 looping <- false
                                 current <- current.Advance(1)
-            
+
                             while looping do
                                 let struct (keyStart, keyLength, keyHasEscapes, afterRawKey) =
                                     Runtime.stringRaw current
-            
+
                                 let mutable fieldIndex =
                                     if keyHasEscapes then
                                         None
                                     else
                                         tryFindFieldIndexByRawKey keyStart keyLength data
-            
+
                                 if fieldIndex.IsNone && keyHasEscapes then
                                     let struct (key, _) = Runtime.stringDecoder current
-            
+
                                     match fieldIndices.TryGetValue(key) with
                                     | true, index -> fieldIndex <- Some index
                                     | false, _ -> ()
-            
+
                                 let afterColon = Runtime.skipWhitespace afterRawKey
-            
+
                                 if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
                                     failwith "Expected :"
-            
+
                                 let valSrc = Runtime.skipWhitespace (afterColon.Advance(1))
-            
+
                                 let afterVal =
                                     match fieldIndex with
                                     | Some index ->
                                         let field = compiledFields[index]
-            
+
                                         let struct (value, nextSrc) =
                                             Runtime.decodeAtPath (Property field.Name) field.Codec.Decode valSrc
-            
+
                                         fieldValues[index] <- value
-            
+
                                         if useSeenMask then
                                             fieldSeenMask <- fieldSeenMask ||| (1UL <<< index)
                                         else
                                             fieldSeen[index] <- true
-            
+
                                         Runtime.skipWhitespace nextSrc
                                     | None -> Runtime.skipWhitespace (Runtime.skipValue valSrc)
-            
+
                                 if afterVal.Offset < data.Length && data[afterVal.Offset] = 44uy then
                                     current <- afterVal.Advance(1)
                                 elif afterVal.Offset < data.Length && data[afterVal.Offset] = 125uy then
@@ -1230,7 +1231,7 @@ module Json =
                                     looping <- false
                                 else
                                     failwith "Expected , or }"
-            
+
                             try
                                 for f in compiledFields do
                                     let seen =
@@ -1238,14 +1239,14 @@ module Json =
                                             (fieldSeenMask &&& (1UL <<< f.Index)) <> 0UL
                                         else
                                             fieldSeen[f.Index]
-            
+
                                     if not seen then
                                         match f.Codec.MissingValue with
                                         | Some value -> fieldValues[f.Index] <- value
                                         | None ->
                                             Runtime.withPath (Property f.Name) (fun () ->
                                                 Runtime.decodeFailure (sprintf "Missing required key '%s'" f.Name))
-            
+
                                 try
                                     struct (ctor fieldValues, current)
                                 with ex ->
@@ -1254,7 +1255,7 @@ module Json =
                                     | _ -> raise (JsonDecodeException([], ex.Message, ex))
                             finally
                                 Runtime.returnObjectArray fieldValues compiledFields.Length
-            
+
                         {
                             Encode = encoder
                             Decode = decoder
@@ -1267,13 +1268,14 @@ module Json =
                                 Case = case
                                 Codec = case.Schema |> Option.map loop
                             |})
+
                         let rawJsonCodec = loop (Schema.jsonValue :> ISchema)
-            
+
                         let encodeCaseName (writer: IByteWriter) (name: string) =
                             writer.WriteByte(34uy)
                             writer.WriteString(name)
                             writer.WriteByte(34uy)
-            
+
                         {
                             Encode =
                                 (fun writer value ->
@@ -1288,7 +1290,7 @@ module Json =
                                         encodeCaseName writer discriminatorName
                                         writer.WriteByte(58uy)
                                         encodeCaseName writer compiled.Case.Name
-            
+
                                         match compiled.Codec with
                                         | Some codec ->
                                             writer.WriteByte(44uy)
@@ -1296,48 +1298,64 @@ module Json =
                                             writer.WriteByte(58uy)
                                             codec.Encode writer fieldValue
                                         | None -> ()
-            
+
                                         writer.WriteByte(125uy)
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src ->
                                     let struct (rawValue, next) = Runtime.jsonValueDecoder src
-            
+
                                     match rawValue with
                                     | JObject properties ->
                                         let tryFind name =
                                             properties |> List.tryFind (fun (key, _) -> key = name) |> Option.map snd
-            
+
                                         let caseName =
                                             match tryFind discriminatorName with
                                             | Some(JString value) -> value
-                                            | Some _ -> failwithf "Union discriminator '%s' must be a string" discriminatorName
+                                            | Some _ ->
+                                                failwithf "Union discriminator '%s' must be a string" discriminatorName
                                             | None -> failwithf "Missing union discriminator '%s'" discriminatorName
-            
-                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+
+                                        match
+                                            compiledCases
+                                            |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                        with
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->
                                                 match tryFind valueName with
                                                 | Some _ ->
-                                                    failwithf "Union case '%s' does not accept payload '%s'" caseName valueName
+                                                    failwithf
+                                                        "Union case '%s' does not accept payload '%s'"
+                                                        caseName
+                                                        valueName
                                                 | None -> struct (compiled.Case.Construct None, next)
                                             | Some codec ->
                                                 let payload =
                                                     match tryFind valueName with
                                                     | Some value -> value
-                                                    | None -> failwithf "Missing union payload '%s' for case '%s'" valueName caseName
+                                                    | None ->
+                                                        failwithf
+                                                            "Missing union payload '%s' for case '%s'"
+                                                            valueName
+                                                            caseName
 
                                                 let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
 
                                                 try
                                                     rawJsonCodec.Encode writer (box payload)
-                                                    let struct (fieldValue, rest) = codec.Decode(ByteSource(writer.InternalData, 0))
+
+                                                    let struct (fieldValue, rest) =
+                                                        codec.Decode(ByteSource(writer.InternalData, 0))
+
                                                     let rest = Runtime.skipWhitespace rest
 
                                                     if rest.Offset <> writer.InternalCount then
-                                                        failwithf "Union payload '%s' for case '%s' had trailing content" valueName caseName
+                                                        failwithf
+                                                            "Union payload '%s' for case '%s' had trailing content"
+                                                            valueName
+                                                            caseName
 
                                                     struct (compiled.Case.Construct(Some fieldValue), next)
                                                 finally
@@ -1375,7 +1393,9 @@ module Json =
                             try
                                 codec.Encode writer fieldValue
 
-                                let struct (rawPayload, rest) = rawJsonCodec.Decode(ByteSource(writer.InternalData, 0))
+                                let struct (rawPayload, rest) =
+                                    rawJsonCodec.Decode(ByteSource(writer.InternalData, 0))
+
                                 let rest = Runtime.skipWhitespace rest
 
                                 if rest.Offset <> writer.InternalCount then
@@ -1436,8 +1456,7 @@ module Json =
                                             rawJsonCodec.Encode writer (box propertyValue)
 
                                         writer.WriteByte(125uy)
-                                    | None ->
-                                        failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src ->
                                     let struct (rawValue, next) = Runtime.jsonValueDecoder src
@@ -1450,13 +1469,17 @@ module Json =
                                         let caseName =
                                             match tryFind discriminatorName with
                                             | Some(JString value) -> value
-                                            | Some _ -> failwithf "Union discriminator '%s' must be a string" discriminatorName
+                                            | Some _ ->
+                                                failwithf "Union discriminator '%s' must be a string" discriminatorName
                                             | None -> failwithf "Missing union discriminator '%s'" discriminatorName
 
                                         let payloadProperties =
                                             properties |> List.filter (fun (key, _) -> key <> discriminatorName)
 
-                                        match compiledCases |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName) with
+                                        match
+                                            compiledCases
+                                            |> Array.tryFind (fun compiled -> compiled.Case.Name = caseName)
+                                        with
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->
@@ -1478,46 +1501,46 @@ module Json =
                     | List innerSchema ->
                         let innerCodec = loop innerSchema
                         let buildList = Runtime.makeListBuilder innerSchema.TargetType
-            
+
                         let encoder (writer: IByteWriter) (vObj: obj) =
                             let list = vObj :?> System.Collections.IEnumerable
                             writer.WriteByte(91uy)
                             let mutable first = true
-            
+
                             for item in list do
                                 if not first then
                                     writer.WriteByte(44uy)
-            
+
                                 innerCodec.Encode writer item
                                 first <- false
-            
+
                             writer.WriteByte(93uy)
-            
+
                         let decoder (src: JsonSource) =
                             let mutable src = Runtime.skipWhitespace src
-            
+
                             if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 91uy then
                                 failwith "Expected ["
-            
+
                             src <- src.Advance(1)
                             let results = ResizeArray<obj>()
                             let mutable continueLoop = true
                             src <- Runtime.skipWhitespace src
-            
+
                             if src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                                 continueLoop <- false
                                 src <- src.Advance(1)
-            
+
                             let mutable index = 0
-            
+
                             while continueLoop do
                                 let struct (item, nextSrc) =
                                     Runtime.decodeAtPath (Index index) innerCodec.Decode src
-            
+
                                 results.Add(item)
                                 src <- Runtime.skipWhitespace nextSrc
                                 index <- index + 1
-            
+
                                 if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                                     src <- src.Advance(1)
                                 elif src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
@@ -1525,9 +1548,9 @@ module Json =
                                     src <- src.Advance(1)
                                 else
                                     failwith "Expected , or ]"
-            
+
                             struct (buildList (results.ToArray()), src)
-            
+
                         {
                             Encode = encoder
                             Decode = decoder
@@ -1535,45 +1558,45 @@ module Json =
                         }
                     | Array innerSchema ->
                         let innerCodec = loop innerSchema
-            
+
                         let encoder (writer: IByteWriter) (vObj: obj) =
                             writer.WriteByte(91uy)
                             let mutable first = true
-            
+
                             for item in (vObj :?> System.Collections.IEnumerable) do
                                 if not first then
                                     writer.WriteByte(44uy)
-            
+
                                 innerCodec.Encode writer item
                                 first <- false
-            
+
                             writer.WriteByte(93uy)
-            
+
                         let decoder (src: JsonSource) =
                             let mutable src = Runtime.skipWhitespace src
-            
+
                             if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 91uy then
                                 failwith "Expected ["
-            
+
                             src <- src.Advance(1)
                             let results = ResizeArray<obj>()
                             let mutable continueLoop = true
                             src <- Runtime.skipWhitespace src
-            
+
                             if src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
                                 continueLoop <- false
                                 src <- src.Advance(1)
-            
+
                             let mutable index = 0
-            
+
                             while continueLoop do
                                 let struct (item, nextSrc) =
                                     Runtime.decodeAtPath (Index index) innerCodec.Decode src
-            
+
                                 results.Add(item)
                                 src <- Runtime.skipWhitespace nextSrc
                                 index <- index + 1
-            
+
                                 if src.Offset < src.Data.Length && src.Data[src.Offset] = 44uy then
                                     src <- src.Advance(1)
                                 elif src.Offset < src.Data.Length && src.Data[src.Offset] = 93uy then
@@ -1581,18 +1604,18 @@ module Json =
                                     src <- src.Advance(1)
                                 else
                                     failwith "Expected , or ]"
-            
-            #if !FABLE_COMPILER
+
+#if !FABLE_COMPILER
                             let targetArray = System.Array.CreateInstance(innerSchema.TargetType, results.Count)
-            
+
                             for i in 0 .. results.Count - 1 do
                                 targetArray.SetValue(results[i], i)
-            
+
                             struct (box targetArray, src)
-            #else
+#else
                             struct (box (results.ToArray()), src)
-            #endif
-            
+#endif
+
                         {
                             Encode = encoder
                             Decode = decoder
@@ -1600,13 +1623,13 @@ module Json =
                         }
                     | Map(inner, wrap, unwrapFunc) ->
                         let innerCodec = loop inner
-            
+
                         {
                             Encode = (fun w v -> innerCodec.Encode w (unwrapFunc v))
                             Decode =
                                 (fun src ->
                                     let struct (v, s) = innerCodec.Decode src
-            
+
                                     try
                                         struct (Runtime.withValidationContext (fun () -> wrap v), s)
                                     with ex ->
@@ -1616,14 +1639,17 @@ module Json =
                             MissingValue = innerCodec.MissingValue |> Option.map wrap
                         }
                     | _ -> failwithf "Unsupported schema type: %O" schema.Definition
+
                 encodeImpl <- compiled.Encode
                 decodeImpl <- compiled.Decode
                 missingValueImpl <- compiled.MissingValue
+
                 let finalized = {
                     Encode = (fun writer value -> encodeImpl writer value)
                     Decode = (fun source -> decodeImpl source)
                     MissingValue = missingValueImpl
                 }
+
                 cache[schema] <- finalized
                 finalized
 

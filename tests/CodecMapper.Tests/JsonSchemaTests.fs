@@ -1,5 +1,3 @@
-#nowarn "40"
-
 module JsonSchemaTests
 
 open Xunit
@@ -71,11 +69,7 @@ let ``Authored tagged unions export deterministic discriminator schema`` () =
     let schema =
         Schema.union [
             Schema.tag "none" None Option.isNone
-            Schema.tagWith
-                "some"
-                id
-                Some
-                Schema.string
+            Schema.tagWith "some" id Some Schema.string
         ]
 
     let actual = JsonSchema.generate schema
@@ -87,7 +81,7 @@ let ``Authored tagged unions export deterministic discriminator schema`` () =
 
 [<Fact>]
 let ``Recursive delayed unions export local defs and refs`` () =
-    let rec nodeSchema : Schema<RecursiveNode> =
+    let rec nodeSchema: Schema<RecursiveNode> =
         Schema.delay (fun () ->
             Schema.union [
                 Schema.tagWith
@@ -139,12 +133,7 @@ let ``Inline tagged unions export merged object contracts`` () =
 
 [<Fact>]
 let ``String enums export JSON Schema enum values`` () =
-    let schema =
-        Schema.stringEnum [
-            "strict", Strict
-            "lenient", Lenient
-            "off", Off
-        ]
+    let schema = Schema.stringEnum [ "strict", Strict; "lenient", Lenient; "off", Off ]
 
     let actual = JsonSchema.generate schema
 

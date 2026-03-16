@@ -88,7 +88,9 @@ module JsonSchema =
 
     let private schemaObject (properties: (string * JsonValue) list) = JObject properties
     let private stringArray values = values |> List.map JString |> JArray
-    let private schemaRef name = schemaObject [ "$ref", JString("#/$defs/" + name) ]
+
+    let private schemaRef name =
+        schemaObject [ "$ref", JString("#/$defs/" + name) ]
 
     let private allocateDefinitionName (context: ExportContext) (targetType: System.Type) =
         let baseName = targetType.Name
@@ -111,17 +113,12 @@ module JsonSchema =
     let private objectNode titleOpt properties required =
         let allProperties =
             match titleOpt with
-            | Some title ->
-                [
-                    "type", JString "object"
-                    "title", JString title
-                    "properties", schemaObject properties
-                ]
-            | None ->
-                [
-                    "type", JString "object"
-                    "properties", schemaObject properties
-                ]
+            | Some title -> [
+                "type", JString "object"
+                "title", JString title
+                "properties", schemaObject properties
+              ]
+            | None -> [ "type", JString "object"; "properties", schemaObject properties ]
 
         if List.isEmpty required then
             schemaObject allProperties
@@ -133,7 +130,8 @@ module JsonSchema =
         | JObject properties -> properties
         | _ -> failwithf "Inline union payload schema for %O must export as an object contract" context
 
-    let private primitiveNode typeName = schemaObject [ "type", JString typeName ]
+    let private primitiveNode typeName =
+        schemaObject [ "type", JString typeName ]
 
     let rec private exportSchema (context: ExportContext) (isRoot: bool) (schema: ISchema) : JsonValue =
         match schema.Definition with
@@ -147,17 +145,9 @@ module JsonSchema =
         | Primitive targetType when targetType = typeof<System.DateTimeOffset> -> primitiveNode "string"
         | Primitive targetType when targetType = typeof<System.TimeSpan> -> primitiveNode "string"
         | Primitive _ -> primitiveNode "integer"
-        | StringEnum(names, _, _) ->
-            schemaObject [
-                "type", JString "string"
-                "enum", stringArray (Array.toList names)
-            ]
+        | StringEnum(names, _, _) -> schemaObject [ "type", JString "string"; "enum", stringArray (Array.toList names) ]
         | List innerSchema
-        | Array innerSchema ->
-            schemaObject [
-                "type", JString "array"
-                "items", exportSchema context false innerSchema
-            ]
+        | Array innerSchema -> schemaObject [ "type", JString "array"; "items", exportSchema context false innerSchema ]
         | Option innerSchema ->
             schemaObject [
                 "anyOf", JArray [ exportSchema context false innerSchema; primitiveNode "null" ]
@@ -178,7 +168,10 @@ module JsonSchema =
                     context.DelayOrder.Add(schema)
                     created
 
-            if not (context.DelayBodies.ContainsKey(schema)) && not (context.DelayInProgress.Contains(schema)) then
+            if
+                not (context.DelayBodies.ContainsKey(schema))
+                && not (context.DelayInProgress.Contains(schema))
+            then
                 context.DelayInProgress.Add(schema) |> ignore
                 let body = exportSchema context false (factory ())
                 context.DelayInProgress.Remove(schema) |> ignore
@@ -214,7 +207,8 @@ module JsonSchema =
                     let properties, required =
                         match case.Schema with
                         | Some payloadSchema ->
-                            baseProperties @ [ valueName, exportSchema context false payloadSchema ], baseRequired @ [ valueName ]
+                            baseProperties @ [ valueName, exportSchema context false payloadSchema ],
+                            baseRequired @ [ valueName ]
                         | None -> baseProperties, baseRequired
 
                     objectNode None properties required)
@@ -232,11 +226,12 @@ module JsonSchema =
                         match case.Schema with
                         | Some payloadSchema ->
                             if not (Schema.supportsInlinePayloadShape payloadSchema) then
-                                failwithf
-                                    "Inline union case '%s' payload schema must be object-shaped"
-                                    case.Name
+                                failwithf "Inline union case '%s' payload schema must be object-shaped" case.Name
 
-                            let payloadContract = expectObjectContract payloadSchema.TargetType (exportSchema context false payloadSchema)
+                            let payloadContract =
+                                expectObjectContract
+                                    payloadSchema.TargetType
+                                    (exportSchema context false payloadSchema)
 
                             let mergedProperties =
                                 match payloadContract |> List.tryFind (fun (name, _) -> name = "properties") with
@@ -251,7 +246,9 @@ module JsonSchema =
 
                                         true)
                                 | _ ->
-                                    failwithf "Inline union payload schema for %O must export named object properties" payloadSchema.TargetType
+                                    failwithf
+                                        "Inline union payload schema for %O must export named object properties"
+                                        payloadSchema.TargetType
 
                             let mergedRequired =
                                 match payloadContract |> List.tryFind (fun (name, _) -> name = "required") with
@@ -284,7 +281,9 @@ module JsonSchema =
         let definitions =
             context.DelayOrder
             |> Seq.choose (fun delayedSchema ->
-                match context.DelayNames.TryGetValue(delayedSchema), context.DelayBodies.TryGetValue(delayedSchema) with
+                match
+                    context.DelayNames.TryGetValue(delayedSchema), context.DelayBodies.TryGetValue(delayedSchema)
+                with
                 | (true, name), (true, definition) -> Some(name, definition)
                 | _ -> None)
             |> Seq.toList

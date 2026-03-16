@@ -1,5 +1,3 @@
-#nowarn "40"
-
 module TaggedUnionErrorTests
 
 open Xunit
@@ -7,9 +5,9 @@ open CodecMapper
 open CodecMapper.Schema
 open TestCommon
 
-///
-/// These tests are intentionally written as readable examples of the malformed
-/// payloads the authored tagged-union codecs reject across formats.
+//
+// These tests are intentionally written as readable examples of the malformed
+// payloads the authored tagged-union codecs reject across formats.
 type private Status =
     | Pending
     | Ready of string
@@ -37,7 +35,9 @@ let private jsonUnexpectedPayload = """{"case":"pending","value":"unexpected"}""
 
 let private xmlUnknownCase = "<status><case>broken</case></status>"
 let private xmlMissingPayload = "<status><case>ready</case></status>"
-let private xmlUnexpectedPayload = "<status><case>pending</case><value>unexpected</value></status>"
+
+let private xmlUnexpectedPayload =
+    "<status><case>pending</case><value>unexpected</value></status>"
 
 let private yamlUnknownCase = "case: broken"
 let private yamlMissingPayload = "case: ready"
@@ -45,12 +45,14 @@ let private yamlUnexpectedPayload = "case: pending\nvalue: unexpected"
 
 let private keyValueUnknownCase = Map.ofList [ "case", "broken" ]
 let private keyValueMissingPayload = Map.ofList [ "case", "ready" ]
-let private keyValueUnexpectedPayload = Map.ofList [ "case", "pending"; "value", "unexpected" ]
 
-///
-/// Inline tagged unions merge payload members into the same object scope as
-/// the discriminator. These tests keep that behavior readable enough to cite
-/// directly from the docs.
+let private keyValueUnexpectedPayload =
+    Map.ofList [ "case", "pending"; "value", "unexpected" ]
+
+//
+// Inline tagged unions merge payload members into the same object scope as the
+// discriminator. These tests keep that behavior readable enough to cite
+// directly from the docs.
 let private createdDataSchema =
     define<CreatedData>
     |> construct makeCreatedData
@@ -79,22 +81,31 @@ let private inlineJsonUnknownCase = """{"case":"broken","id":7,"name":"Ada"}"""
 let private inlineJsonMissingPayloadField = """{"case":"created","id":7}"""
 let private inlineJsonUnexpectedPayload = """{"case":"ping","id":7}"""
 
-let private inlineXmlUnknownCase = "<event><case>broken</case><id>7</id><name>Ada</name></event>"
-let private inlineXmlMissingPayloadField = "<event><case>created</case><id>7</id></event>"
-let private inlineXmlUnexpectedPayload = "<event><case>ping</case><id>7</id></event>"
+let private inlineXmlUnknownCase =
+    "<event><case>broken</case><id>7</id><name>Ada</name></event>"
+
+let private inlineXmlMissingPayloadField =
+    "<event><case>created</case><id>7</id></event>"
+
+let private inlineXmlUnexpectedPayload =
+    "<event><case>ping</case><id>7</id></event>"
 
 let private inlineYamlUnknownCase = "case: broken\nid: 7\nname: Ada"
 let private inlineYamlMissingPayloadField = "case: created\nid: 7"
 let private inlineYamlUnexpectedPayload = "case: ping\nid: 7"
 
-let private inlineKeyValueUnknownCase = Map.ofList [ "case", "broken"; "id", "7"; "name", "Ada" ]
-let private inlineKeyValueMissingPayloadField = Map.ofList [ "case", "created"; "id", "7" ]
-let private inlineKeyValueUnexpectedPayload = Map.ofList [ "case", "ping"; "id", "7" ]
+let private inlineKeyValueUnknownCase =
+    Map.ofList [ "case", "broken"; "id", "7"; "name", "Ada" ]
+
+let private inlineKeyValueMissingPayloadField =
+    Map.ofList [ "case", "created"; "id", "7" ]
+
+let private inlineKeyValueUnexpectedPayload =
+    Map.ofList [ "case", "ping"; "id", "7" ]
 
 [<Fact>]
 let ``JSON tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Json.deserialize jsonCodec jsonUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Json.deserialize jsonCodec jsonUnknownCase)
 
 [<Fact>]
 let ``JSON tagged unions reject missing payloads for payload cases`` () =
@@ -108,13 +119,11 @@ let ``JSON tagged unions reject stray payloads for payload-free cases`` () =
 
 [<Fact>]
 let ``XML tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Xml.deserialize xmlCodec xmlUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Xml.deserialize xmlCodec xmlUnknownCase)
 
 [<Fact>]
 let ``XML tagged unions reject missing payloads for payload cases`` () =
-    expectFailure "Expected <value>" (fun () ->
-        Xml.deserialize xmlCodec xmlMissingPayload)
+    expectFailure "Expected <value>" (fun () -> Xml.deserialize xmlCodec xmlMissingPayload)
 
 [<Fact>]
 let ``XML tagged unions reject stray payloads for payload-free cases`` () =
@@ -123,8 +132,7 @@ let ``XML tagged unions reject stray payloads for payload-free cases`` () =
 
 [<Fact>]
 let ``YAML tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Yaml.deserialize yamlCodec yamlUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Yaml.deserialize yamlCodec yamlUnknownCase)
 
 [<Fact>]
 let ``YAML tagged unions reject missing payloads for payload cases`` () =
@@ -153,8 +161,7 @@ let ``KeyValue tagged unions reject stray payloads for payload-free cases`` () =
 
 [<Fact>]
 let ``JSON inline tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Json.deserialize inlineJsonCodec inlineJsonUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Json.deserialize inlineJsonCodec inlineJsonUnknownCase)
 
 [<Fact>]
 let ``JSON inline tagged unions reject missing payload fields`` () =
@@ -168,13 +175,11 @@ let ``JSON inline tagged unions reject stray payload fields for payload-free tag
 
 [<Fact>]
 let ``XML inline tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Xml.deserialize inlineXmlCodec inlineXmlUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Xml.deserialize inlineXmlCodec inlineXmlUnknownCase)
 
 [<Fact>]
 let ``XML inline tagged unions reject missing payload fields`` () =
-    expectFailure "Expected <name>" (fun () ->
-        Xml.deserialize inlineXmlCodec inlineXmlMissingPayloadField)
+    expectFailure "Expected <name>" (fun () -> Xml.deserialize inlineXmlCodec inlineXmlMissingPayloadField)
 
 [<Fact>]
 let ``XML inline tagged unions reject stray payload fields for payload-free tags`` () =
@@ -183,8 +188,7 @@ let ``XML inline tagged unions reject stray payload fields for payload-free tags
 
 [<Fact>]
 let ``YAML inline tagged unions reject unknown cases`` () =
-    expectFailure "Unknown union case 'broken'" (fun () ->
-        Yaml.deserialize inlineYamlCodec inlineYamlUnknownCase)
+    expectFailure "Unknown union case 'broken'" (fun () -> Yaml.deserialize inlineYamlCodec inlineYamlUnknownCase)
 
 [<Fact>]
 let ``YAML inline tagged unions reject missing payload fields`` () =
@@ -208,8 +212,9 @@ let ``KeyValue inline tagged unions reject missing payload fields`` () =
 
 [<Fact>]
 let ``KeyValue inline tagged unions reject stray payload fields for payload-free tags`` () =
-    expectFailure "KeyValue decode error at $: Union case 'ping' does not accept payload fields alongside 'case'" (fun () ->
-        KeyValue.deserialize inlineKeyValueCodec inlineKeyValueUnexpectedPayload)
+    expectFailure
+        "KeyValue decode error at $: Union case 'ping' does not accept payload fields alongside 'case'"
+        (fun () -> KeyValue.deserialize inlineKeyValueCodec inlineKeyValueUnexpectedPayload)
 
 [<Fact>]
 let ``Inline tagged unions reject non-object payload schemas at compile time`` () =

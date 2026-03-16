@@ -155,8 +155,7 @@ module Schema =
                 names,
                 (fun candidate ->
                     entries
-                    |> Array.tryPick (fun (name, value) ->
-                        if unbox<'T> candidate = value then Some name else None)),
+                    |> Array.tryPick (fun (name, value) -> if unbox<'T> candidate = value then Some name else None)),
                 (fun name ->
                     entries
                     |> Array.tryPick (fun (expectedName, value) ->
@@ -167,8 +166,7 @@ module Schema =
 
     /// Builds a finite string-valued contract while keeping a domain-level
     /// name available at the call site for readability.
-    let inline stringEnumNamed (_enumName: string) (cases: (string * 'T) list) : Schema<'T> =
-        stringEnum cases
+    let inline stringEnumNamed (_enumName: string) (cases: (string * 'T) list) : Schema<'T> = stringEnum cases
 
     /// A schema for `bool`.
     let bool: Schema<bool> = create (Primitive typeof<bool>)
@@ -390,23 +388,18 @@ module Schema =
         create (Delay(fun () -> factory () :> ISchema))
 
     /// Represents one explicit case in a tagged-union schema.
-    type TaggedCase<'T> = {
-        Untyped: SchemaTaggedCase
-    }
+    type TaggedCase<'T> = { Untyped: SchemaTaggedCase }
 
     /// Creates a tag with no payload.
-    let inline tag (name: string) (value: 'T) (matches: 'T -> bool) : TaggedCase<'T> =
-        {
-            Untyped = {
-                Name = name
-                FieldType = None
-                Schema = None
-                TryGetValue =
-                    (fun candidate ->
-                        if matches (unbox candidate) then Some null else None)
-                Construct = (fun _ -> box value)
-            }
+    let inline tag (name: string) (value: 'T) (matches: 'T -> bool) : TaggedCase<'T> = {
+        Untyped = {
+            Name = name
+            FieldType = None
+            Schema = None
+            TryGetValue = (fun candidate -> if matches (unbox candidate) then Some null else None)
+            Construct = (fun _ -> box value)
         }
+    }
 
     /// Creates a tag with a payload value.
     let inline tagWith
@@ -420,10 +413,7 @@ module Schema =
                 Name = name
                 FieldType = Some typeof<'Field>
                 Schema = Some(schema :> ISchema)
-                TryGetValue =
-                    (fun candidate ->
-                        project (unbox candidate)
-                        |> Option.map box)
+                TryGetValue = (fun candidate -> project (unbox candidate) |> Option.map box)
                 Construct =
                     (fun value ->
                         value
