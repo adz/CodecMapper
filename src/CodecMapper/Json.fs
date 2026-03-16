@@ -328,8 +328,9 @@ module Json =
         let stringRaw (src: JsonSource) : struct (int * int * bool * JsonSource) =
             let src = skipWhitespace src
             let data = src.Data
+            let dataLength = data.Length
 
-            if src.Offset >= data.Length || data[src.Offset] <> 34uy then
+            if src.Offset >= dataLength || data[src.Offset] <> 34uy then
                 failwith "Expected \""
 
             let mutable i = src.Offset + 1
@@ -341,45 +342,49 @@ module Json =
             // so scan forward once instead of recounting backslashes at every
             // candidate quote.
 #if !FABLE_COMPILER
-            while i < data.Length && not finished do
-                match data[i] with
-                | 34uy -> finished <- true
-                | 92uy ->
-                    hadEscapes <- true
+            while i < dataLength && not finished do
+                while i < dataLength && data[i] <> 34uy && data[i] <> 92uy do
                     i <- i + 1
 
-                    if i >= data.Length then
-                        failwith "Unterminated escape sequence"
+                if i < dataLength then
+                    if data[i] = 34uy then
+                        finished <- true
+                    else
+                        hadEscapes <- true
+                        i <- i + 1
 
-                    if data[i] = 117uy then
-                        if i + 4 >= data.Length then
-                            failwith "Unterminated unicode escape"
+                        if i >= dataLength then
+                            failwith "Unterminated escape sequence"
 
-                        i <- i + 4
-                | _ -> ()
+                        if data[i] = 117uy then
+                            if i + 4 >= dataLength then
+                                failwith "Unterminated unicode escape"
 
-                if not finished then
-                    i <- i + 1
+                            i <- i + 4
+
+                        i <- i + 1
 #else
-            while i < data.Length && not finished do
-                match data[i] with
-                | 34uy -> finished <- true
-                | 92uy ->
-                    hadEscapes <- true
+            while i < dataLength && not finished do
+                while i < dataLength && data[i] <> 34uy && data[i] <> 92uy do
                     i <- i + 1
 
-                    if i >= data.Length then
-                        failwith "Unterminated escape sequence"
+                if i < dataLength then
+                    if data[i] = 34uy then
+                        finished <- true
+                    else
+                        hadEscapes <- true
+                        i <- i + 1
 
-                    if data[i] = 117uy then
-                        if i + 4 >= data.Length then
-                            failwith "Unterminated unicode escape"
+                        if i >= dataLength then
+                            failwith "Unterminated escape sequence"
 
-                        i <- i + 4
-                | _ -> ()
+                        if data[i] = 117uy then
+                            if i + 4 >= dataLength then
+                                failwith "Unterminated unicode escape"
 
-                if not finished then
-                    i <- i + 1
+                            i <- i + 4
+
+                        i <- i + 1
 #endif
 
             if not finished then

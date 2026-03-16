@@ -253,6 +253,29 @@ Measured effect from the current sequential baseline:
 This is the strongest record-heavy improvement so far, and it justifies
 keeping the raw-key fast path separate from the collision fallback.
 
+### `stringRaw` plain-byte scan tightening
+
+The next accepted pass keeps the handwritten string parser model the same, but
+shortens the common loop for unescaped text:
+
+- scan forward over ordinary bytes until the next quote or backslash
+- only branch into the slower escape handling path when a backslash is present
+- keep the same unicode-escape validation and output behavior
+
+Measured effect from the current sequential baseline:
+
+- `person-batch-250`: `1230.507 ms` -> `1193.612 ms`
+- `telemetry-500`: `3806.777 ms` -> `3686.945 ms`
+- `person-batch-25-unknown-fields`: `584.182 ms` -> `585.680 ms`
+- `escaped-articles-20`: current run `497.283 ms`
+
+Interpretation:
+
+- the win is real on larger string-heavy and record-heavy payloads
+- the unknown-fields case is effectively flat
+- `Utf8JsonReader` still leads on the isolated string-scan diagnostic, so
+  this is progress, not closure
+
 ## Failed experiments
 
 ### `numberToken` digit-scan extraction
@@ -328,6 +351,46 @@ Conclusion:
   the right answer
 - future numeric work should target a narrower hypothesis than "replace
   `numberToken` + byte parse entirely"
+
+### Packed raw-key lookup
+
+Another record-decoder experiment replaced the per-property FNV raw-key hash
+with a cheaper packed-byte lookup key:
+
+- use all bytes for names up to eight bytes long
+- use the first and last four bytes for longer names
+- keep the existing exact byte comparison for collisions
+
+Why it was rejected:
+
+- `person-batch-25-unknown-fields` regressed immediately
+- the cheaper key was not selective enough for the real schema field names in
+  the benchmark payloads
+- any saved hash work was outweighed by worse collision behavior
+
+Conclusion:
+
+- the raw-key fast path should keep a stronger lookup key
+- future field-match work should target narrower costs than "replace the
+  hash function wholesale"
+
+### Branchless `isDigit`
+
+Another numeric-path experiment replaced the simple digit-range check with a
+branchless unsigned-range test.
+
+Why it was rejected:
+
+- `person-batch-250` regressed against the current baseline
+- the parser-numbers diagnostic did not show a compelling enough upside to
+  justify the broader decode regression
+- the existing two-compare check appears to be a better fit for this runtime
+
+Conclusion:
+
+- future numeric work should stay focused on the larger token loops, not the
+  individual digit predicate
+- small arithmetic-looking simplifications still need end-to-end validation
 
 ## Measurement discipline note
 
