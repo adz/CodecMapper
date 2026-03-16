@@ -211,6 +211,23 @@ Measured effect:
 
 This is the strongest production JSON decode win so far.
 
+### Record decoder raw-key and colon cleanup
+
+The next accepted pass moved the same style of fast-path work into the compiled
+record decoder:
+
+- skip the colon whitespace scan when the colon is already the next byte
+- stop rescanning raw property-name bytes for escapes when `stringRaw` already
+  told us the key had no escapes
+
+Measured effect:
+
+- `person-batch-25-unknown-fields`: `694.389 ms` -> `638.155 ms`
+- `person-batch-250`: `1607.277 ms` -> `1393.216 ms`
+- `telemetry-500`: `4240.830 ms` -> `4205.965 ms`
+
+This is a solid follow-up win, especially on normal record-heavy payloads.
+
 ## Failed experiments
 
 ### `numberToken` digit-scan extraction
@@ -249,3 +266,13 @@ Conclusion:
   approaches are not good enough
 - any future `stringRaw` work should be treated as its own measured experiment,
   not bundled into larger parser changes
+
+## Measurement discipline note
+
+The benchmark runner should be treated as sequential when comparing close
+results.
+
+Running multiple `dotnet run --project benchmarks/CodecMapper.Benchmarks.Runner`
+commands in parallel can introduce build-output file contention and noisy
+numbers. The accepted comparisons above were rerun sequentially before deciding
+to keep or reject a change.

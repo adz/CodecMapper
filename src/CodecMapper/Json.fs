@@ -1188,35 +1188,23 @@ module Json =
                             /// compare the raw UTF-8 bytes first and only allocate a key
                             /// string when the payload uses escapes in the property name.
                             let tryFindFieldIndexByRawKey (start: int) (length: int) (data: byte[]) : int option =
-                                let mutable i = 0
-                                let mutable hasEscapes = false
+                                let key = struct (hashRawBytes data start length, length)
 
-                                while i < length && not hasEscapes do
-                                    if data[start + i] = 92uy then
-                                        hasEscapes <- true
+                                match rawFieldIndices.TryGetValue(key) with
+                                | false, _ -> None
+                                | true, candidates ->
+                                    let mutable candidateIndex = 0
+                                    let mutable matched: int option = None
 
-                                    i <- i + 1
+                                    while candidateIndex < candidates.Length && matched.IsNone do
+                                        let candidate = compiledFields[candidates[candidateIndex]].RawName
 
-                                if hasEscapes then
-                                    None
-                                else
-                                    let key = struct (hashRawBytes data start length, length)
+                                        if Runtime.bytesEqual candidate data start length then
+                                            matched <- Some candidates[candidateIndex]
 
-                                    match rawFieldIndices.TryGetValue(key) with
-                                    | false, _ -> None
-                                    | true, candidates ->
-                                        let mutable candidateIndex = 0
-                                        let mutable matched: int option = None
+                                        candidateIndex <- candidateIndex + 1
 
-                                        while candidateIndex < candidates.Length && matched.IsNone do
-                                            let candidate = compiledFields[candidates[candidateIndex]].RawName
-
-                                            if Runtime.bytesEqual candidate data start length then
-                                                matched <- Some candidates[candidateIndex]
-
-                                            candidateIndex <- candidateIndex + 1
-
-                                        matched
+                                    matched
 
                             let data = src.Data
                             let mutable current = src.Advance(1)
@@ -1254,12 +1242,7 @@ module Json =
                                     | true, index -> fieldIndex <- Some index
                                     | false, _ -> ()
 
-                                let afterColon = Runtime.skipWhitespace afterRawKey
-
-                                if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
-                                    failwith "Expected :"
-
-                                let valSrc = Runtime.skipWhitespace (afterColon.Advance(1))
+                                let valSrc = Runtime.skipWhitespace (Runtime.advancePastColon afterRawKey)
 
                                 let afterVal =
                                     match fieldIndex with
