@@ -80,6 +80,8 @@ Use these helpers:
 - `union` for the default field names `"case"` and `"value"`
 - `unionNamed` when another system expects different field names
 
+If you need the exact emitted JSON, XML, YAML, or KeyValue shapes, see [Tagged Union Wire Shape Reference](TAGGED_UNION_REFERENCE.md).
+
 Example with a payload-free case and custom field names:
 
 ```fsharp

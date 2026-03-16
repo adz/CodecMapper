@@ -52,6 +52,8 @@ How-to guides are for goal-oriented tasks.
 
 Reference docs are for supported behavior and lookup.
 
+- [Tagged Union Wire Shape Reference](TAGGED_UNION_REFERENCE.md)
+  Check the exact JSON, XML, YAML, and KeyValue shapes for authored unions and `unionNamed`.
 - [JSON Schema Support Reference](JSON_SCHEMA_SUPPORT.md)
   Check the supported export/import surface and fallback boundaries.
 - [API Reference](reference/index.html)
@@ -68,5 +70,6 @@ Explanations are for design reasoning and mental models.
 
 - Author one explicit schema and compile it into reusable codecs.
 - Keep encode and decode semantics together.
+- Model explicit tagged unions and recursive case trees without switching to a separate schema system.
 - Reuse the same contract across JSON and XML, with config-oriented YAML and KeyValue projections where appropriate.
 - Keep dynamic JSON receive paths explicit through `Schema.jsonValue` and JSON Schema import boundaries.
