@@ -184,37 +184,29 @@ module ParserScanExperiment =
 
 module TypedJsonExperiment =
     ///
-    /// This first typed experiment stays benchmark-only and hand-written so we
-    /// can measure "our parser + typed object assembly" without committing the
-    /// production runtime to a broader architecture change yet.
+    /// This typed experiment stays benchmark-only, but the record/list
+    /// assembly is now reusable across benchmark shapes so the comparison is
+    /// about the typed lane itself rather than about bespoke handwritten loops.
     type private PropertyName = { Text: string; Utf8: byte[] }
+
+    type private Decoder<'T> = Json.JsonSource -> struct ('T * Json.JsonSource)
+
+    type private Field<'T> = {
+        Name: string
+        Property: PropertyName
+        Decode: Decoder<'T>
+    }
 
     let private propertyName text = {
         Text = text
         Utf8 = Encoding.UTF8.GetBytes(text)
     }
 
-    let private idName = propertyName "Id"
-    let private nameName = propertyName "Name"
-    let private homeName = propertyName "Home"
-    let private streetName = propertyName "Street"
-    let private cityName = propertyName "City"
-    let private kindName = propertyName "Kind"
-    let private successName = propertyName "Success"
-    let private traceIdName = propertyName "TraceId"
-    let private slugName = propertyName "Slug"
-    let private titleName = propertyName "Title"
-    let private bodyName = propertyName "Body"
-    let private tagsName = propertyName "Tags"
-    let private authorName = propertyName "Author"
-    let private sensorIdName = propertyName "SensorId"
-    let private timestampName = propertyName "Timestamp"
-    let private temperatureName = propertyName "Temperature"
-    let private humidityName = propertyName "Humidity"
-    let private voltageName = propertyName "Voltage"
-    let private retryCountName = propertyName "RetryCount"
-    let private sequenceName = propertyName "Sequence"
-    let private healthyName = propertyName "Healthy"
+    let private field name decode = {
+        Name = name
+        Property = propertyName name
+        Decode = decode
+    }
 
     let private expectByte expected label (src: Json.JsonSource) =
         let src = Json.Runtime.skipWhitespaceShared src
@@ -248,10 +240,19 @@ module TypedJsonExperiment =
         if not seen then
             failwithf "Missing required key '%s'" fieldName
 
-    let private readObjectLoop
+    let private decodeAtIndex index (decoder: Decoder<'T>) (src: Json.JsonSource) =
+        try
+            decoder src
+        with ex ->
+            match ex with
+            | :? Json.JsonDecodeException as decodeEx ->
+                raise (Json.JsonDecodeException(Json.Index index :: decodeEx.Path, decodeEx.Detail, ex))
+            | _ -> raise (Json.JsonDecodeException([ Json.Index index ], ex.Message, ex))
+
+    let private readObject
         (src: Json.JsonSource)
         (decodeField: Json.JsonSource -> int -> int -> bool -> Json.JsonSource -> Json.JsonSource)
-        =
+        : Json.JsonSource =
         let mutable current = expectByte 123uy "{" src
         let data = current.Data
         let mutable continueLoop = true
@@ -277,319 +278,383 @@ module TypedJsonExperiment =
 
         current
 
-    let private decodeStringList (src: Json.JsonSource) =
-        let mutable current = expectByte 91uy "[" src
-        let mutable items = []
-        let data = current.Data
-        let mutable continueLoop = true
+    let private record2
+        (field1: Field<'A>)
+        (field2: Field<'B>)
+        (ctor: 'A -> 'B -> 'T)
+        : Decoder<'T> =
+        fun src ->
+            let mutable value1 = Unchecked.defaultof<'A>
+            let mutable value2 = Unchecked.defaultof<'B>
+            let mutable saw1 = false
+            let mutable saw2 = false
 
-        if current.Offset < data.Length && data[current.Offset] = 93uy then
-            current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
-            continueLoop <- false
+            let current =
+                readObject src (fun current keyStart keyLength keyHasEscapes afterColon ->
+                    if propertyEquals field1.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field1.Decode afterColon
+                        value1 <- value
+                        saw1 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field2.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field2.Decode afterColon
+                        value2 <- value
+                        saw2 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    else
+                        skipUnknownProperty afterColon)
 
-        while continueLoop do
-            let struct (item, afterItem) = Json.Runtime.stringDecoder current
-            items <- item :: items
+            requireField field1.Name saw1
+            requireField field2.Name saw2
+            struct (ctor value1 value2, current)
 
-            if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
-                current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
-            elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
-                current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
+    let private record3
+        (field1: Field<'A>)
+        (field2: Field<'B>)
+        (field3: Field<'C>)
+        (ctor: 'A -> 'B -> 'C -> 'T)
+        : Decoder<'T> =
+        fun src ->
+            let mutable value1 = Unchecked.defaultof<'A>
+            let mutable value2 = Unchecked.defaultof<'B>
+            let mutable value3 = Unchecked.defaultof<'C>
+            let mutable saw1 = false
+            let mutable saw2 = false
+            let mutable saw3 = false
+
+            let current =
+                readObject src (fun current keyStart keyLength keyHasEscapes afterColon ->
+                    if propertyEquals field1.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field1.Decode afterColon
+                        value1 <- value
+                        saw1 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field2.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field2.Decode afterColon
+                        value2 <- value
+                        saw2 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field3.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field3.Decode afterColon
+                        value3 <- value
+                        saw3 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    else
+                        skipUnknownProperty afterColon)
+
+            requireField field1.Name saw1
+            requireField field2.Name saw2
+            requireField field3.Name saw3
+            struct (ctor value1 value2 value3, current)
+
+    let private record4
+        (field1: Field<'A>)
+        (field2: Field<'B>)
+        (field3: Field<'C>)
+        (field4: Field<'D>)
+        (ctor: 'A -> 'B -> 'C -> 'D -> 'T)
+        : Decoder<'T> =
+        fun src ->
+            let mutable value1 = Unchecked.defaultof<'A>
+            let mutable value2 = Unchecked.defaultof<'B>
+            let mutable value3 = Unchecked.defaultof<'C>
+            let mutable value4 = Unchecked.defaultof<'D>
+            let mutable saw1 = false
+            let mutable saw2 = false
+            let mutable saw3 = false
+            let mutable saw4 = false
+
+            let current =
+                readObject src (fun current keyStart keyLength keyHasEscapes afterColon ->
+                    if propertyEquals field1.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field1.Decode afterColon
+                        value1 <- value
+                        saw1 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field2.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field2.Decode afterColon
+                        value2 <- value
+                        saw2 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field3.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field3.Decode afterColon
+                        value3 <- value
+                        saw3 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field4.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field4.Decode afterColon
+                        value4 <- value
+                        saw4 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    else
+                        skipUnknownProperty afterColon)
+
+            requireField field1.Name saw1
+            requireField field2.Name saw2
+            requireField field3.Name saw3
+            requireField field4.Name saw4
+            struct (ctor value1 value2 value3 value4, current)
+
+    let private record6
+        (field1: Field<'A>)
+        (field2: Field<'B>)
+        (field3: Field<'C>)
+        (field4: Field<'D>)
+        (field5: Field<'E>)
+        (field6: Field<'F>)
+        (ctor: 'A -> 'B -> 'C -> 'D -> 'E -> 'F -> 'T)
+        : Decoder<'T> =
+        fun src ->
+            let mutable value1 = Unchecked.defaultof<'A>
+            let mutable value2 = Unchecked.defaultof<'B>
+            let mutable value3 = Unchecked.defaultof<'C>
+            let mutable value4 = Unchecked.defaultof<'D>
+            let mutable value5 = Unchecked.defaultof<'E>
+            let mutable value6 = Unchecked.defaultof<'F>
+            let mutable saw1 = false
+            let mutable saw2 = false
+            let mutable saw3 = false
+            let mutable saw4 = false
+            let mutable saw5 = false
+            let mutable saw6 = false
+
+            let current =
+                readObject src (fun current keyStart keyLength keyHasEscapes afterColon ->
+                    if propertyEquals field1.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field1.Decode afterColon
+                        value1 <- value
+                        saw1 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field2.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field2.Decode afterColon
+                        value2 <- value
+                        saw2 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field3.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field3.Decode afterColon
+                        value3 <- value
+                        saw3 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field4.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field4.Decode afterColon
+                        value4 <- value
+                        saw4 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field5.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field5.Decode afterColon
+                        value5 <- value
+                        saw5 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field6.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field6.Decode afterColon
+                        value6 <- value
+                        saw6 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    else
+                        skipUnknownProperty afterColon)
+
+            requireField field1.Name saw1
+            requireField field2.Name saw2
+            requireField field3.Name saw3
+            requireField field4.Name saw4
+            requireField field5.Name saw5
+            requireField field6.Name saw6
+            struct (ctor value1 value2 value3 value4 value5 value6, current)
+
+    let private record8
+        (field1: Field<'A>)
+        (field2: Field<'B>)
+        (field3: Field<'C>)
+        (field4: Field<'D>)
+        (field5: Field<'E>)
+        (field6: Field<'F>)
+        (field7: Field<'G>)
+        (field8: Field<'H>)
+        (ctor: 'A -> 'B -> 'C -> 'D -> 'E -> 'F -> 'G -> 'H -> 'T)
+        : Decoder<'T> =
+        fun src ->
+            let mutable value1 = Unchecked.defaultof<'A>
+            let mutable value2 = Unchecked.defaultof<'B>
+            let mutable value3 = Unchecked.defaultof<'C>
+            let mutable value4 = Unchecked.defaultof<'D>
+            let mutable value5 = Unchecked.defaultof<'E>
+            let mutable value6 = Unchecked.defaultof<'F>
+            let mutable value7 = Unchecked.defaultof<'G>
+            let mutable value8 = Unchecked.defaultof<'H>
+            let mutable saw1 = false
+            let mutable saw2 = false
+            let mutable saw3 = false
+            let mutable saw4 = false
+            let mutable saw5 = false
+            let mutable saw6 = false
+            let mutable saw7 = false
+            let mutable saw8 = false
+
+            let current =
+                readObject src (fun current keyStart keyLength keyHasEscapes afterColon ->
+                    if propertyEquals field1.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field1.Decode afterColon
+                        value1 <- value
+                        saw1 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field2.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field2.Decode afterColon
+                        value2 <- value
+                        saw2 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field3.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field3.Decode afterColon
+                        value3 <- value
+                        saw3 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field4.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field4.Decode afterColon
+                        value4 <- value
+                        saw4 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field5.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field5.Decode afterColon
+                        value5 <- value
+                        saw5 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field6.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field6.Decode afterColon
+                        value6 <- value
+                        saw6 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field7.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field7.Decode afterColon
+                        value7 <- value
+                        saw7 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    elif propertyEquals field8.Property current keyStart keyLength keyHasEscapes then
+                        let struct (value, next) = field8.Decode afterColon
+                        value8 <- value
+                        saw8 <- true
+                        Json.Runtime.skipWhitespaceShared next
+                    else
+                        skipUnknownProperty afterColon)
+
+            requireField field1.Name saw1
+            requireField field2.Name saw2
+            requireField field3.Name saw3
+            requireField field4.Name saw4
+            requireField field5.Name saw5
+            requireField field6.Name saw6
+            requireField field7.Name saw7
+            requireField field8.Name saw8
+            struct (ctor value1 value2 value3 value4 value5 value6 value7 value8, current)
+
+    let private list (decodeItem: Decoder<'T>) : Decoder<'T list> =
+        fun src ->
+            let mutable current = expectByte 91uy "[" src
+            let mutable items = []
+            let data = current.Data
+            let mutable continueLoop = true
+            let mutable index = 0
+
+            if current.Offset < data.Length && data[current.Offset] = 93uy then
+                current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
                 continueLoop <- false
-            else
-                failwith "Expected , or ]"
 
-        struct (List.rev items, current)
+            while continueLoop do
+                let struct (item, afterItem) = decodeAtIndex index decodeItem current
+                items <- item :: items
+                index <- index + 1
 
-    let rec private decodeAddress (src: Json.JsonSource) =
-        let mutable street = ""
-        let mutable city = ""
-        let mutable sawStreet = false
-        let mutable sawCity = false
-
-        let current =
-            readObjectLoop src (fun current keyStart keyLength keyHasEscapes afterColon ->
-                if propertyEquals streetName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    street <- value
-                    sawStreet <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals cityName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    city <- value
-                    sawCity <- true
-                    Json.Runtime.skipWhitespaceShared next
+                if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
+                    current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
+                elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
+                    current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
+                    continueLoop <- false
                 else
-                    skipUnknownProperty afterColon)
+                    failwith "Expected , or ]"
 
-        requireField "Street" sawStreet
-        requireField "City" sawCity
-        struct ({ Street = street; City = city }, current)
+            struct (List.rev items, current)
 
-    and private decodePerson (src: Json.JsonSource) =
-        let mutable id = 0
-        let mutable name = ""
-        let mutable home = Unchecked.defaultof<Address>
-        let mutable sawId = false
-        let mutable sawName = false
-        let mutable sawHome = false
-
-        let current =
-            readObjectLoop src (fun current keyStart keyLength keyHasEscapes afterColon ->
-                if propertyEquals idName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.intDecoder afterColon
-                    id <- value
-                    sawId <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals nameName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    name <- value
-                    sawName <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals homeName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = decodeAddress afterColon
-                    home <- value
-                    sawHome <- true
-                    Json.Runtime.skipWhitespaceShared next
-                else
-                    skipUnknownProperty afterColon)
-
-        requireField "Id" sawId
-        requireField "Name" sawName
-        requireField "Home" sawHome
-        struct ({ Id = id; Name = name; Home = home }, current)
-
-    and private decodeArticle (src: Json.JsonSource) =
-        let mutable id = 0
-        let mutable slug = ""
-        let mutable title = ""
-        let mutable body = ""
-        let mutable tags = []
-        let mutable author = Unchecked.defaultof<Person>
-        let mutable sawId = false
-        let mutable sawSlug = false
-        let mutable sawTitle = false
-        let mutable sawBody = false
-        let mutable sawTags = false
-        let mutable sawAuthor = false
-
-        let current =
-            readObjectLoop src (fun current keyStart keyLength keyHasEscapes afterColon ->
-                if propertyEquals idName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.intDecoder afterColon
-                    id <- value
-                    sawId <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals slugName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    slug <- value
-                    sawSlug <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals titleName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    title <- value
-                    sawTitle <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals bodyName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    body <- value
-                    sawBody <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals tagsName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = decodeStringList afterColon
-                    tags <- value
-                    sawTags <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals authorName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = decodePerson afterColon
-                    author <- value
-                    sawAuthor <- true
-                    Json.Runtime.skipWhitespaceShared next
-                else
-                    skipUnknownProperty afterColon)
-
-        requireField "Id" sawId
-        requireField "Slug" sawSlug
-        requireField "Title" sawTitle
-        requireField "Body" sawBody
-        requireField "Tags" sawTags
-        requireField "Author" sawAuthor
-
-        struct ({
-                    Id = id
-                    Slug = slug
-                    Title = title
-                    Body = body
-                    Tags = tags
-                    Author = author
-                },
-                current)
-
-    let private decodeTelemetryPoint (src: Json.JsonSource) =
-        let mutable sensorId = 0
-        let mutable timestamp = 0L
-        let mutable temperature = 0.0
-        let mutable humidity = 0.0
-        let mutable voltage = 0M
-        let mutable retryCount = 0u
-        let mutable sequence = 0UL
-        let mutable healthy = false
-        let mutable sawSensorId = false
-        let mutable sawTimestamp = false
-        let mutable sawTemperature = false
-        let mutable sawHumidity = false
-        let mutable sawVoltage = false
-        let mutable sawRetryCount = false
-        let mutable sawSequence = false
-        let mutable sawHealthy = false
-
-        let current =
-            readObjectLoop src (fun current keyStart keyLength keyHasEscapes afterColon ->
-                if propertyEquals sensorIdName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.intDecoder afterColon
-                    sensorId <- value
-                    sawSensorId <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals timestampName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.int64Decoder afterColon
-                    timestamp <- value
-                    sawTimestamp <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals temperatureName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.floatDecoder afterColon
-                    temperature <- value
-                    sawTemperature <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals humidityName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.floatDecoder afterColon
-                    humidity <- value
-                    sawHumidity <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals voltageName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.decimalDecoder afterColon
-                    voltage <- value
-                    sawVoltage <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals retryCountName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.uint32Decoder afterColon
-                    retryCount <- value
-                    sawRetryCount <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals sequenceName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.uint64Decoder afterColon
-                    sequence <- value
-                    sawSequence <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals healthyName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.boolDecoder afterColon
-                    healthy <- value
-                    sawHealthy <- true
-                    Json.Runtime.skipWhitespaceShared next
-                else
-                    skipUnknownProperty afterColon)
-
-        requireField "SensorId" sawSensorId
-        requireField "Timestamp" sawTimestamp
-        requireField "Temperature" sawTemperature
-        requireField "Humidity" sawHumidity
-        requireField "Voltage" sawVoltage
-        requireField "RetryCount" sawRetryCount
-        requireField "Sequence" sawSequence
-        requireField "Healthy" sawHealthy
-
-        struct ({
-                    SensorId = sensorId
-                    Timestamp = timestamp
-                    Temperature = temperature
-                    Humidity = humidity
-                    Voltage = voltage
-                    RetryCount = retryCount
-                    Sequence = sequence
-                    Healthy = healthy
-                },
-                current)
-
-    let private decodeList (decodeItem: Json.JsonSource -> struct ('T * Json.JsonSource)) (bytes: byte[]) =
-        let mutable current = Json.Runtime.skipWhitespaceShared (ByteSource(bytes, 0))
-        current <- expectByte 91uy "[" current
-
-        let mutable values = []
-        let data = current.Data
-        let mutable continueLoop = true
-
-        if current.Offset < data.Length && data[current.Offset] = 93uy then
-            current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
-            continueLoop <- false
-
-        while continueLoop do
-            let struct (value, next) = decodeItem current
-            values <- value :: values
-
-            if next.Offset < data.Length && data[next.Offset] = 44uy then
-                current <- Json.Runtime.skipWhitespaceShared (next.Advance(1))
-            elif next.Offset < data.Length && data[next.Offset] = 93uy then
-                current <- Json.Runtime.skipWhitespaceShared (next.Advance(1))
-                continueLoop <- false
-            else
-                failwith "Expected , or ]"
-
-        List.rev values
-
-    let deserializeSmallMessageBytes (bytes: byte[]) =
-        let mutable id = 0
-        let mutable kind = ""
-        let mutable success = false
-        let mutable traceId = ""
-        let mutable sawId = false
-        let mutable sawKind = false
-        let mutable sawSuccess = false
-        let mutable sawTraceId = false
-
-        let current =
-            readObjectLoop (ByteSource(bytes, 0)) (fun current keyStart keyLength keyHasEscapes afterColon ->
-                if propertyEquals idName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.intDecoder afterColon
-                    id <- value
-                    sawId <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals kindName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    kind <- value
-                    sawKind <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals successName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.boolDecoder afterColon
-                    success <- value
-                    sawSuccess <- true
-                    Json.Runtime.skipWhitespaceShared next
-                elif propertyEquals traceIdName current keyStart keyLength keyHasEscapes then
-                    let struct (value, next) = Json.Runtime.stringDecoder afterColon
-                    traceId <- value
-                    sawTraceId <- true
-                    Json.Runtime.skipWhitespaceShared next
-                else
-                    skipUnknownProperty afterColon)
-
-        requireField "Id" sawId
-        requireField "Kind" sawKind
-        requireField "Success" sawSuccess
-        requireField "TraceId" sawTraceId
-
-        let endOfJson = Json.Runtime.skipWhitespaceShared current
+    let private deserializeBytes (decoder: Decoder<'T>) (bytes: byte[]) =
+        let struct (value, next) = decoder (ByteSource(bytes, 0))
+        let endOfJson = Json.Runtime.skipWhitespaceShared next
 
         if endOfJson.Offset <> endOfJson.Data.Length then
             failwith "Trailing JSON content"
 
-        {
-            Id = id
-            Kind = kind
-            Success = success
-            TraceId = traceId
-        }
+        value
 
-    let deserializePeopleBytes (bytes: byte[]) = decodeList decodePerson bytes
-    let deserializeArticlesBytes (bytes: byte[]) = decodeList decodeArticle bytes
-    let deserializeTelemetryBytes (bytes: byte[]) = decodeList decodeTelemetryPoint bytes
+    let private addressDecoder =
+        record2
+            (field "Street" Json.Runtime.stringDecoder)
+            (field "City" Json.Runtime.stringDecoder)
+            (fun street city -> { Street = street; City = city })
+
+    let private personDecoder =
+        record3
+            (field "Id" Json.Runtime.intDecoder)
+            (field "Name" Json.Runtime.stringDecoder)
+            (field "Home" addressDecoder)
+            (fun id name home -> { Id = id; Name = name; Home = home })
+
+    let private stringListDecoder = list Json.Runtime.stringDecoder
+
+    let private articleDecoder =
+        record6
+            (field "Id" Json.Runtime.intDecoder)
+            (field "Slug" Json.Runtime.stringDecoder)
+            (field "Title" Json.Runtime.stringDecoder)
+            (field "Body" Json.Runtime.stringDecoder)
+            (field "Tags" stringListDecoder)
+            (field "Author" personDecoder)
+            (fun id slug title body tags author -> {
+                Id = id
+                Slug = slug
+                Title = title
+                Body = body
+                Tags = tags
+                Author = author
+            })
+
+    let private telemetryPointDecoder =
+        record8
+            (field "SensorId" Json.Runtime.intDecoder)
+            (field "Timestamp" Json.Runtime.int64Decoder)
+            (field "Temperature" Json.Runtime.floatDecoder)
+            (field "Humidity" Json.Runtime.floatDecoder)
+            (field "Voltage" Json.Runtime.decimalDecoder)
+            (field "RetryCount" Json.Runtime.uint32Decoder)
+            (field "Sequence" Json.Runtime.uint64Decoder)
+            (field "Healthy" Json.Runtime.boolDecoder)
+            (fun sensorId timestamp temperature humidity voltage retryCount sequence healthy -> {
+                SensorId = sensorId
+                Timestamp = timestamp
+                Temperature = temperature
+                Humidity = humidity
+                Voltage = voltage
+                RetryCount = retryCount
+                Sequence = sequence
+                Healthy = healthy
+            })
+
+    let private smallMessageDecoder =
+        record4
+            (field "Id" Json.Runtime.intDecoder)
+            (field "Kind" Json.Runtime.stringDecoder)
+            (field "Success" Json.Runtime.boolDecoder)
+            (field "TraceId" Json.Runtime.stringDecoder)
+            (fun id kind success traceId -> {
+                Id = id
+                Kind = kind
+                Success = success
+                TraceId = traceId
+            })
+
+    let private peopleDecoder = list personDecoder
+    let private articlesDecoder = list articleDecoder
+    let private telemetryDecoder = list telemetryPointDecoder
+
+    let deserializeSmallMessageBytes (bytes: byte[]) = deserializeBytes smallMessageDecoder bytes
+    let deserializePeopleBytes (bytes: byte[]) = deserializeBytes peopleDecoder bytes
+    let deserializeArticlesBytes (bytes: byte[]) = deserializeBytes articlesDecoder bytes
+    let deserializeTelemetryBytes (bytes: byte[]) = deserializeBytes telemetryDecoder bytes
 
 module Schemas =
     let address =

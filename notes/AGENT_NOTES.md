@@ -150,6 +150,7 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `benchmarks/CodecMapper.Benchmarks/Program.fs` now forces BenchmarkDotNet onto `InProcessEmitToolchain` to avoid child-project generation entirely.
 - The remaining warning during local runs is just Linux process-priority elevation failure (`Permission denied`), which does not stop benchmarks from executing.
 - A manual Release runner was added in `benchmarks/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
+- `BenchmarkScenarios.fs` now expresses the benchmark-only typed JSON decode lane through reusable `recordN` and `list` combinators instead of one bespoke decoder loop per workload shape. Keep future `Task 42` work in that benchmark-only lane unless the production runtime decision has been made explicitly.
 - Keep the manual Release runner for fast local snapshots and README updates; use BenchmarkDotNet when you specifically want richer statistical output.
 
 ## Formatting
