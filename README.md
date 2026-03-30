@@ -7,9 +7,9 @@
 
 `CodecMapper` is a schema-first serialization library for F# with native AOT and Fable compatibility.
 
-It lets you define one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
+It lets you author one schema and compile it into multiple codecs. The same mapping drives both encode and decode, so JSON and XML stay symmetric.
 
-It's for cases where the wire contract should be explicit, reviewable, and reusable instead of being inferred from CLR shape or serializer settings.
+It's for cases where the wire schema should be explicit, reviewable, and reusable instead of being inferred from CLR shape or serializer settings.
 
 ## The idea
 
@@ -17,20 +17,19 @@ You author one `Schema<'T>` that describes the wire shape:
 
 ```fsharp
 open CodecMapper
-open CodecMapper.Schema
 
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    define<Person>
-    |> construct makePerson
-    |> field "id" _.Id
-    |> field "name" _.Name
-    |> build
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
 ```
 
-Then you compile that schema into a reusable codec:
+Then you compile that schema into a reusable format codec:
 
 ```fsharp
 let codec = Json.compile personSchema
@@ -42,17 +41,17 @@ let decoded = Json.deserialize codec json
 
 That is the core model of the library:
 
-- the schema is the contract
+- the schema is explicit code
 - encode and decode come from the same definition
-- contract changes stay visible in one place
+- schema changes stay visible in one place
 
-That same authored path also covers explicit tagged unions, string-valued enums, message envelopes, and recursive case trees through `Schema.union`, `Schema.inlineUnion`, `Schema.envelope`, `Schema.stringEnum`, and `Schema.delay`.
+That same authored path also covers explicit tagged unions, string-valued enums, message envelopes, and recursive case trees through `Tagged.union`, `Tagged.inlineUnion`, `Tagged.envelope`, `Schema.stringEnum`, and `Schema.delay`.
 
 ## Why use it
 
 `CodecMapper` fits when:
 
-- you want the wire contract to be authored explicitly
+- you want the wire schema to be authored explicitly
 - JSON and XML should stay symmetric
 - domain refinement should be explicit with `Schema.map` or `Schema.tryMap`
 - Native AOT and Fable compatibility matter
@@ -68,7 +67,7 @@ The same authored schema can compile into:
 - config-oriented YAML codecs
 - flat KeyValue projections
 
-Authored tagged unions stay on that same contract path instead of switching to a separate codegen or reflection model.
+Authored tagged unions stay on that same schema path instead of switching to a separate codegen or reflection model.
 
 The core library stays focused on explicit schemas and handwritten runtimes. The separate bridge assembly exists for `.NET` interoperability with existing C# serializer contracts.
 
@@ -97,8 +96,8 @@ Use these after the core authored path is clear:
 
 Current status is mixed but clear:
 
-- `CodecMapper` is competitive on small messages and medium nested-record workloads.
-- `System.Text.Json` still leads on string-heavy and numeric-heavy payloads.
+- `CodecMapper` is strongest on the smallest message path and can match `STJ` on the current numeric-heavy decode case.
+- `System.Text.Json` still leads on most medium-to-large serialize and decode workloads.
 - `Newtonsoft.Json` trails both across the current manual scenario matrix.
 
 The project ships both a manual scenario runner and a repeatable `perf` workflow for hot-path investigation:
@@ -107,15 +106,15 @@ The project ships both a manual scenario runner and a repeatable `perf` workflow
 - profiling guide: [docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md](docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md)
 - full benchmark page: [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
-Latest local manual snapshot, measured on March 16, 2026:
+Latest local manual snapshot, measured on March 31, 2026:
 
 | Scenario | CodecMapper serialize | STJ serialize | CodecMapper deserialize | STJ deserialize | Takeaway |
 | --- | ---: | ---: | ---: | ---: | --- |
-| `small-message` | `519.5 ns` | `676.9 ns` | `990.1 ns` | `928.4 ns` | `CodecMapper` still wins tiny-message serialize; `STJ` keeps a slight decode lead. |
-| `person-batch-25` | `8.83 us` | `8.36 us` | `26.08 us` | `20.41 us` | Medium nested serialize stays close, but decode is not yet even. |
-| `person-batch-250` | `86.93 us` | `78.18 us` | `247.16 us` | `190.27 us` | Larger nested batches remain competitive on serialize, while `STJ` leads decode throughput. |
-| `escaped-articles-20` | `46.00 us` | `33.87 us` | `80.78 us` | `63.08 us` | String-heavy payloads are still a clear weak spot. |
-| `telemetry-500` | `393.93 us` | `311.45 us` | `745.63 us` | `520.84 us` | Numeric-heavy flat payloads still need significant optimization work, especially on decode. |
-| `person-batch-25-unknown-fields` | `7.92 us` | `7.51 us` | `30.50 us` | `24.23 us` | Unknown-field decode improved, but `STJ` still holds a noticeable lead. |
+| `small-message` | `526.5 ns` | `715.0 ns` | `641.6 ns` | `907.5 ns` | `CodecMapper` still leads both directions on the tiny-message case. |
+| `person-batch-25` | `8.33 us` | `7.37 us` | `24.29 us` | `18.22 us` | Medium nested workloads still trail `STJ`, but remain comfortably ahead of `Newtonsoft.Json`. |
+| `person-batch-250` | `84.95 us` | `69.09 us` | `229.36 us` | `168.44 us` | Larger nested batches still trail `STJ`, but stay ahead of `Newtonsoft.Json`. |
+| `escaped-articles-20` | `43.45 us` | `30.85 us` | `98.00 us` | `59.33 us` | String-heavy payloads remain a clear weak spot, especially on decode. |
+| `telemetry-500` | `413.04 us` | `298.93 us` | `516.87 us` | `513.80 us` | Numeric-heavy decode is still roughly tied with `STJ`, while serialize trails. |
+| `person-batch-25-unknown-fields` | `9.05 us` | `7.85 us` | `30.93 us` | `25.00 us` | Unknown-field decode is still in range, but not especially close to `STJ`. |
 
 Those numbers are machine-specific. Compare ratios and workload shape more than the absolute values.

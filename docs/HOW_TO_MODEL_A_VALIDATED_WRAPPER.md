@@ -3,7 +3,7 @@
 Use this pattern when the wire value is simple but the in-memory model should enforce a smart-constructor rule.
 
 ```fsharp
-open CodecMapper.Schema
+open CodecMapper
 
 type UserId = UserId of int
 
@@ -18,15 +18,15 @@ type Account = { Id: UserId; Name: string }
 let makeAccount id name = { Id = id; Name = name }
 
 let userIdSchema =
-    int
-    |> tryMap UserId.create UserId.value
+    Schema.int
+    |> Schema.tryMap UserId.create UserId.value
 
 let accountSchema =
-    define<Account>
-    |> construct makeAccount
-    |> fieldWith "id" _.Id userIdSchema
-    |> field "name" _.Name
-    |> build
+    Schema.define<Account>
+    |> Schema.construct makeAccount
+    |> Schema.fieldWith "id" _.Id userIdSchema
+    |> Schema.field "name" _.Name
+    |> Schema.build
 ```
 
-Extract the `tryMap` pipeline into a named schema when the same wrapper rule appears across multiple contracts.
+Extract the `Schema.tryMap` pipeline into a named codec when the same wrapper rule appears across multiple contracts.

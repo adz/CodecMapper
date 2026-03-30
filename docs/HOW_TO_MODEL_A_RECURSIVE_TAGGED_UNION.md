@@ -1,8 +1,8 @@
 # How To Model A Recursive Tagged Union
 
-Use `Schema.union` when the JSON/XML/YAML/KeyValue wire shape should be an explicit tagged contract with a separate payload field. Use `Schema.inlineUnion` when payload members should sit next to the discriminator at the same level. Use `Schema.delay` when one of those tags needs to recurse back to the same schema.
+Use `Tagged.union` when the JSON/XML/YAML/KeyValue wire shape should be an explicit tagged contract with a separate payload field. Use `Tagged.inlineUnion` when payload members should sit next to the discriminator at the same level. Use `Schema.delay` when one of those tags needs to recurse back to the same contract.
 
-This is the authored-schema path for recursive tree-like contracts. The wire contract stays explicit:
+This is the authored-contract path for recursive tree-like contracts. The wire contract stays explicit:
 
 - one discriminator field that chooses the case
 - one payload field for single-value cases
@@ -12,23 +12,22 @@ This is the authored-schema path for recursive tree-like contracts. The wire con
 
 ```fsharp
 open CodecMapper
-open CodecMapper.Schema
 
 type RecursiveNode =
     | Leaf of string
     | Branch of RecursiveNode
 
 let rec nodeSchema : Schema<RecursiveNode> =
-    delay (fun () ->
-        union [
-            tagWith
+    Schema.delay (fun () ->
+        Tagged.union [
+            Tagged.tagWith
                 "leaf"
                 (function
                 | Leaf value -> Some value
                 | _ -> None)
                 Leaf
-                string
-            tagWith
+                Schema.string
+            Tagged.tagWith
                 "branch"
                 (function
                 | Branch value -> Some value
@@ -38,9 +37,9 @@ let rec nodeSchema : Schema<RecursiveNode> =
         ])
 ```
 
-`delay` is the recursive anchor. Without it, the schema would try to construct itself immediately and never finish.
+`Schema.delay` is the recursive anchor. Without it, the contract would try to construct itself immediately and never finish.
 
-F# may warn about recursive object initialization (`FS0040`) when you author a recursive schema value with `let rec`. That warning is expected for this pattern. `Schema.delay` is the part that keeps the schema construction itself well-founded.
+F# may warn about recursive object initialization (`FS0040`) when you author a recursive contract value with `let rec`. That warning is expected for this pattern. `Schema.delay` is the part that keeps the contract construction itself well-founded.
 
 ## Compile once and reuse across formats
 
@@ -96,13 +95,13 @@ type Status =
     | Failed of string
 
 let statusSchema =
-    unionNamed "kind" "details" [
-        tag "pending" Pending ((=) Pending)
-        tagWith
+    Schema.unionNamed "kind" "details" [
+        Schema.tag "pending" Pending ((=) Pending)
+        Schema.tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
-            string
+            Schema.string
     ]
 ```
 

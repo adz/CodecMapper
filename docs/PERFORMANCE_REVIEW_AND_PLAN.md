@@ -9,7 +9,7 @@ short, while the evidence and next steps stay concrete and reviewable.
 
 Two things are true at the same time:
 
-- the current erased JSON decode path is adding real overhead
+- the current object-runtime JSON decode path is adding real overhead
 - the handwritten parser is still materially slower than `Utf8JsonReader` on
   realistic larger payloads
 
@@ -50,8 +50,16 @@ Detailed hotspot read:
 The first benchmark-only typed decode lane:
 
 - reuses the handwritten parser
-- avoids the current erased record assembly path
+- avoids the current object-runtime record assembly path
 - stays out of the production runtime
+
+That lane is now generalized one step further:
+
+- benchmark workloads now build the typed lane from reusable `recordN` and
+  `list` combinators instead of from one fully bespoke object loop per shape
+- the experiment still stays benchmark-only and constructor-authored
+- this makes the next comparisons closer to "typed assembly as an approach"
+  than to "one-off benchmark code"
 
 Focused results against `codecmapper-deserialize-bytes`:
 
@@ -63,7 +71,7 @@ Focused results against `codecmapper-deserialize-bytes`:
 
 Interpretation:
 
-- the erased decode path is costing real time
+- the object-runtime decode path is costing real time
 - the win size varies by payload shape
 - typed decode alone does not close the whole gap to STJ
 
@@ -120,7 +128,7 @@ Current strategic direction:
 
 - [x] Add hotspot profiling workflow and document how to read it.
 - [x] Add a benchmark-only typed JSON decode experiment using the handwritten parser.
-- [x] Compare typed decode against the current erased decode path.
+- [x] Compare typed decode against the current object-runtime decode path.
 - [x] Add parser-only scan comparison against `Utf8JsonReader`.
 - [x] Add parser diagnostic scenarios that isolate string-heavy, number-heavy, and flat-object traversal without polluting the release summary.
 - [x] Use those diagnostics to identify the handwritten parser's biggest losses:
@@ -131,8 +139,8 @@ Current strategic direction:
 - [x] Apply the first focused handwritten-parser optimization and rerun parser-only comparisons.
 - [x] Apply the first production JSON record-decode hot-path optimization and rerun release scenarios.
 - [x] Split unique raw property-name matches from collision buckets in the compiled record decoder and rerun release scenarios.
-- [ ] Generalize the typed record-decode lane beyond hand-written benchmark shapes.
-- [ ] Compare generalized typed decode against the current erased path on the release scenarios again.
+- [x] Generalize the typed record-decode lane beyond hand-written benchmark shapes.
+- [ ] Compare generalized typed decode against the current object-runtime path on the release scenarios again.
 - [ ] Decide whether the production runtime should adopt the typed lane, the parser changes, both, or neither.
 - [ ] Continue targeted parser work on the next likely losses:
   - escaped string scanning
@@ -143,7 +151,7 @@ Current strategic direction:
 
 1. Keep the production runtime work focused on the current record-heavy wins.
 2. Continue narrow experiments on numeric parsing, escaped-string scanning, and field matching.
-3. Generalize the typed record-decode lane once the parser-side wins start to flatten out.
+3. Rerun the full release-scenario comparison now that the typed lane is no longer bespoke per workload.
 4. Keep all close comparisons sequential and rerun before accepting a change.
 
 ## Parser diagnostic results
@@ -391,6 +399,74 @@ Conclusion:
 - future numeric work should stay focused on the larger token loops, not the
   individual digit predicate
 - small arithmetic-looking simplifications still need end-to-end validation
+
+### `skipValueAt` scalar delimiter check cleanup
+
+Another unknown-field-path experiment replaced the explicit whitespace byte
+checks in the scalar `skipValueAt` loop with a shared `isWhitespaceByte` call.
+
+Why it was rejected:
+
+- `person-batch-25-unknown-fields` regressed badly
+- the tighter-looking condition lost to the fully inlined byte comparisons in
+  the actual hot loop
+
+Conclusion:
+
+- the unknown-field scalar scanner should keep its explicit delimiter tests
+- future unknown-field work should focus on larger loop structure, not this
+  individual predicate
+
+### Short-name FNV unrolling
+
+Another field-match experiment kept the existing FNV raw-key hash but unrolled
+the short-name cases to remove the loop for property names up to eight bytes.
+
+Why it was rejected:
+
+- `person-batch-25-unknown-fields` regressed immediately
+- the extra pattern matching and duplicated hash expressions were not cheaper
+  than the small loop in this runtime
+
+Conclusion:
+
+- the current raw-key hash loop is already a reasonable baseline
+- future field-name work should avoid assuming tiny-loop unrolling will pay
+
+### `stringDecoder` plain-byte loop tightening
+
+Another string-path experiment applied the same plain-byte scan idea from
+`stringRaw` directly inside `stringDecoder`.
+
+Why it was rejected:
+
+- `telemetry-500` regressed slightly
+- `person-batch-250` regressed slightly
+- `escaped-articles-20` stayed effectively flat
+
+Conclusion:
+
+- the decoded-string path does not benefit enough from that direct rewrite
+- future string decode work should prefer a clearer fast-path split over
+  rewriting the whole escaped-string loop
+
+### `stringDecoder` raw fast path via `stringRaw`
+
+Another string-path experiment first called `stringRaw`, then used its result
+as a no-escape fast path and only fell back to the full escaped-string decoder
+when needed.
+
+Why it was rejected:
+
+- `telemetry-500` and `escaped-articles-20` improved
+- but `person-batch-250` regressed enough to make the trade unclear
+- the extra scan before escaped-string fallback did not hold up as a stable
+  across-the-board win
+
+Conclusion:
+
+- the no-escape fast path idea is directionally interesting
+- but the current two-pass version is not robust enough to keep
 
 ## Measurement discipline note
 

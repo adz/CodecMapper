@@ -7,7 +7,7 @@ example.
 The goal is not to produce a perfect low-level CPU narrative on day one. The
 goal is to decide whether the next performance experiment should focus on:
 
-- erased `obj` traffic
+- object `obj` traffic
 - allocation churn
 - field lookup and object assembly
 - string and numeric parsing
@@ -15,8 +15,8 @@ goal is to decide whether the next performance experiment should focus on:
 
 ## Why this comes first
 
-The non-erased typed-codec task is high risk. It is easy to drift into a broad
-runtime rewrite before proving that the erased path is actually the dominant
+The typed typed-codec task is high risk. It is easy to drift into a broad
+runtime rewrite before proving that the object-runtime is actually the dominant
 cost.
 
 So the first gate is:
@@ -135,7 +135,7 @@ That usually points to:
 - buffer clearing
 - or other runtime support work around the decode loop
 
-It is **not** yet evidence that erased `obj` dispatch is the dominant cost.
+It is **not** yet evidence that object `obj` dispatch is the dominant cost.
 
 ### 2. Treat `__memset...` as a strong signal
 
@@ -256,11 +256,11 @@ So the first prototype should be:
 
 The profiling does not yet say:
 
-> the entire erased schema model must be replaced
+> the entire object-runtime schema model must be replaced
 
 It says something narrower:
 
-> the current decode path likely pays too much for erased intermediate storage
+> the current decode path likely pays too much for object intermediate storage
 > and runtime helper work during record assembly
 
 That is a much better first prototype target.
@@ -305,7 +305,7 @@ and ask:
 
 This first pass is **not** enough to conclude:
 
-- that erased typing is the only or main bottleneck
+- that object typing is the only or main bottleneck
 - that string parsing is solved by a typed path
 - that unions should be part of the first typed prototype
 - that the whole runtime should be rewritten
@@ -329,7 +329,7 @@ How I interpret this profiling pass:
 So the disciplined next move is:
 
 1. prototype a typed JSON record-decode lane
-2. compare it against the current erased path
+2. compare it against the current object-runtime path
 3. only expand further if the benchmark wins are clear
 
 ## First typed experiment result
@@ -388,7 +388,7 @@ same scenarios, for example:
 
 ### How to interpret those numbers
 
-This is enough to conclude that the erased record-decode path is costing real
+This is enough to conclude that the object-runtime record-decode path is costing real
 time and allocation.
 
 It is not enough to conclude that a fully typed rewrite will automatically
@@ -414,7 +414,7 @@ in a narrow lane.
 - keep using the handwritten parser so parser-vs-runtime effects stay
   separated
 - rerun the same scenario set after each generalization step
-- only consider replacing the erased production path once the typed version is
+- only consider replacing the object-runtime production path once the typed version is
   both simpler and still measurably faster
 
 ## Parser-only comparison
@@ -477,7 +477,7 @@ The current data does not support that.
 
 Instead, the more accurate read is:
 
-- our typed decode experiment proves the erased decode path is adding real
+- our typed decode experiment proves the object-runtime decode path is adding real
   overhead
 - but our handwritten parser is also materially slower than
   `Utf8JsonReader` on realistic larger payloads

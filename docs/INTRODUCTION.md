@@ -1,19 +1,19 @@
 # Introduction
 
-`CodecMapper` is for cases where the wire contract should be written down on purpose instead of being inferred from CLR shape or serializer settings.
+`CodecMapper` is for cases where the wire schema should be written down on purpose instead of being inferred from CLR shape or serializer settings.
 
-You author one `Schema<'T>` that describes the wire shape, then compile it into reusable codecs.
+You author one `Schema<'T>`, then compile it into reusable format codecs.
 
 That schema is the important idea in the library:
 
 - it is explicit
 - it drives both encode and decode
 - it is reusable across formats
-- it keeps contract changes visible in code review
+- it keeps schema changes visible in code review
 
 ## The core mental model
 
-Most authored contracts follow one stable shape:
+Most authored schemas follow one stable shape:
 
 ```fsharp
 Schema.define<'T>
@@ -24,10 +24,10 @@ Schema.define<'T>
 
 Read that pipeline from top to bottom:
 
-- `Schema.define<'T>` says which value the contract describes
+- `Schema.define<'T>` says which value the schema describes
 - `Schema.construct ctor` says how decode rebuilds the value
-- each `Schema.field` maps one wire field to one domain field
-- `Schema.build` finishes the authored contract
+- each `Schema.field` or `Schema.fieldWith` maps one wire field to one domain field
+- `Schema.build` finishes the authored schema
 
 Then you compile that schema into a codec for the format boundary you need:
 
@@ -39,9 +39,9 @@ let decoded = Json.deserialize codec json
 
 ## Why it feels different
 
-`CodecMapper` is not trying to discover a contract from your record type.
+`CodecMapper` is not trying to discover a schema from your record type.
 
-Instead, the schema is the contract.
+Instead, the authored schema is the contract.
 
 That makes it useful when:
 
@@ -49,7 +49,7 @@ That makes it useful when:
 - JSON and XML should stay symmetric
 - domain refinement should be explicit with `Schema.map` or `Schema.tryMap`
 - tagged unions, inline tagged unions, and recursive case trees should stay explicit in normal schema code
-- common string enums and message envelopes should still read like authored contracts rather than serializer magic
+- common string enums and message envelopes should still read like authored schemas rather than serializer magic
 - AOT and Fable compatibility matter more than serializer magic
 
 ## The first path to learn

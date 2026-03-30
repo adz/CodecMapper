@@ -5,10 +5,10 @@ Use this page as a quick jump list when you know the kind of contract you need a
 All examples stay on the stable authored DSL:
 
 ```fsharp
-define<'T>
-|> construct ctor
-|> field ...
-|> build
+Schema.define<'T>
+|> Schema.construct ctor
+|> Schema.field ...
+|> Schema.build
 ```
 
 ## Common Patterns

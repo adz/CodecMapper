@@ -4,7 +4,7 @@ This guide shows how to stop treating configuration as an incidental serializer 
 
 The core idea is simple:
 
-- define a schema for the wire format on purpose
+- define a contract for the wire format on purpose
 - add an explicit `version` field
 - read old versions and upgrade them forward
 - write only the latest version
@@ -16,7 +16,7 @@ If you currently have a mix of JSON and XML config files, the recommendation her
 - **XML is migration input only**
 - **the application always writes the latest JSON form**
 
-If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored schema rather than as a second implicit contract.
+If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored contract rather than as a second implicit contract.
 
 If you need a human-edited text format without dropping back to serializer conventions, the same schema can also compile to the library's small YAML subset for mappings, sequences, scalars, and `null`.
 
@@ -66,7 +66,7 @@ Use this for flat config-style boundaries only. Collections, raw JSON, and other
 When a config field should fall back to a known value only when it is absent, keep that policy explicit in the schema:
 
 ```fsharp
-open CodecMapper.Schema
+open CodecMapper
 
 type AppConfig =
     {
@@ -75,18 +75,20 @@ type AppConfig =
         Labels: string list
     }
 
+let makeAppConfig mode retryCount labels =
+    {
+        Mode = mode
+        RetryCount = retryCount
+        Labels = labels
+    }
+
 let appConfigSchema =
-    define<AppConfig>
-    |> construct (fun mode retryCount labels ->
-        {
-            Mode = mode
-            RetryCount = retryCount
-            Labels = labels
-        })
-    |> fieldWith "mode" _.Mode (string |> missingAsValue "strict")
-    |> fieldWith "retry_count" _.RetryCount (int |> missingAsValue 3)
-    |> fieldWith "labels" _.Labels (list string |> missingAsValue [])
-    |> build
+    Schema.define<AppConfig>
+    |> Schema.construct makeAppConfig
+    |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
+    |> Schema.fieldWith "retry_count" _.RetryCount (Schema.int |> Schema.missingAsValue 3)
+    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.missingAsValue [])
+    |> Schema.build
 ```
 
 That keeps the default local to the contract instead of smuggling it through serializer settings or post-deserialize mutation.
@@ -96,7 +98,7 @@ That keeps the default local to the contract instead of smuggling it through ser
 Some config boundaries treat an explicit `null` or an explicit empty collection as "use the contract default" rather than as a distinct payload state. Keep that normalization local to the field too:
 
 ```fsharp
-open CodecMapper.Schema
+open CodecMapper
 
 type ServiceConfig =
     {
@@ -104,16 +106,18 @@ type ServiceConfig =
         Labels: string list
     }
 
+let makeServiceConfig region labels =
+    {
+        Region = region
+        Labels = labels
+    }
+
 let serviceConfigSchema =
-    define<ServiceConfig>
-    |> construct (fun region labels ->
-        {
-            Region = region
-            Labels = labels
-        })
-    |> fieldWith "region" _.Region (string |> nullAsValue "global")
-    |> fieldWith "labels" _.Labels (list string |> emptyCollectionAsValue [ "general" ])
-    |> build
+    Schema.define<ServiceConfig>
+    |> Schema.construct makeServiceConfig
+    |> Schema.fieldWith "region" _.Region (Schema.string |> Schema.nullAsValue "global")
+    |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.emptyCollectionAsValue [ "general" ])
+    |> Schema.build
 ```
 
 That means:
@@ -333,7 +337,7 @@ With `CodecMapper`, the wire contract should be explicit in the schema, not infe
 A versioned envelope schema is the right place to make changes visible:
 
 ```fsharp
-open CodecMapper.Schema
+open CodecMapper
 
 type AppConfigV2 =
     {
@@ -349,30 +353,35 @@ type VersionEnvelope<'T> =
     }
 
 module Schemas =
+    let makeAppConfigV2 serviceUrl retryCount mode =
+        {
+            ServiceUrl = serviceUrl
+            RetryCount = retryCount
+            Mode = mode
+        }
+
     let appConfigV2 =
-        define<AppConfigV2>
-        |> construct (fun serviceUrl retryCount mode ->
-            {
-                ServiceUrl = serviceUrl
-                RetryCount = retryCount
-                Mode = mode
-            })
-        |> field "service_url" _.ServiceUrl
-        |> field "retry_count" _.RetryCount
-        |> field "mode" _.Mode
-        |> build
+        Schema.define<AppConfigV2>
+        |> Schema.construct makeAppConfigV2
+        |> Schema.field "service_url" _.ServiceUrl
+        |> Schema.field "retry_count" _.RetryCount
+        |> Schema.field "mode" _.Mode
+        |> Schema.build
 ```
 
 Then wrap that with a schema for the envelope:
 
 ```fsharp
 module Schemas =
+    let makeVersionEnvelope version config =
+        { Version = version; Config = config }
+
     let versionEnvelope inner =
-        define<VersionEnvelope<'T>>
-        |> construct (fun version config -> { Version = version; Config = config })
-        |> field "version" _.Version
-        |> fieldWith "config" _.Config inner
-        |> build
+        Schema.define<VersionEnvelope<'T>>
+        |> Schema.construct makeVersionEnvelope
+        |> Schema.field "version" _.Version
+        |> Schema.fieldWith "config" _.Config inner
+        |> Schema.build
 ```
 
 The latest version should be the one you serialize.

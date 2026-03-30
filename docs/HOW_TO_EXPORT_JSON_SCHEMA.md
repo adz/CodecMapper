@@ -1,6 +1,6 @@
 # How To Export JSON Schema
 
-Use `JsonSchema.generate` when you want a JSON Schema document for the JSON wire contract already described by a `Schema<'T>`.
+Use `JsonSchema.generate` when you want a JSON Schema document for the JSON wire schema already described by a `Schema<'T>`.
 
 This is the authored-schema path. It is separate from JSON Schema import:
 
@@ -13,17 +13,16 @@ Keep those two workflows separate when you design your integration boundary.
 
 ```fsharp
 open CodecMapper
-open CodecMapper.Schema
 
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    define<Person>
-    |> construct makePerson
-    |> field "id" _.Id
-    |> field "name" _.Name
-    |> build
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.fieldInfer "id" _.Id
+    |> Schema.fieldInfer "name" _.Name
+    |> Schema.build
 
 let jsonSchema = JsonSchema.generate personSchema
 ```
@@ -35,8 +34,6 @@ let jsonSchema = JsonSchema.generate personSchema
 `Schema.map` and `Schema.tryMap` export the underlying wire shape, not the domain-only refinement rule:
 
 ```fsharp
-open CodecMapper.Schema
-
 type UserId = UserId of int
 
 module UserId =
@@ -47,8 +44,8 @@ module UserId =
     let value (UserId value) = value
 
 let userIdSchema =
-    int
-    |> tryMap UserId.create UserId.value
+    Schema.int
+    |> Schema.tryMap UserId.create UserId.value
 
 let schemaText = JsonSchema.generate userIdSchema
 ```
@@ -60,9 +57,7 @@ That schema still exports as an integer contract because the JSON wire value is 
 `Schema.option` keeps explicit `null` semantics:
 
 ```fsharp
-open CodecMapper.Schema
-
-let maybeAgeSchema = option int
+let maybeAgeSchema = Schema.option Schema.int
 let schemaText = JsonSchema.generate maybeAgeSchema
 ```
 
@@ -84,11 +79,11 @@ If you use `Schema.missingAsNone` inside a record field, the field is removed fr
 - recursive authored schemas through local `$defs` / `$ref` when the recursion is anchored with `Schema.delay`
 - mapped wrapper types as their underlying wire form
 
-It does not infer extra validation keywords from smart constructors or arbitrary business rules. If your type enforces domain constraints through `Schema.tryMap`, keep doing that on decode; the exported JSON Schema remains the structural contract.
+It does not infer extra validation keywords from smart constructors or arbitrary business rules. If your type enforces domain constraints through `Schema.tryMap`, keep doing that on decode; the exported JSON Schema remains the structural schema.
 
 ## Export authored tagged unions
 
-`Schema.union` exports as a discriminated `oneOf` contract:
+`Tagged.union` exports as a discriminated `oneOf` contract:
 
 ```fsharp
 type Status =
@@ -96,9 +91,9 @@ type Status =
     | Failed of string
 
 let statusSchema =
-    Schema.union [
-        Schema.tag "pending" Pending ((=) Pending)
-        Schema.tagWith
+    Tagged.union [
+        Tagged.tag "pending" Pending ((=) Pending)
+        Tagged.tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
@@ -110,7 +105,7 @@ let schemaText = JsonSchema.generate statusSchema
 
 That exported schema uses one branch per case, with a `const` discriminator for the case name.
 
-`Schema.inlineUnion` exports the same `oneOf` structure, but merges payload properties into the same object branch as the discriminator instead of nesting them under a separate payload field.
+`Tagged.inlineUnion` exports the same `oneOf` structure, but merges payload properties into the same object branch as the discriminator instead of nesting them under a separate payload field.
 
 `Schema.stringEnum` exports as a string schema with an explicit `enum` list of allowed wire values.
 
@@ -125,13 +120,13 @@ type RecursiveNode =
 
 let rec nodeSchema : Schema<RecursiveNode> =
     Schema.delay (fun () ->
-        Schema.union [
-            Schema.tagWith
+        Tagged.union [
+            Tagged.tagWith
                 "leaf"
                 (function Leaf value -> Some value | _ -> None)
                 Leaf
                 Schema.string
-            Schema.tagWith
+            Tagged.tagWith
                 "branch"
                 (function Branch value -> Some value | _ -> None)
                 Branch

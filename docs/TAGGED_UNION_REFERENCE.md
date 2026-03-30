@@ -29,20 +29,19 @@ Example schema:
 
 ```fsharp
 open CodecMapper
-open CodecMapper.Schema
 
 type Status =
     | Pending
     | Failed of string
 
 let statusSchema =
-    union [
-        tag "pending" Pending ((=) Pending)
-        tagWith
+    Schema.union [
+        Schema.tag "pending" Pending ((=) Pending)
+        Schema.tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
-            string
+            Schema.string
     ]
 ```
 
@@ -115,13 +114,13 @@ Example:
 
 ```fsharp
 let statusSchema =
-    unionNamed "kind" "details" [
-        tag "pending" Pending ((=) Pending)
-        tagWith
+    Schema.unionNamed "kind" "details" [
+        Schema.tag "pending" Pending ((=) Pending)
+        Schema.tagWith
             "failed"
             (function Failed message -> Some message | _ -> None)
             Failed
-            string
+            Schema.string
     ]
 ```
 
@@ -167,17 +166,19 @@ type Event =
     | Ping
     | Created of CreatedData
 
+let makeCreatedData id name = { Id = id; Name = name }
+
 let createdDataSchema =
-    define<CreatedData>
-    |> construct (fun id name -> { Id = id; Name = name })
-    |> field "id" _.Id
-    |> field "name" _.Name
-    |> build
+    Schema.define<CreatedData>
+    |> Schema.construct makeCreatedData
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
 
 let eventSchema =
-    inlineUnion [
-        tag "ping" Ping ((=) Ping)
-        tagWith
+    Schema.inlineUnion [
+        Schema.tag "ping" Ping ((=) Ping)
+        Schema.tagWith
             "created"
             (function Created payload -> Some payload | _ -> None)
             Created
@@ -242,9 +243,9 @@ Example envelope:
 
 ```fsharp
 let eventSchema =
-    envelope [
-        message "ping" Ping ((=) Ping)
-        messageWith
+    Schema.envelope [
+        Schema.message "ping" Ping ((=) Ping)
+        Schema.messageWith
             "created"
             (function Created payload -> Some payload | _ -> None)
             Created
@@ -274,14 +275,14 @@ type RecursiveNode =
     | Branch of RecursiveNode
 
 let rec nodeSchema : Schema<RecursiveNode> =
-    delay (fun () ->
-        union [
-            tagWith
+    Schema.delay (fun () ->
+        Schema.union [
+            Schema.tagWith
                 "leaf"
                 (function Leaf value -> Some value | _ -> None)
                 Leaf
-                string
-            tagWith
+                Schema.string
+            Schema.tagWith
                 "branch"
                 (function Branch value -> Some value | _ -> None)
                 Branch

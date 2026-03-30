@@ -1,12 +1,12 @@
 # Getting Started with `CodecMapper`
 
-This tutorial teaches the main authored-schema path first.
+This tutorial teaches the main schema-authoring path first.
 
 The goal is simple:
 
 1. define one schema
 2. compile it once
-3. serialize and deserialize with the same contract
+3. serialize and deserialize with the same schema
 
 Leave the C# bridge, JSON Schema import, and other side paths until this flow feels natural.
 
@@ -14,17 +14,15 @@ Leave the C# bridge, JSON Schema import, and other side paths until this flow fe
 
 ```fsharp
 open CodecMapper
-open CodecMapper.Schema
-
 type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    define<Person>
-    |> construct makePerson
-    |> field "id" _.Id
-    |> field "name" _.Name
-    |> build
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.build
 
 let codec = Json.compile personSchema
 
@@ -41,18 +39,18 @@ That is the normal shape of the library:
 
 ## How to read the schema
 
-Read the schema pipeline from top to bottom:
+Read the builder pipeline from top to bottom:
 
-- `define<Person>` says which value the contract describes
-- `construct makePerson` says how decode rebuilds the value
-- `field "id" _.Id` maps the wire field `"id"` to the record field `Id`
-- `build` finishes the schema
+- `Schema.define<Person>` says which value the schema describes
+- `Schema.construct makePerson` says how decode rebuilds the value
+- `Schema.field "id" _.Id` maps the wire field `"id"` to the record field `Id`
+- `Schema.build` finishes the schema
 
-The important idea is that the schema is the contract itself, not a hint to a serializer.
+The important idea is that the schema is explicit code, not a hint to a serializer.
 
 ## What compilation means
 
-The schema definition is still just data about the contract. `Json.compile` turns that definition into a reusable codec:
+The authored schema is still just data about the wire shape. `Json.compile` turns that definition into a reusable codec:
 
 ```fsharp
 let codec = Json.compile personSchema
@@ -64,10 +62,10 @@ If the schema is only being authored inline at the end of a short example, `Json
 
 ```fsharp
 let codec =
-    define<Person>
-    |> construct makePerson
-    |> field "id" _.Id
-    |> field "name" _.Name
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
     |> Json.buildAndCompile
 ```
 
@@ -85,26 +83,26 @@ type Person = { Id: int; Name: string; Home: Address }
 let makePerson id name home = { Id = id; Name = name; Home = home }
 
 let addressSchema =
-    define<Address>
-    |> construct makeAddress
-    |> field "street" _.Street
-    |> field "city" _.City
-    |> build
+    Schema.define<Address>
+    |> Schema.construct makeAddress
+    |> Schema.field "street" _.Street
+    |> Schema.field "city" _.City
+    |> Schema.build
 
 let personSchema =
-    define<Person>
-    |> construct makePerson
-    |> field "id" _.Id
-    |> field "name" _.Name
-    |> fieldWith "home" _.Home addressSchema
-    |> build
+    Schema.define<Person>
+    |> Schema.construct makePerson
+    |> Schema.field "id" _.Id
+    |> Schema.field "name" _.Name
+    |> Schema.fieldWith "home" _.Home addressSchema
+    |> Schema.build
 ```
 
-`fieldWith` marks an explicit schema boundary for the child value.
+`Schema.fieldWith` marks an explicit schema boundary for the child value.
 
 ## The next step: stronger domain types
 
-If the wire value is simple but the in-memory value should be validated, refine the schema with `tryMap`:
+If the wire value is simple but the in-memory value should be validated, refine the schema with `Schema.tryMap`:
 
 ```fsharp
 type UserId = UserId of int
@@ -117,8 +115,8 @@ module UserId =
     let value (UserId value) = value
 
 let userIdSchema =
-    int
-    |> tryMap UserId.create UserId.value
+    Schema.int
+    |> Schema.tryMap UserId.create UserId.value
 ```
 
 That keeps the wire contract simple while making the domain type stricter.
@@ -133,7 +131,7 @@ Take the next pages in this order:
 4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
 5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
-Once the authored-schema path is clear:
+Once the schema-authoring path is clear:
 
 - use [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md) for bridge or C# facade work
 - use [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md) for outward schema documents
