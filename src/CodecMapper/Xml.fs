@@ -88,7 +88,7 @@ module XmlBackend =
             let data = src.Data
 
             while i < data.Length
-                  && (data[i] = 32uy || data[i] = 10uy || data[i] = 13uy || data[i] = 9uy) do
+                  && (data[i] = byte ' ' || data[i] = byte '\n' || data[i] = byte '\r' || data[i] = byte '\t') do
                 i <- i + 1
 
             ByteSource(data, i)
@@ -100,17 +100,17 @@ module XmlBackend =
             let src = skipWhitespace src
             let data = src.Data
 
-            if src.Offset >= data.Length || data[src.Offset] <> 60uy then
+            if src.Offset >= data.Length || data[src.Offset] <> byte '<' then
                 failwith "Expected <"
 
             let mutable i = src.Offset + 1
 
-            if i < data.Length && data[i] = 47uy then
+            if i < data.Length && data[i] = byte '/' then
                 failwithf "Expected <%s>" tag
 
             let start = i
 
-            while i < data.Length && data[i] <> 62uy do
+            while i < data.Length && data[i] <> byte '>' do
                 i <- i + 1
 
             if i >= data.Length then
@@ -133,15 +133,15 @@ module XmlBackend =
 
             if
                 src.Offset + 2 >= data.Length
-                || data[src.Offset] <> 60uy
-                || data[src.Offset + 1] <> 47uy
+                || data[src.Offset] <> byte '<'
+                || data[src.Offset + 1] <> byte '/'
             then
                 failwithf "Expected </%s>" tag
 
             let mutable i = src.Offset + 2
             let start = i
 
-            while i < data.Length && data[i] <> 62uy do
+            while i < data.Length && data[i] <> byte '>' do
                 i <- i + 1
 
             if i >= data.Length then
@@ -164,15 +164,15 @@ module XmlBackend =
 
             if
                 src.Offset + tag.Length + 2 >= data.Length
-                || data[src.Offset] <> 60uy
-                || data[src.Offset + 1] <> 47uy
+                || data[src.Offset] <> byte '<'
+                || data[src.Offset + 1] <> byte '/'
             then
                 None
             else
                 let mutable i = src.Offset + 2
                 let start = i
 
-                while i < data.Length && data[i] <> 62uy do
+                while i < data.Length && data[i] <> byte '>' do
                     i <- i + 1
 
                 if i >= data.Length then
@@ -201,14 +201,14 @@ module XmlBackend =
             let mutable nextOffset = current.Offset
 
             while i < data.Length && not found do
-                if data[i] = 60uy then
+                if data[i] = byte '<' then
                     let mutable j = i + 1
 
-                    if j < data.Length && data[j] = 47uy then
+                    if j < data.Length && data[j] = byte '/' then
                         j <- j + 1
                         let nameStart = j
 
-                        while j < data.Length && data[j] <> 62uy do
+                        while j < data.Length && data[j] <> byte '>' do
                             j <- j + 1
 
                         if j >= data.Length then
@@ -228,7 +228,7 @@ module XmlBackend =
                             depth <- depth - 1
                             i <- j + 1
                     else
-                        while j < data.Length && data[j] <> 62uy do
+                        while j < data.Length && data[j] <> byte '>' do
                             j <- j + 1
 
                         if j >= data.Length then
@@ -279,7 +279,7 @@ module XmlBackend =
             let data = src.Data
             let mutable i = src.Offset
 
-            while i < data.Length && data[i] <> 60uy do
+            while i < data.Length && data[i] <> byte '<' do
                 i <- i + 1
 
 #if !FABLE_COMPILER
@@ -334,14 +334,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<int> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteInt(unbox v)
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -354,14 +354,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<int64> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString((unbox<int64> v).ToString(CultureInfo.InvariantCulture))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -376,14 +376,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<uint32> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString((unbox<uint32> v).ToString(CultureInfo.InvariantCulture))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -398,14 +398,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<uint64> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString((unbox<uint64> v).ToString(CultureInfo.InvariantCulture))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -420,14 +420,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<float> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString(Core.formatFloat (unbox<float> v))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -442,14 +442,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<decimal> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString((unbox<decimal> v).ToString(CultureInfo.InvariantCulture))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -464,14 +464,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<string> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString(Runtime.escapeText (unbox v))
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -483,14 +483,14 @@ module XmlBackend =
                     | EPrimitive t when t = typeof<bool> -> {
                         Encode =
                             (fun w tag v ->
-                                w.WriteByte(60uy)
+                                w.WriteByte(byte '<')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy)
+                                w.WriteByte(byte '>')
                                 w.WriteString(if unbox<bool> v then "true" else "false")
-                                w.WriteByte(60uy)
-                                w.WriteByte(47uy)
+                                w.WriteByte(byte '<')
+                                w.WriteByte(byte '/')
                                 w.WriteString(tag)
-                                w.WriteByte(62uy))
+                                w.WriteByte(byte '>'))
                         Decode =
                             (fun src tag ->
                                 let current = Runtime.expectOpenTag tag src
@@ -508,14 +508,14 @@ module XmlBackend =
                             (fun w tag v ->
                                 match tryGetName v with
                                 | Some name ->
-                                    w.WriteByte(60uy)
+                                    w.WriteByte(byte '<')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
                                     w.WriteString(Runtime.escapeText name)
-                                    w.WriteByte(60uy)
-                                    w.WriteByte(47uy)
+                                    w.WriteByte(byte '<')
+                                    w.WriteByte(byte '/')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
                                 | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
                         Decode =
                             (fun src tag ->
@@ -541,9 +541,9 @@ module XmlBackend =
                         {
                             Encode =
                                 (fun w tag v ->
-                                    w.WriteByte(60uy)
+                                    w.WriteByte(byte '<')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
 
                                     if not (isNull v) then
                                         innerCodec.Encode
@@ -551,10 +551,10 @@ module XmlBackend =
                                             "some"
                                             (FSharpValue.GetUnionFields(v, optionType) |> snd |> Array.item 0)
 
-                                    w.WriteByte(60uy)
-                                    w.WriteByte(47uy)
+                                    w.WriteByte(byte '<')
+                                    w.WriteByte(byte '/')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy))
+                                    w.WriteByte(byte '>'))
                             Decode =
                                 (fun src tag ->
                                     let current = Runtime.expectOpenTag tag src
@@ -658,17 +658,17 @@ module XmlBackend =
                         {
                             Encode =
                                 (fun w tag vObj ->
-                                    w.WriteByte(60uy)
+                                    w.WriteByte(byte '<')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
 
                                     for f in compiledFields do
                                         f.Codec.Encode w f.Name (f.GetValue vObj)
 
-                                    w.WriteByte(60uy)
-                                    w.WriteByte(47uy)
+                                    w.WriteByte(byte '<')
+                                    w.WriteByte(byte '/')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy))
+                                    w.WriteByte(byte '>'))
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
@@ -718,19 +718,19 @@ module XmlBackend =
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
-                                        writer.WriteByte(60uy)
+                                        writer.WriteByte(byte '<')
                                         writer.WriteString(tag)
-                                        writer.WriteByte(62uy)
+                                        writer.WriteByte(byte '>')
                                         stringCodec.Encode writer discriminatorName (box compiled.Case.Name)
 
                                         match compiled.Codec with
                                         | Some codec -> codec.Encode writer valueName fieldValue
                                         | None -> ()
 
-                                        writer.WriteByte(60uy)
-                                        writer.WriteByte(47uy)
+                                        writer.WriteByte(byte '<')
+                                        writer.WriteByte(byte '/')
                                         writer.WriteString(tag)
-                                        writer.WriteByte(62uy)
+                                        writer.WriteByte(byte '>')
                                     | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src tag ->
@@ -831,9 +831,9 @@ module XmlBackend =
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
-                                        writer.WriteByte(60uy)
+                                        writer.WriteByte(byte '<')
                                         writer.WriteString(tag)
-                                        writer.WriteByte(62uy)
+                                        writer.WriteByte(byte '>')
                                         stringCodec.Encode writer discriminatorName (box compiled.Case.Name)
 
                                         match compiled.Codec with
@@ -842,10 +842,10 @@ module XmlBackend =
                                             writer.WriteString(innerXml)
                                         | None -> ()
 
-                                        writer.WriteByte(60uy)
-                                        writer.WriteByte(47uy)
+                                        writer.WriteByte(byte '<')
+                                        writer.WriteByte(byte '/')
                                         writer.WriteString(tag)
-                                        writer.WriteByte(62uy)
+                                        writer.WriteByte(byte '>')
                                     | None -> failwithf "No union case matched value for type %O" schema.TargetType)
                             Decode =
                                 (fun src tag ->
@@ -888,17 +888,17 @@ module XmlBackend =
                                 (fun w tag vObj ->
                                     let list = vObj :?> System.Collections.IEnumerable
 
-                                    w.WriteByte(60uy)
+                                    w.WriteByte(byte '<')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
 
                                     for item in list do
                                         innerCodec.Encode w "item" item
 
-                                    w.WriteByte(60uy)
-                                    w.WriteByte(47uy)
+                                    w.WriteByte(byte '<')
+                                    w.WriteByte(byte '/')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy))
+                                    w.WriteByte(byte '>'))
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
@@ -931,17 +931,17 @@ module XmlBackend =
                         {
                             Encode =
                                 (fun w tag vObj ->
-                                    w.WriteByte(60uy)
+                                    w.WriteByte(byte '<')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy)
+                                    w.WriteByte(byte '>')
 
                                     for item in (vObj :?> System.Collections.IEnumerable) do
                                         innerCodec.Encode w "item" item
 
-                                    w.WriteByte(60uy)
-                                    w.WriteByte(47uy)
+                                    w.WriteByte(byte '<')
+                                    w.WriteByte(byte '/')
                                     w.WriteString(tag)
-                                    w.WriteByte(62uy))
+                                    w.WriteByte(byte '>'))
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src

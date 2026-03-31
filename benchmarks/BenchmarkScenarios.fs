@@ -85,12 +85,12 @@ module ParserScanExperiment =
             failwith "Unexpected end of JSON payload"
 
         match data[src.Offset] with
-        | 123uy ->
+        | byte '{' ->
             let mutable current = Json.Runtime.skipWhitespaceShared (src.Advance(1))
             let mutable hash = 19
             let mutable continueLoop = true
 
-            if current.Offset < data.Length && data[current.Offset] = 125uy then
+            if current.Offset < data.Length && data[current.Offset] = byte '}' then
                 current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
                 continueLoop <- false
 
@@ -99,7 +99,7 @@ module ParserScanExperiment =
                 let keyHash = hashBytes data keyStart keyLength
                 let afterColon = Json.Runtime.skipWhitespaceShared afterKey
 
-                if afterColon.Offset >= data.Length || data[afterColon.Offset] <> 58uy then
+                if afterColon.Offset >= data.Length || data[afterColon.Offset] <> byte ':' then
                     failwith "Expected :"
 
                 let struct (valueHash, afterValue) = scanOurValue (afterColon.Advance(1))
@@ -107,21 +107,21 @@ module ParserScanExperiment =
 
                 let afterValue = Json.Runtime.skipWhitespaceShared afterValue
 
-                if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
+                if afterValue.Offset < data.Length && data[afterValue.Offset] = byte ',' then
                     current <- Json.Runtime.skipWhitespaceShared (afterValue.Advance(1))
-                elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
+                elif afterValue.Offset < data.Length && data[afterValue.Offset] = byte '}' then
                     current <- Json.Runtime.skipWhitespaceShared (afterValue.Advance(1))
                     continueLoop <- false
                 else
                     failwith "Expected , or }"
 
             struct (hash, current)
-        | 91uy ->
+        | byte '[' ->
             let mutable current = Json.Runtime.skipWhitespaceShared (src.Advance(1))
             let mutable hash = 23
             let mutable continueLoop = true
 
-            if current.Offset < data.Length && data[current.Offset] = 93uy then
+            if current.Offset < data.Length && data[current.Offset] = byte ']' then
                 current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
                 continueLoop <- false
 
@@ -131,24 +131,24 @@ module ParserScanExperiment =
 
                 let afterItem = Json.Runtime.skipWhitespaceShared afterItem
 
-                if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
+                if afterItem.Offset < data.Length && data[afterItem.Offset] = byte ',' then
                     current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
-                elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
+                elif afterItem.Offset < data.Length && data[afterItem.Offset] = byte ']' then
                     current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
                     continueLoop <- false
                 else
                     failwith "Expected , or ]"
 
             struct (hash, current)
-        | 34uy ->
+        | byte '"' ->
             let struct (start, length, hadEscapes, next) = Json.Runtime.stringRaw src
             let hash = mixHash (hashBytes data start length) (if hadEscapes then 1 else 0)
             struct (hash, next)
-        | 116uy
-        | 102uy ->
+        | byte 't'
+        | byte 'f' ->
             let struct (value, next) = Json.Runtime.boolDecoder src
             struct ((if value then 31 else 29), next)
-        | 110uy ->
+        | byte 'n' ->
             let next = Json.Runtime.nullDecoder src
             struct (37, next)
         | _ ->
@@ -255,11 +255,11 @@ module TypedJsonExperiment =
         (src: Json.JsonSource)
         (decodeField: Json.JsonSource -> int -> int -> bool -> Json.JsonSource -> Json.JsonSource)
         : Json.JsonSource =
-        let mutable current = expectByte 123uy "{" src
+        let mutable current = expectByte (byte '{') "{" src
         let data = current.Data
         let mutable continueLoop = true
 
-        if current.Offset < data.Length && data[current.Offset] = 125uy then
+        if current.Offset < data.Length && data[current.Offset] = byte '}' then
             current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
             continueLoop <- false
 
@@ -267,12 +267,12 @@ module TypedJsonExperiment =
             let struct (keyStart, keyLength, keyHasEscapes, afterRawKey) =
                 readPropertyName current
 
-            let afterColon = expectByte 58uy ":" afterRawKey
+            let afterColon = expectByte (byte ':') ":" afterRawKey
             let afterValue = decodeField current keyStart keyLength keyHasEscapes afterColon
 
-            if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
+            if afterValue.Offset < data.Length && data[afterValue.Offset] = byte ',' then
                 current <- Json.Runtime.skipWhitespaceShared (afterValue.Advance(1))
-            elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
+            elif afterValue.Offset < data.Length && data[afterValue.Offset] = byte '}' then
                 current <- Json.Runtime.skipWhitespaceShared (afterValue.Advance(1))
                 continueLoop <- false
             else
@@ -549,13 +549,13 @@ module TypedJsonExperiment =
 
     let private list (decodeItem: Decoder<'T>) : Decoder<'T list> =
         fun src ->
-            let mutable current = expectByte 91uy "[" src
+            let mutable current = expectByte (byte '[') "[" src
             let mutable items = []
             let data = current.Data
             let mutable continueLoop = true
             let mutable index = 0
 
-            if current.Offset < data.Length && data[current.Offset] = 93uy then
+            if current.Offset < data.Length && data[current.Offset] = byte ']' then
                 current <- Json.Runtime.skipWhitespaceShared (current.Advance(1))
                 continueLoop <- false
 
@@ -564,9 +564,9 @@ module TypedJsonExperiment =
                 items <- item :: items
                 index <- index + 1
 
-                if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
+                if afterItem.Offset < data.Length && data[afterItem.Offset] = byte ',' then
                     current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
-                elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
+                elif afterItem.Offset < data.Length && data[afterItem.Offset] = byte ']' then
                     current <- Json.Runtime.skipWhitespaceShared (afterItem.Advance(1))
                     continueLoop <- false
                 else

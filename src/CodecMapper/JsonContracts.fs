@@ -104,10 +104,10 @@ module Json =
                 head.EncodeFieldsJson(writer, record)
 
                 if not head.IsEmpty then
-                    writer.WriteByte(44uy)
+                    writer.WriteByte(byte ',')
 
                 writeEscapedString writer fieldName
-                writer.WriteByte(58uy)
+                writer.WriteByte(byte ':')
                 codec.Encode writer (getter record)
 
     and private JsonChainFactory<'Record>() =
@@ -130,21 +130,21 @@ module Json =
                 let compiled: Codec<'Record> = {
                     Encode =
                         (fun writer value ->
-                            writer.WriteByte(123uy)
+                            writer.WriteByte(byte '{')
                             chain.EncodeFieldsJson(writer, value)
-                            writer.WriteByte(125uy))
+                            writer.WriteByte(byte '}'))
                     Decode =
                         (fun src ->
                             let mutable current = JsonBackend.Runtime.skipWhitespace src
                             let data = current.Data
 
-                            if current.Offset >= data.Length || data[current.Offset] <> 123uy then
+                            if current.Offset >= data.Length || data[current.Offset] <> byte '{' then
                                 failwith "Expected {"
 
                             current <- JsonBackend.Runtime.skipWhitespace (current.Advance(1))
                             chain.ResetStreamState()
 
-                            if current.Offset < data.Length && data[current.Offset] = 125uy then
+                            if current.Offset < data.Length && data[current.Offset] = byte '}' then
                                 current <- current.Advance(1)
                             else
                                 let mutable looping = true
@@ -161,11 +161,11 @@ module Json =
                                         JsonBackend.Runtime.skipWhitespace
                                             (if matched then nextSrc else JsonBackend.Runtime.skipValue valueSrc)
 
-                                    if afterValue.Offset < afterValue.Data.Length && afterValue.Data[afterValue.Offset] = 44uy then
+                                    if afterValue.Offset < afterValue.Data.Length && afterValue.Data[afterValue.Offset] = byte ',' then
                                         current <- JsonBackend.Runtime.skipWhitespace (afterValue.Advance(1))
                                     elif
                                         afterValue.Offset < afterValue.Data.Length
-                                        && afterValue.Data[afterValue.Offset] = 125uy
+                                        && afterValue.Data[afterValue.Offset] = byte '}'
                                     then
                                         current <- afterValue.Advance(1)
                                         looping <- false
@@ -238,7 +238,7 @@ module Json =
                             let current = JsonBackend.Runtime.skipWhitespace src
                             let data = current.Data
 
-                            if current.Offset < data.Length && data[current.Offset] = 110uy then
+                            if current.Offset < data.Length && data[current.Offset] = byte 'n' then
                                 let next = JsonBackend.Runtime.nullDecoder current
                                 struct (wrapped.Value, next)
                             else
@@ -267,7 +267,7 @@ module Json =
                             let current = JsonBackend.Runtime.skipWhitespace src
                             let data = current.Data
 
-                            if current.Offset < data.Length && data[current.Offset] = 34uy then
+                            if current.Offset < data.Length && data[current.Offset] = byte '"' then
                                 let struct (text, next) = JsonBackend.Runtime.stringDecoder src
                                 if text = "" then
                                     struct (None, next)
@@ -292,29 +292,29 @@ module Json =
             {
                 Encode =
                     (fun writer values ->
-                        writer.WriteByte(91uy)
+                        writer.WriteByte(byte '[')
                         let mutable first = true
 
                         for value in values do
                             if not first then
-                                writer.WriteByte(44uy)
+                                writer.WriteByte(byte ',')
 
                             itemCodec.Encode writer value
                             first <- false
 
-                        writer.WriteByte(93uy))
+                        writer.WriteByte(byte ']'))
                 Decode =
                     (fun src ->
                         let mutable current = JsonBackend.Runtime.skipWhitespace src
 
-                        if current.Offset >= current.Data.Length || current.Data[current.Offset] <> 91uy then
+                        if current.Offset >= current.Data.Length || current.Data[current.Offset] <> byte '[' then
                             failwith "Expected ["
 
                         current <- JsonBackend.Runtime.skipWhitespace (current.Advance(1))
                         let values = ResizeArray<'Item>()
                         let mutable continueLoop = true
 
-                        if current.Offset < current.Data.Length && current.Data[current.Offset] = 93uy then
+                        if current.Offset < current.Data.Length && current.Data[current.Offset] = byte ']' then
                             current <- current.Advance(1)
                             continueLoop <- false
 
@@ -323,9 +323,9 @@ module Json =
                             values.Add(value)
                             let nextSrc = JsonBackend.Runtime.skipWhitespace nextSrc
 
-                            if nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = 44uy then
+                            if nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = byte ',' then
                                 current <- JsonBackend.Runtime.skipWhitespace (nextSrc.Advance(1))
-                            elif nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = 93uy then
+                            elif nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = byte ']' then
                                 current <- nextSrc.Advance(1)
                                 continueLoop <- false
                             else
@@ -359,29 +359,29 @@ module Json =
             {
                 Encode =
                     (fun writer values ->
-                        writer.WriteByte(91uy)
+                        writer.WriteByte(byte '[')
                         let mutable first = true
 
                         for value in values do
                             if not first then
-                                writer.WriteByte(44uy)
+                                writer.WriteByte(byte ',')
 
                             itemCodec.Encode writer value
                             first <- false
 
-                        writer.WriteByte(93uy))
+                        writer.WriteByte(byte ']'))
                 Decode =
                     (fun src ->
                         let mutable current = JsonBackend.Runtime.skipWhitespace src
 
-                        if current.Offset >= current.Data.Length || current.Data[current.Offset] <> 91uy then
+                        if current.Offset >= current.Data.Length || current.Data[current.Offset] <> byte '[' then
                             failwith "Expected ["
 
                         current <- JsonBackend.Runtime.skipWhitespace (current.Advance(1))
                         let values = ResizeArray<'Item>()
                         let mutable continueLoop = true
 
-                        if current.Offset < current.Data.Length && current.Data[current.Offset] = 93uy then
+                        if current.Offset < current.Data.Length && current.Data[current.Offset] = byte ']' then
                             current <- current.Advance(1)
                             continueLoop <- false
 
@@ -390,9 +390,9 @@ module Json =
                             values.Add(value)
                             let nextSrc = JsonBackend.Runtime.skipWhitespace nextSrc
 
-                            if nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = 44uy then
+                            if nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = byte ',' then
                                 current <- JsonBackend.Runtime.skipWhitespace (nextSrc.Advance(1))
-                            elif nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = 93uy then
+                            elif nextSrc.Offset < nextSrc.Data.Length && nextSrc.Data[nextSrc.Offset] = byte ']' then
                                 current <- nextSrc.Advance(1)
                                 continueLoop <- false
                             else
@@ -415,7 +415,7 @@ module Json =
                         let current = JsonBackend.Runtime.skipWhitespace src
                         let data = current.Data
 
-                        if current.Offset < data.Length && data[current.Offset] = 110uy then
+                        if current.Offset < data.Length && data[current.Offset] = byte 'n' then
                             let next = JsonBackend.Runtime.nullDecoder current
                             struct (None, next)
                         else
@@ -455,20 +455,20 @@ module Json =
                                 case.TryGetValue value |> Option.map (fun fieldValue -> case, payloadCodec, fieldValue))
                         with
                         | Some(case, payloadCodec, fieldValue) ->
-                            writer.WriteByte(123uy)
+                            writer.WriteByte(byte '{')
                             writeEscapedString writer unionCodec.DiscriminatorName
-                            writer.WriteByte(58uy)
+                            writer.WriteByte(byte ':')
                             writeEscapedString writer case.Name
 
                             match payloadCodec with
                             | Some payloadCodec ->
-                                writer.WriteByte(44uy)
+                                writer.WriteByte(byte ',')
                                 writeEscapedString writer unionCodec.ValueName
-                                writer.WriteByte(58uy)
+                                writer.WriteByte(byte ':')
                                 payloadCodec.EncodeObj writer fieldValue
                             | None -> ()
 
-                            writer.WriteByte(125uy)
+                            writer.WriteByte(byte '}')
                         | None -> failwithf "No union case matched value for type %O" typeof<'Union>)
                 Decode =
                     (fun src ->
@@ -605,9 +605,9 @@ module Json =
                                 | Some payloadCodec -> encodeInlinePayload payloadCodec fieldValue
                                 | None -> []
 
-                            writer.WriteByte(123uy)
+                            writer.WriteByte(byte '{')
                             writeEscapedString writer inlineUnionCodec.DiscriminatorName
-                            writer.WriteByte(58uy)
+                            writer.WriteByte(byte ':')
                             writeEscapedString writer case.Name
 
                             for propertyName, propertyValue in payloadProperties do
@@ -617,12 +617,12 @@ module Json =
                                         case.Name
                                         inlineUnionCodec.DiscriminatorName
 
-                                writer.WriteByte(44uy)
+                                writer.WriteByte(byte ',')
                                 writeEscapedString writer propertyName
-                                writer.WriteByte(58uy)
+                                writer.WriteByte(byte ':')
                                 rawJsonCodec.Encode writer propertyValue
 
-                            writer.WriteByte(125uy)
+                            writer.WriteByte(byte '}')
                         | None -> failwithf "No union case matched value for type %O" typeof<'Union>)
                 Decode =
                     (fun src ->

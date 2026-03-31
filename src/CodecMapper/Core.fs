@@ -208,7 +208,7 @@ module Core =
         let endExclusive = offset + length
         let mutable negative = false
 
-        if allowMinus && data[index] = 45uy then
+        if allowMinus && data[index] = byte '-' then
             negative <- true
             index <- index + 1
 
@@ -219,7 +219,7 @@ module Core =
         let mutable magnitude = 0UL
 
         while index < endExclusive do
-            let digit = int data[index] - int 48uy
+            let digit = int data[index] - int (byte '0')
 
             if digit < 0 || digit > 9 then
                 failwithf "Invalid %s value: %s" typeName (tokenText ())
@@ -249,7 +249,7 @@ module Core =
         let mutable magnitude = 0UL
 
         while index < endExclusive do
-            let digit = int data[index] - int 48uy
+            let digit = int data[index] - int (byte '0')
 
             if digit < 0 || digit > 9 then
                 failwithf "Invalid %s value: %s" typeName (tokenText ())
@@ -481,7 +481,7 @@ module Core =
         /// temporary allocations across the wider numeric writer surface.
         member private x.WriteUInt64Digits(value: uint64) =
             if value = 0UL then
-                (x :> IByteWriter).WriteByte(48uy)
+                (x :> IByteWriter).WriteByte(byte '0')
             else
                 let mutable v = value
                 let digits = Array.zeroCreate 20
@@ -561,12 +561,12 @@ module Core =
 
             member x.WriteInt(value: int) =
                 if value = 0 then
-                    (x :> IByteWriter).WriteByte(48uy)
+                    (x :> IByteWriter).WriteByte(byte '0')
                 else
                     let mutable v = value
 
                     if v < 0 then
-                        (x :> IByteWriter).WriteByte(45uy)
+                        (x :> IByteWriter).WriteByte(byte '-')
                         v <- -v
 
                     let digits = Array.zeroCreate 10
@@ -586,11 +586,11 @@ module Core =
 
             member x.WriteInt64(value: int64) =
                 if value = 0L then
-                    (x :> IByteWriter).WriteByte(48uy)
+                    (x :> IByteWriter).WriteByte(byte '0')
                 elif value = System.Int64.MinValue then
                     (x :> IByteWriter).WriteString("-9223372036854775808")
                 else if value < 0L then
-                    (x :> IByteWriter).WriteByte(45uy)
+                    (x :> IByteWriter).WriteByte(byte '-')
                     x.WriteUInt64Digits(uint64 (-value))
                 else
                     x.WriteUInt64Digits(uint64 value)
