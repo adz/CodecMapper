@@ -13,7 +13,7 @@ open Microsoft.FSharp.Reflection
 ///
 /// Compile a schema once, then reuse the resulting codec for repeated JSON
 /// serialization and deserialization.
-module Json =
+module JsonBackend =
     /// The byte-level input state for JSON decoding.
     type JsonSource = ByteSource
 
@@ -166,6 +166,103 @@ module Json =
                     failwith "Expected :"
 
                 current.Advance(1)
+
+        let inline private needsStringEscape (c: char) =
+            c = '"' || c = '\\' || int c < 32
+
+        let private writeUnicodeEscape (writer: IByteWriter) (c: char) =
+            let hexDigit value =
+                if value < 10 then
+                    byte (int '0' + value)
+                else
+                    byte (int 'a' + value - 10)
+
+            let code = int c
+            writer.WriteByte(92uy)
+            writer.WriteByte(117uy)
+            writer.WriteByte(hexDigit ((code >>> 12) &&& 0xF))
+            writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
+            writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
+            writer.WriteByte(hexDigit (code &&& 0xF))
+
+        let writeEscapedString (writer: IByteWriter) (value: string) =
+            let mutable index = 0
+            let mutable doneFastScan = false
+
+            while not doneFastScan && index < value.Length do
+                if needsStringEscape value[index] then
+                    doneFastScan <- true
+                else
+                    index <- index + 1
+
+            writer.WriteByte(34uy)
+
+            if index = value.Length then
+                writer.WriteString(value)
+            else
+                if index > 0 then
+                    writer.WriteStringSlice(value, 0, index)
+
+                let mutable segmentStart = index
+
+                while index < value.Length do
+                    match value[index] with
+                    | '"' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\\"")
+                        segmentStart <- index + 1
+                    | '\\' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\\\")
+                        segmentStart <- index + 1
+                    | '\b' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\b")
+                        segmentStart <- index + 1
+                    | '\f' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\f")
+                        segmentStart <- index + 1
+                    | '\n' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\n")
+                        segmentStart <- index + 1
+                    | '\r' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\r")
+                        segmentStart <- index + 1
+                    | '\t' ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writer.WriteString("\\t")
+                        segmentStart <- index + 1
+                    | c when int c < 32 ->
+                        if index > segmentStart then
+                            writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+                        writeUnicodeEscape writer c
+                        segmentStart <- index + 1
+                    | _ -> ()
+
+                    index <- index + 1
+
+                if index > segmentStart then
+                    writer.WriteStringSlice(value, segmentStart, index - segmentStart)
+
+            writer.WriteByte(34uy)
 
         let numberToken (allowFractionAndExponent: bool) (src: JsonSource) =
             let src = skipWhitespace src
@@ -676,7 +773,7 @@ module Json =
 #endif
 
         ///
-        /// XML shares the same erased list-construction helper, so keep the
+        /// XML shares the same shared list-construction helper, so keep the
         /// old entrypoint as a thin wrapper over the cached builder.
         let makeList (elementType: System.Type) (elements: obj array) = makeListBuilder elementType elements
 
@@ -687,7 +784,7 @@ module Json =
             FSharpValue.MakeUnion(noneCase, [||])
 
         ///
-        /// Record decode still needs temporary erased storage today, but
+        /// Record decode still needs temporary object storage today, but
         /// pooling the `obj[]` buffers removes one of the largest remaining
         /// allocation sources on nested decode workloads.
         let rentObjectArray length =
@@ -736,15 +833,59 @@ module Json =
         MissingValue: obj option
     }
 
-    type private SchemaRefComparer() =
-        interface IEqualityComparer<ISchema> with
+    type private RuntimeSchemaRefComparer() =
+        interface IEqualityComparer<RuntimeSchema> with
             member _.Equals(left, right) = obj.ReferenceEquals(left, right)
             member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
-    let private compileUntyped (rootSchema: ISchema) : CompiledCodec =
-        let cache = Dictionary<ISchema, CompiledCodec>(SchemaRefComparer())
+    let private typedRuntime: JsonTypedRecordDecode.Runtime = {
+        SkipWhitespace = Runtime.skipWhitespace
+        StringRaw = Runtime.stringRaw
+        StringDecoder = Runtime.stringDecoder
+        SkipValue = Runtime.skipValue
+        WrapFieldError =
+            (fun fieldName ex ->
+                match ex with
+                | :? JsonDecodeException as decodeEx ->
+                    JsonDecodeException(Property fieldName :: decodeEx.Path, decodeEx.Detail, ex) :> exn
+                | _ -> JsonDecodeException([ Property fieldName ], ex.Message, ex) :> exn)
+    }
 
-        let rec loop (schema: ISchema) : CompiledCodec =
+    let private tryCompileTypedRecordDecoder (targetType: System.Type) (fields: RuntimeField list) =
+        let tryCompileTypedField (field: RuntimeField) =
+            match field.Codec.Definition with
+            | EPrimitive t when t = typeof<int> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.intDecoder)
+            | EPrimitive t when t = typeof<int64> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.int64Decoder)
+            | EPrimitive t when t = typeof<uint32> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.uint32Decoder)
+            | EPrimitive t when t = typeof<uint64> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.uint64Decoder)
+            | EPrimitive t when t = typeof<float> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.floatDecoder)
+            | EPrimitive t when t = typeof<decimal> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.decimalDecoder)
+            | EPrimitive t when t = typeof<string> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.stringDecoder)
+            | EPrimitive t when t = typeof<bool> ->
+                Some(JsonTypedRecordDecode.createField field.Name Runtime.boolDecoder)
+            | _ -> None
+
+        let typedFields = fields |> List.map tryCompileTypedField
+
+        if typedFields |> List.exists Option.isNone then
+            None
+        else
+            JsonTypedRecordDecode.tryCompileRecordDecoderRuntime
+                typedRuntime
+                targetType
+                (typedFields |> List.choose id |> List.toArray)
+
+    let private compileUntyped (rootSchema: RuntimeSchema) : CompiledCodec =
+        let cache = Dictionary<RuntimeSchema, CompiledCodec>(RuntimeSchemaRefComparer())
+
+        let rec loop (schema: RuntimeSchema) : CompiledCodec =
             match cache.TryGetValue(schema) with
             | true, codec -> codec
             | false, _ ->
@@ -765,12 +906,12 @@ module Json =
 
                 let compiled =
                     match schema.Definition with
-                    | Primitive t when t = typeof<int> -> {
+                    | EPrimitive t when t = typeof<int> -> {
                         Encode = (fun w v -> w.WriteInt(unbox v))
                         Decode = (fun src -> let struct (v, s) = Runtime.intDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<int64> -> {
+                    | EPrimitive t when t = typeof<int64> -> {
                         Encode =
                             (fun w v ->
                                 let value: int64 = unbox v
@@ -778,7 +919,7 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.int64Decoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<uint32> -> {
+                    | EPrimitive t when t = typeof<uint32> -> {
                         Encode =
                             (fun w v ->
                                 let value: uint32 = unbox v
@@ -786,7 +927,7 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.uint32Decoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<uint64> -> {
+                    | EPrimitive t when t = typeof<uint64> -> {
                         Encode =
                             (fun w v ->
                                 let value: uint64 = unbox v
@@ -794,7 +935,7 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.uint64Decoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<float> -> {
+                    | EPrimitive t when t = typeof<float> -> {
                         Encode =
                             (fun w v ->
                                 let value: float = unbox v
@@ -802,7 +943,7 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.floatDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<decimal> -> {
+                    | EPrimitive t when t = typeof<decimal> -> {
                         Encode =
                             (fun w v ->
                                 let value: decimal = unbox v
@@ -810,79 +951,15 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.decimalDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<string> -> {
+                    | EPrimitive t when t = typeof<string> -> {
                         Encode =
                             (fun w v ->
                                 let value: string = unbox v
-                                w.WriteByte(34uy)
-
-                                ///
-                                /// JSON strings must escape structural and control
-                                /// characters or round-trip behavior becomes accidental.
-                                let mutable segmentStart = 0
-
-                                let flushSegment endIdx =
-                                    if endIdx > segmentStart then
-                                        w.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
-
-                                let writeUnicodeEscape (writer: IByteWriter) (c: char) =
-                                    let hexDigit value =
-                                        if value < 10 then
-                                            byte (int '0' + value)
-                                        else
-                                            byte (int 'a' + value - 10)
-
-                                    let code = int c
-                                    writer.WriteByte(92uy)
-                                    writer.WriteByte(117uy)
-                                    writer.WriteByte(hexDigit ((code >>> 12) &&& 0xF))
-                                    writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
-                                    writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
-                                    writer.WriteByte(hexDigit (code &&& 0xF))
-
-                                for i in 0 .. value.Length - 1 do
-                                    match value[i] with
-                                    | '"' ->
-                                        flushSegment i
-                                        w.WriteString("\\\"")
-                                        segmentStart <- i + 1
-                                    | '\\' ->
-                                        flushSegment i
-                                        w.WriteString("\\\\")
-                                        segmentStart <- i + 1
-                                    | '\b' ->
-                                        flushSegment i
-                                        w.WriteString("\\b")
-                                        segmentStart <- i + 1
-                                    | '\f' ->
-                                        flushSegment i
-                                        w.WriteString("\\f")
-                                        segmentStart <- i + 1
-                                    | '\n' ->
-                                        flushSegment i
-                                        w.WriteString("\\n")
-                                        segmentStart <- i + 1
-                                    | '\r' ->
-                                        flushSegment i
-                                        w.WriteString("\\r")
-                                        segmentStart <- i + 1
-                                    | '\t' ->
-                                        flushSegment i
-                                        w.WriteString("\\t")
-                                        segmentStart <- i + 1
-                                    | c when int c < 32 ->
-                                        flushSegment i
-                                        writeUnicodeEscape w c
-                                        segmentStart <- i + 1
-                                    | _ -> ()
-
-                                flushSegment value.Length
-
-                                w.WriteByte(34uy))
+                                Runtime.writeEscapedString w value)
                         Decode = (fun src -> let struct (v, s) = Runtime.stringDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<bool> -> {
+                    | EPrimitive t when t = typeof<bool> -> {
                         Encode =
                             (fun w v ->
                                 if unbox<bool> v then
@@ -892,14 +969,12 @@ module Json =
                         Decode = (fun src -> let struct (v, s) = Runtime.boolDecoder src in struct (box v, s))
                         MissingValue = None
                       }
-                    | StringEnum(_, tryGetName, parseName) -> {
+                    | EStringEnum(_, tryGetName, parseName) -> {
                         Encode =
                             (fun w v ->
                                 match tryGetName v with
                                 | Some name ->
-                                    w.WriteByte(34uy)
-                                    w.WriteString(name)
-                                    w.WriteByte(34uy)
+                                    Runtime.writeEscapedString w name
                                 | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
                         Decode =
                             (fun src ->
@@ -907,75 +982,13 @@ module Json =
                                 struct (parseName name, next))
                         MissingValue = None
                       }
-                    | RawJsonValue ->
-                        let writeEscapedString (writer: IByteWriter) (value: string) =
-                            writer.WriteByte(34uy)
-                            let mutable segmentStart = 0
-
-                            let flushSegment endIdx =
-                                if endIdx > segmentStart then
-                                    writer.WriteStringSlice(value, segmentStart, endIdx - segmentStart)
-
-                            let writeUnicodeEscape (writer: IByteWriter) (c: char) =
-                                let hexDigit value =
-                                    if value < 10 then
-                                        byte (int '0' + value)
-                                    else
-                                        byte (int 'a' + value - 10)
-
-                                let code = int c
-                                writer.WriteByte(92uy)
-                                writer.WriteByte(117uy)
-                                writer.WriteByte(hexDigit ((code >>> 12) &&& 0xF))
-                                writer.WriteByte(hexDigit ((code >>> 8) &&& 0xF))
-                                writer.WriteByte(hexDigit ((code >>> 4) &&& 0xF))
-                                writer.WriteByte(hexDigit (code &&& 0xF))
-
-                            for i in 0 .. value.Length - 1 do
-                                match value[i] with
-                                | '"' ->
-                                    flushSegment i
-                                    writer.WriteString("\\\"")
-                                    segmentStart <- i + 1
-                                | '\\' ->
-                                    flushSegment i
-                                    writer.WriteString("\\\\")
-                                    segmentStart <- i + 1
-                                | '\b' ->
-                                    flushSegment i
-                                    writer.WriteString("\\b")
-                                    segmentStart <- i + 1
-                                | '\f' ->
-                                    flushSegment i
-                                    writer.WriteString("\\f")
-                                    segmentStart <- i + 1
-                                | '\n' ->
-                                    flushSegment i
-                                    writer.WriteString("\\n")
-                                    segmentStart <- i + 1
-                                | '\r' ->
-                                    flushSegment i
-                                    writer.WriteString("\\r")
-                                    segmentStart <- i + 1
-                                | '\t' ->
-                                    flushSegment i
-                                    writer.WriteString("\\t")
-                                    segmentStart <- i + 1
-                                | c when int c < 32 ->
-                                    flushSegment i
-                                    writeUnicodeEscape writer c
-                                    segmentStart <- i + 1
-                                | _ -> ()
-
-                            flushSegment value.Length
-                            writer.WriteByte(34uy)
-
+                    | ERawJsonValue ->
                         let rec encodeJsonValue (writer: IByteWriter) (value: JsonValue) =
                             match value with
                             | JNull -> writer.WriteString("null")
                             | JBool flag -> writer.WriteString(if flag then "true" else "false")
                             | JNumber token -> writer.WriteString(token)
-                            | JString text -> writeEscapedString writer text
+                            | JString text -> Runtime.writeEscapedString writer text
                             | JArray items ->
                                 writer.WriteByte(91uy)
                                 let mutable first = true
@@ -996,7 +1009,7 @@ module Json =
                                     if not first then
                                         writer.WriteByte(44uy)
 
-                                    writeEscapedString writer key
+                                    Runtime.writeEscapedString writer key
                                     writer.WriteByte(58uy)
                                     encodeJsonValue writer item
                                     first <- false
@@ -1011,7 +1024,7 @@ module Json =
                                     struct (box value, next))
                             MissingValue = None
                         }
-                    | Option innerSchema ->
+                    | EOption innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
                         let cases = FSharpType.GetUnionCases(optionType)
@@ -1039,7 +1052,7 @@ module Json =
                                         struct (FSharpValue.MakeUnion(someCase, [| value |]), next))
                             MissingValue = None
                         }
-                    | MissingAsNone innerSchema ->
+                    | EMissingAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
 
@@ -1048,7 +1061,7 @@ module Json =
                             Decode = innerCodec.Decode
                             MissingValue = Some(Runtime.makeOptionNone optionType)
                         }
-                    | MissingAsValue(defaultValue, innerSchema) ->
+                    | EMissingAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -1056,7 +1069,7 @@ module Json =
                             Decode = innerCodec.Decode
                             MissingValue = Some defaultValue
                         }
-                    | NullAsValue(defaultValue, innerSchema) ->
+                    | ENullAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -1073,7 +1086,7 @@ module Json =
                                         innerCodec.Decode src)
                             MissingValue = innerCodec.MissingValue
                         }
-                    | EmptyCollectionAsValue(defaultValue, innerSchema) ->
+                    | EEmptyCollectionAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -1088,7 +1101,7 @@ module Json =
                                         struct (value, next))
                             MissingValue = innerCodec.MissingValue
                         }
-                    | EmptyStringAsNone innerSchema ->
+                    | EEmptyStringAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
                         let noneValue = Runtime.makeOptionNone optionType
@@ -1111,11 +1124,12 @@ module Json =
                                         innerCodec.Decode src)
                             MissingValue = innerCodec.MissingValue
                         }
-                    | Record(t, fields, ctor) ->
+                    | ERecord(t, fields, ctor) ->
                         let compiledFields =
                             fields
+                            |> List.toArray
                             |> Array.mapi (fun i f ->
-                                let codec = loop f.Schema
+                                let codec = loop f.Codec
                                 let encodedName = "\"" + f.Name + "\":"
                                 let rawName = Encoding.UTF8.GetBytes(f.Name)
 
@@ -1181,12 +1195,12 @@ module Json =
                                     writer.WriteByte(44uy)
 
                                 writer.WriteString(f.EncodedName)
-                                f.Codec.Encode writer (fields[f.Index].GetValue vObj)
+                                f.Codec.Encode writer (fields[f.Index].GetObj vObj)
                                 first <- false
 
                             writer.WriteByte(125uy)
 
-                        let decoder (src: JsonSource) =
+                        let fallbackDecoder (src: JsonSource) =
                             let src = Runtime.skipWhitespace src
 
                             if src.Offset >= src.Data.Length || src.Data[src.Offset] <> 123uy then
@@ -1306,25 +1320,29 @@ module Json =
                             finally
                                 Runtime.returnObjectArray fieldValues compiledFields.Length
 
+                        let decoder =
+                            match tryCompileTypedRecordDecoder t fields with
+                            | Some typedDecoder -> typedDecoder
+                            | None -> fallbackDecoder
+
                         {
                             Encode = encoder
                             Decode = decoder
                             MissingValue = None
                         }
-                    | Union(discriminatorName, valueName, cases) ->
+                    | EUnion(discriminatorName, valueName, cases) ->
                         let compiledCases =
                             cases
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
-                                Codec = case.Schema |> Option.map loop
+                                Codec = case.Codec |> Option.map loop
                             |})
 
-                        let rawJsonCodec = loop (Schema.jsonValue :> ISchema)
+                        let rawJsonCodec = loop (RuntimeSchema.toRuntime Schema.jsonValue)
 
                         let encodeCaseName (writer: IByteWriter) (name: string) =
-                            writer.WriteByte(34uy)
-                            writer.WriteString(name)
-                            writer.WriteByte(34uy)
+                            Runtime.writeEscapedString writer name
 
                         {
                             Encode =
@@ -1332,7 +1350,7 @@ module Json =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
@@ -1380,7 +1398,7 @@ module Json =
                                                         "Union case '%s' does not accept payload '%s'"
                                                         caseName
                                                         valueName
-                                                | None -> struct (compiled.Case.Construct None, next)
+                                                | None -> struct (compiled.Case.ConstructObj None, next)
                                             | Some codec ->
                                                 let payload =
                                                     match tryFind valueName with
@@ -1407,22 +1425,23 @@ module Json =
                                                             valueName
                                                             caseName
 
-                                                    struct (compiled.Case.Construct(Some fieldValue), next)
+                                                    struct (compiled.Case.ConstructObj(Some fieldValue), next)
                                                 finally
                                                     writer.Release()
                                         | None -> failwithf "Unknown union case '%s'" caseName
                                     | _ -> failwith "Expected union object")
                             MissingValue = None
                         }
-                    | InlineUnion(discriminatorName, cases) ->
+                    | EInlineUnion(discriminatorName, cases) ->
                         let compiledCases =
                             cases
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
                                 Codec =
-                                    case.Schema
+                                    case.Codec
                                     |> Option.map (fun payloadSchema ->
-                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                        if not (RuntimeSchema.supportsInlinePayloadShape payloadSchema) then
                                             failwithf
                                                 "Inline union case '%s' payload schema must be object-shaped"
                                                 case.Name
@@ -1430,12 +1449,10 @@ module Json =
                                         loop payloadSchema)
                             |})
 
-                        let rawJsonCodec = loop (Schema.jsonValue :> ISchema)
+                        let rawJsonCodec = loop (RuntimeSchema.toRuntime Schema.jsonValue)
 
                         let encodeCaseName (writer: IByteWriter) (name: string) =
-                            writer.WriteByte(34uy)
-                            writer.WriteString(name)
-                            writer.WriteByte(34uy)
+                            Runtime.writeEscapedString writer name
 
                         let encodeInlinePayload (codec: CompiledCodec) (fieldValue: obj) =
                             let writer = ResizableBuffer.Create(defaultSerializeBufferCapacity)
@@ -1479,7 +1496,7 @@ module Json =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
@@ -1534,7 +1551,7 @@ module Json =
                                             match compiled.Codec with
                                             | None ->
                                                 if List.isEmpty payloadProperties then
-                                                    struct (compiled.Case.Construct None, next)
+                                                    struct (compiled.Case.ConstructObj None, next)
                                                 else
                                                     failwithf
                                                         "Union case '%s' does not accept payload fields alongside '%s'"
@@ -1542,13 +1559,13 @@ module Json =
                                                         discriminatorName
                                             | Some codec ->
                                                 let fieldValue = decodeInlinePayload codec payloadProperties
-                                                struct (compiled.Case.Construct(Some fieldValue), next)
+                                                struct (compiled.Case.ConstructObj(Some fieldValue), next)
                                         | None -> failwithf "Unknown union case '%s'" caseName
                                     | _ -> failwith "Expected union object")
                             MissingValue = None
                         }
-                    | Delay factory -> loop (factory ())
-                    | List innerSchema ->
+                    | EDelay factory -> loop (factory ())
+                    | EList innerSchema ->
                         let innerCodec = loop innerSchema
                         let buildList = Runtime.makeListBuilder innerSchema.TargetType
 
@@ -1606,7 +1623,7 @@ module Json =
                             Decode = decoder
                             MissingValue = None
                         }
-                    | Array innerSchema ->
+                    | EArray innerSchema ->
                         let innerCodec = loop innerSchema
 
                         let encoder (writer: IByteWriter) (vObj: obj) =
@@ -1671,7 +1688,7 @@ module Json =
                             Decode = decoder
                             MissingValue = None
                         }
-                    | Map(inner, wrap, unwrapFunc) ->
+                    | EMap(inner, wrap, unwrapFunc) ->
                         let innerCodec = loop inner
 
                         {
@@ -1705,9 +1722,9 @@ module Json =
 
         loop rootSchema
 
-    /// Compiles a schema into a reusable JSON codec.
-    let compile (schema: Schema<'T>) : Codec<'T> =
-        let compiled = compileUntyped (schema :> ISchema)
+    /// Compiles a contract into a reusable JSON codec.
+    let compile (schema: CodecMapper.Codec<'T>) : Codec<'T> =
+        let compiled = compileUntyped (RuntimeSchema.toRuntime schema)
 
         {
             Encode = (fun w v -> compiled.Encode w (box v))
@@ -1725,12 +1742,16 @@ module Json =
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// JSON compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
+    let inline buildAndCompile
+        (builder: SchemaBuilder<'T, 'Ctor, 'T, 'Chain>)
+        : Codec<'T>
+        when 'Chain :> IChainNode<'T, 'Ctor, 'T> =
+        builder |> Schema.build |> compile
 
     ///
     /// `codec` remains as the shorter schema-to-codec alias for callers that
     /// prefer the direct `compile schema` shape without the longer name.
-    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+    let codec (schema: CodecMapper.Codec<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to JSON using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) =
