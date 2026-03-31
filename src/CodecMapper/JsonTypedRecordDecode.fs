@@ -65,12 +65,12 @@ module internal JsonTypedRecordDecode =
 
     let listDecoder<'T> (runtime: Runtime) (decodeItem: Decoder<'T>) : Decoder<'T list> =
         fun src ->
-            let mutable current = expectByte runtime 91uy "[" src
+            let mutable current = expectByte runtime (byte '[') "[" src
             let data = current.Data
             let mutable items = []
             let mutable continueLoop = true
 
-            if current.Offset < data.Length && data[current.Offset] = 93uy then
+            if current.Offset < data.Length && data[current.Offset] = byte ']' then
                 current <- runtime.SkipWhitespace (current.Advance(1))
                 continueLoop <- false
 
@@ -79,9 +79,9 @@ module internal JsonTypedRecordDecode =
                 items <- item :: items
                 let afterItem = runtime.SkipWhitespace afterItem
 
-                if afterItem.Offset < data.Length && data[afterItem.Offset] = 44uy then
+                if afterItem.Offset < data.Length && data[afterItem.Offset] = byte ',' then
                     current <- runtime.SkipWhitespace (afterItem.Advance(1))
-                elif afterItem.Offset < data.Length && data[afterItem.Offset] = 93uy then
+                elif afterItem.Offset < data.Length && data[afterItem.Offset] = byte ']' then
                     current <- runtime.SkipWhitespace (afterItem.Advance(1))
                     continueLoop <- false
                 else
@@ -120,22 +120,22 @@ module internal JsonTypedRecordDecode =
         (src: ByteSource)
         (decodeField: ByteSource -> int -> int -> bool -> ByteSource -> ByteSource)
         =
-        let mutable current = expectByte runtime 123uy "{" src
+        let mutable current = expectByte runtime (byte '{') "{" src
         let data = current.Data
         let mutable continueLoop = true
 
-        if current.Offset < data.Length && data[current.Offset] = 125uy then
+        if current.Offset < data.Length && data[current.Offset] = byte '}' then
             current <- runtime.SkipWhitespace (current.Advance(1))
             continueLoop <- false
 
         while continueLoop do
             let struct (keyStart, keyLength, keyHasEscapes, afterRawKey) = runtime.StringRaw current
-            let afterColon = expectByte runtime 58uy ":" afterRawKey
+            let afterColon = expectByte runtime (byte ':') ":" afterRawKey
             let afterValue = decodeField current keyStart keyLength keyHasEscapes afterColon
 
-            if afterValue.Offset < data.Length && data[afterValue.Offset] = 44uy then
+            if afterValue.Offset < data.Length && data[afterValue.Offset] = byte ',' then
                 current <- runtime.SkipWhitespace (afterValue.Advance(1))
-            elif afterValue.Offset < data.Length && data[afterValue.Offset] = 125uy then
+            elif afterValue.Offset < data.Length && data[afterValue.Offset] = byte '}' then
                 current <- runtime.SkipWhitespace (afterValue.Advance(1))
                 continueLoop <- false
             else
