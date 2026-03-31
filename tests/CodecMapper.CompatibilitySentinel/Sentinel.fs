@@ -221,7 +221,7 @@ module Sentinel =
     let run platformLabel =
         printfn "Running %s Compatibility Tests..." platformLabel
 
-        let pCodec = Json.compile Schemas.person
+        let pCodec = Json.compileSchema Schemas.person
 
         let p = {
             Id = 42
@@ -233,12 +233,12 @@ module Sentinel =
         let pDecoded = Json.deserialize pCodec pJson
         test "Nested record round-trip" pDecoded p
 
-        let pXmlCodec = Xml.compile Schemas.person
+        let pXmlCodec = Xml.compileSchema Schemas.person
         let pXml = Xml.serialize pXmlCodec p
         let pXmlDecoded = Xml.deserialize pXmlCodec pXml
         test "Nested record XML round-trip" pXmlDecoded p
 
-        let wpCodec = Json.compile Schemas.wrappedPerson
+        let wpCodec = Json.compileSchema Schemas.wrappedPerson
 
         let wp = {
             Id = PersonId 123
@@ -249,13 +249,13 @@ module Sentinel =
         let wpDecoded = Json.deserialize wpCodec wpJson
         test "Mapped types round-trip" wpDecoded wp
 
-        let listCodec = Json.compile (Schema.list Schema.string)
+        let listCodec = Json.compileSchema (Schema.list Schema.string)
         let l = [ "hello"; platformLabel.ToLowerInvariant() ]
         let lJson = Json.serialize listCodec l
         let lDecoded = Json.deserialize listCodec lJson
         test "List round-trip" lDecoded l
 
-        let auditCodec = Json.compile Schemas.auditRecord
+        let auditCodec = Json.compileSchema Schemas.auditRecord
 
         let audit = {
             UserId = Guid.Parse("12345678-1234-1234-1234-123456789abc")
@@ -267,13 +267,13 @@ module Sentinel =
         let auditDecoded = Json.deserialize auditCodec auditJson
         test "Common type round-trip" auditDecoded audit
 
-        let accountCodec = Json.compile Schemas.account
+        let accountCodec = Json.compileSchema Schemas.account
         let account = { Id = UserId 7; Name = platformLabel }
         let accountJson = Json.serialize accountCodec account
         let accountDecoded = Json.deserialize accountCodec accountJson
         test "Validated mapping round-trip" accountDecoded account
 
-        let optionalCodec = Json.compile Schemas.optionalRecord
+        let optionalCodec = Json.compileSchema Schemas.optionalRecord
 
         let optionalValue = {
             Nickname = Some platformLabel
@@ -284,12 +284,12 @@ module Sentinel =
         let optionalDecoded = Json.deserialize optionalCodec optionalJson
         test "Option round-trip" optionalDecoded optionalValue
 
-        let optionalXmlCodec = Xml.compile Schemas.optionalRecord
+        let optionalXmlCodec = Xml.compileSchema Schemas.optionalRecord
         let optionalXml = Xml.serialize optionalXmlCodec optionalValue
         let optionalXmlDecoded = Xml.deserialize optionalXmlCodec optionalXml
         test "Option XML round-trip" optionalXmlDecoded optionalValue
 
-        let numericCodec = Json.compile Schemas.numericRecord
+        let numericCodec = Json.compileSchema Schemas.numericRecord
 
         let numeric = {
             Total = 9_223_372_036_854_775_000L
@@ -304,18 +304,18 @@ module Sentinel =
         test "Extended numeric round-trip" numericDecoded numeric
 
         expectFailureContains "Out-of-range int64 rejected" "int64 value out of range" (fun () ->
-            Json.deserialize (Json.compile Schema.int64) "9223372036854775808")
+            Json.deserialize (Json.compileSchema Schema.int64) "9223372036854775808")
 
         expectFailureContains "Out-of-range uint32 rejected" "uint32 value out of range" (fun () ->
-            Json.deserialize (Json.compile Schema.uint32) "4294967296")
+            Json.deserialize (Json.compileSchema Schema.uint32) "4294967296")
 
         expectFailureContains "Oversized float rejected" "Invalid float value" (fun () ->
-            Json.deserialize (Json.compile Schema.float) "1e10000")
+            Json.deserialize (Json.compileSchema Schema.float) "1e10000")
 
         expectFailureContains "Oversized decimal rejected" "Invalid decimal value" (fun () ->
-            Json.deserialize (Json.compile Schema.decimal) "1e1000")
+            Json.deserialize (Json.compileSchema Schema.decimal) "1e1000")
 
-        let interopCodec = Json.compile Schemas.interopCollectionRecord
+        let interopCodec = Json.compileSchema Schemas.interopCollectionRecord
 
         let interop = {
             Buffer = ResizeArray([ "x"; "y" ])
@@ -329,13 +329,13 @@ module Sentinel =
         testSequence "Interop collection read-only list round-trip" interopDecoded.Names [ "Ada"; "Lin" ]
         testSequence "Interop collection interface collection round-trip" interopDecoded.Scores [ 1; 2; 3 ]
 
-        let enumCodec = Json.compile Schemas.enumRecord
+        let enumCodec = Json.compileSchema Schemas.enumRecord
         let enumValue = { Status = OrderStatus.Active }
         let enumJson = Json.serialize enumCodec enumValue
         let enumDecoded = Json.deserialize enumCodec enumJson
         test "Enum round-trip" enumDecoded enumValue
 
-        let keyValueCodec = KeyValue.compile Schemas.keyValueRecord
+        let keyValueCodec = KeyValue.compileSchema Schemas.keyValueRecord
         let keyValueEncoded = KeyValue.serialize keyValueCodec p
         let keyValueDecoded = KeyValue.deserialize keyValueCodec keyValueEncoded
         test "KeyValue round-trip" keyValueDecoded p
@@ -347,24 +347,24 @@ module Sentinel =
             "name", platformLabel
         ]
 
-        let yamlCodec = Yaml.compile Schemas.person
+        let yamlCodec = Yaml.compileSchema Schemas.person
         let yamlEncoded = Yaml.serialize yamlCodec p
         let yamlDecoded = Yaml.deserialize yamlCodec yamlEncoded
         test "Yaml round-trip" yamlDecoded p
 
         let recursiveValue = Branch(Branch(Leaf platformLabel))
 
-        let recursiveJsonCodec = Json.compile Schemas.recursiveNode
+        let recursiveJsonCodec = Json.compileSchema Schemas.recursiveNode
         let recursiveJson = Json.serialize recursiveJsonCodec recursiveValue
         let recursiveJsonDecoded = Json.deserialize recursiveJsonCodec recursiveJson
         test "Recursive union JSON round-trip" recursiveJsonDecoded recursiveValue
 
-        let recursiveXmlCodec = Xml.compile Schemas.recursiveNode
+        let recursiveXmlCodec = Xml.compileSchema Schemas.recursiveNode
         let recursiveXml = Xml.serialize recursiveXmlCodec recursiveValue
         let recursiveXmlDecoded = Xml.deserialize recursiveXmlCodec recursiveXml
         test "Recursive union XML round-trip" recursiveXmlDecoded recursiveValue
 
-        let recursiveKeyValueCodec = KeyValue.compile Schemas.recursiveNode
+        let recursiveKeyValueCodec = KeyValue.compileSchema Schemas.recursiveNode
         let recursiveKeyValue = KeyValue.serialize recursiveKeyValueCodec recursiveValue
 
         let recursiveKeyValueDecoded =

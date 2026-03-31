@@ -6,6 +6,8 @@ open System.Text.Json
 open Newtonsoft.Json
 open CodecMapper
 
+module Json = CodecMapper.JsonBackend
+
 type Address = { Street: string; City: string }
 
 type Person = { Id: int; Name: string; Home: Address }

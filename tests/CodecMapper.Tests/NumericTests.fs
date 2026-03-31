@@ -17,7 +17,7 @@ let numericSchema =
 
 [<Fact>]
 let ``Extended numeric types round-trip JSON`` () =
-    let codec = Json.compile numericSchema
+    let codec = Json.compileSchema numericSchema
 
     let value = {
         Total = 9_223_372_036_854_775_000L
@@ -34,7 +34,7 @@ let ``Extended numeric types round-trip JSON`` () =
 
 [<Fact>]
 let ``Extended numeric types round-trip XML`` () =
-    let codec = Xml.compile numericSchema
+    let codec = Xml.compileSchema numericSchema
 
     let value = {
         Total = 9_223_372_036_854_775_000L
@@ -52,23 +52,23 @@ let ``Extended numeric types round-trip XML`` () =
 [<Fact>]
 let ``Extended numeric decoders reject out-of-range values`` () =
     expectFailure "int64 value out of range" (fun () ->
-        Json.deserialize (Json.compile Schema.int64) "9223372036854775808")
+        Json.deserialize (Json.compileSchema Schema.int64) "9223372036854775808")
 
-    expectFailure "uint32 value out of range" (fun () -> Json.deserialize (Json.compile Schema.uint32) "4294967296")
+    expectFailure "uint32 value out of range" (fun () -> Json.deserialize (Json.compileSchema Schema.uint32) "4294967296")
 
     expectFailure "uint64 value out of range" (fun () ->
-        Json.deserialize (Json.compile Schema.uint64) "18446744073709551616")
+        Json.deserialize (Json.compileSchema Schema.uint64) "18446744073709551616")
 
 [<Fact>]
 let ``Float and decimal support JSON fractional and exponent forms`` () =
-    let floatCodec = Json.compile Schema.float
-    let decimalCodec = Json.compile Schema.decimal
+    let floatCodec = Json.compileSchema Schema.float
+    let decimalCodec = Json.compileSchema Schema.decimal
 
     test <@ Json.deserialize floatCodec "1.25e2" = 125.0 @>
     test <@ Json.deserialize decimalCodec "-12.50" = -12.50M @>
 
 [<Fact>]
 let ``Float and decimal decoders reject oversized values`` () =
-    expectFailure "Invalid float value" (fun () -> Json.deserialize (Json.compile Schema.float) "1e10000")
+    expectFailure "Invalid float value" (fun () -> Json.deserialize (Json.compileSchema Schema.float) "1e10000")
 
-    expectFailure "Invalid decimal value" (fun () -> Json.deserialize (Json.compile Schema.decimal) "1e1000")
+    expectFailure "Invalid decimal value" (fun () -> Json.deserialize (Json.compileSchema Schema.decimal) "1e1000")

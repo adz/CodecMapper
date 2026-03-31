@@ -12,7 +12,7 @@ open Microsoft.FSharp.Reflection
 /// wrappers such as `Schema.map` and `Schema.tryMap` contribute the underlying
 /// wire shape, while field-policy wrappers affect whether object properties are
 /// listed as required.
-module JsonSchema =
+module JsonSchemaBackend =
     /// Validates a JSON Schema `format` string against domain-specific rules.
     type FormatValidator = string -> Result<unit, string>
 
@@ -71,20 +71,20 @@ module JsonSchema =
         Warnings: string list
     }
 
-    type private SchemaRefComparer() =
-        interface IEqualityComparer<ISchema> with
+    type private CodecObjRefComparer() =
+        interface IEqualityComparer<obj> with
             member _.Equals(left, right) = obj.ReferenceEquals(left, right)
             member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
     type private ExportContext = {
-        DelayNames: Dictionary<ISchema, string>
-        DelayBodies: Dictionary<ISchema, JsonValue>
-        DelayOrder: ResizeArray<ISchema>
-        DelayInProgress: HashSet<ISchema>
+        DelayNames: Dictionary<obj, string>
+        DelayBodies: Dictionary<obj, JsonValue>
+        DelayOrder: ResizeArray<obj>
+        DelayInProgress: HashSet<obj>
         UsedNames: Dictionary<string, int>
     }
 
-    let private rawJsonCodec = Json.compile Schema.jsonValue
+    let private rawJsonCodec = JsonBackend.compile Schema.jsonValue
 
     let private schemaObject (properties: (string * JsonValue) list) = JObject properties
     let private stringArray values = values |> List.map JString |> JArray
@@ -104,10 +104,14 @@ module JsonSchema =
             context.UsedNames[baseName] <- 0
             baseName
 
-    let private isMissingAllowed (schema: ISchema) =
-        match schema.Definition with
-        | MissingAsNone _
-        | MissingAsValue _ -> true
+    let rec private isMissingAllowed (codecObj: obj) =
+        match codecObj with
+        | :? IRuntimeMissingWrapper as wrapped ->
+            match wrapped.Kind with
+            | 0
+            | 1 -> true
+            | _ -> false
+        | :? IDelayCodecRuntime as delayCodec -> isMissingAllowed (delayCodec.FactoryObj())
         | _ -> false
 
     let private objectNode titleOpt properties required =
@@ -133,122 +137,117 @@ module JsonSchema =
     let private primitiveNode typeName =
         schemaObject [ "type", JString typeName ]
 
-    let rec private exportSchema (context: ExportContext) (isRoot: bool) (schema: ISchema) : JsonValue =
-        match schema.Definition with
-        | RawJsonValue -> schemaObject []
-        | Primitive targetType when targetType = typeof<bool> -> primitiveNode "boolean"
-        | Primitive targetType when targetType = typeof<float> || targetType = typeof<decimal> -> primitiveNode "number"
-        | Primitive targetType when targetType = typeof<string> -> primitiveNode "string"
-        | Primitive targetType when targetType = typeof<char> -> primitiveNode "string"
-        | Primitive targetType when targetType = typeof<System.Guid> -> primitiveNode "string"
-        | Primitive targetType when targetType = typeof<System.DateTime> -> primitiveNode "string"
-        | Primitive targetType when targetType = typeof<System.DateTimeOffset> -> primitiveNode "string"
-        | Primitive targetType when targetType = typeof<System.TimeSpan> -> primitiveNode "string"
-        | Primitive _ -> primitiveNode "integer"
-        | StringEnum(names, _, _) -> schemaObject [ "type", JString "string"; "enum", stringArray (Array.toList names) ]
-        | List innerSchema
-        | Array innerSchema -> schemaObject [ "type", JString "array"; "items", exportSchema context false innerSchema ]
-        | Option innerSchema ->
+    let rec private exportSchema (context: ExportContext) (isRoot: bool) (codecObj: obj) : JsonValue =
+        let targetType = (codecObj :?> ICodecInfo).TargetType
+
+        match codecObj with
+        | :? IRawJsonValueCodec -> schemaObject []
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<bool> -> primitiveNode "boolean"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<float> || primitive.TargetType = typeof<decimal> ->
+            primitiveNode "number"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<string> -> primitiveNode "string"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<char> -> primitiveNode "string"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<System.Guid> -> primitiveNode "string"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<System.DateTime> -> primitiveNode "string"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<System.DateTimeOffset> -> primitiveNode "string"
+        | :? IPrimitiveCodec as primitive when primitive.TargetType = typeof<System.TimeSpan> -> primitiveNode "string"
+        | :? IPrimitiveCodec -> primitiveNode "integer"
+        | :? IStringEnumCodecRuntime as stringEnum ->
+            schemaObject [ "type", JString "string"; "enum", stringArray (Array.toList stringEnum.Names) ]
+        | :? IListCodecRuntime as listCodec ->
+            schemaObject [ "type", JString "array"; "items", exportSchema context false listCodec.InnerObj ]
+        | :? IArrayCodecRuntime as arrayCodec ->
+            schemaObject [ "type", JString "array"; "items", exportSchema context false arrayCodec.InnerObj ]
+        | :? IOptionCodecRuntime as optionCodec ->
             schemaObject [
-                "anyOf", JArray [ exportSchema context false innerSchema; primitiveNode "null" ]
+                "anyOf", JArray [ exportSchema context false optionCodec.InnerObj; primitiveNode "null" ]
             ]
-        | MissingAsNone innerSchema -> exportSchema context isRoot innerSchema
-        | MissingAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
-        | NullAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
-        | EmptyCollectionAsValue(_, innerSchema) -> exportSchema context isRoot innerSchema
-        | EmptyStringAsNone innerSchema -> exportSchema context isRoot innerSchema
-        | Map(innerSchema, _, _) -> exportSchema context isRoot innerSchema
-        | Delay factory ->
+        | :? IRuntimeMissingWrapper as wrapped -> exportSchema context isRoot wrapped.InnerObj
+        | :? IMappedCodecRuntime as mapped -> exportSchema context isRoot mapped.InnerObj
+        | :? IDelayCodecRuntime as delayCodec ->
             let definitionName =
-                match context.DelayNames.TryGetValue(schema) with
+                match context.DelayNames.TryGetValue(codecObj) with
                 | true, existing -> existing
                 | false, _ ->
-                    let created = allocateDefinitionName context schema.TargetType
-                    context.DelayNames[schema] <- created
-                    context.DelayOrder.Add(schema)
+                    let created = allocateDefinitionName context targetType
+                    context.DelayNames[codecObj] <- created
+                    context.DelayOrder.Add(codecObj)
                     created
 
             if
-                not (context.DelayBodies.ContainsKey(schema))
-                && not (context.DelayInProgress.Contains(schema))
+                not (context.DelayBodies.ContainsKey(codecObj))
+                && not (context.DelayInProgress.Contains(codecObj))
             then
-                context.DelayInProgress.Add(schema) |> ignore
-                let body = exportSchema context false (factory ())
-                context.DelayInProgress.Remove(schema) |> ignore
-                context.DelayBodies[schema] <- body
+                context.DelayInProgress.Add(codecObj) |> ignore
+                let body = exportSchema context false (delayCodec.FactoryObj())
+                context.DelayInProgress.Remove(codecObj) |> ignore
+                context.DelayBodies[codecObj] <- body
 
             if isRoot then
-                context.DelayBodies[schema]
+                context.DelayBodies[codecObj]
             else
                 schemaRef definitionName
-        | Record(targetType, fields, _) ->
+        | :? IMappingDefinitionRuntime as mapping ->
             let properties =
-                fields
-                |> Array.map (fun field -> field.Name, exportSchema context false field.Schema)
-                |> Array.toList
+                mapping.FieldsRuntime
+                |> List.map (fun field -> field.Name, exportSchema context false field.Codec)
 
             let required =
-                fields
-                |> Array.choose (fun field ->
-                    if isMissingAllowed field.Schema then
-                        None
-                    else
-                        Some field.Name)
-                |> Array.toList
+                mapping.FieldsRuntime
+                |> List.choose (fun field -> if isMissingAllowed field.Codec then None else Some field.Name)
 
             objectNode (Some targetType.Name) properties required
-        | Union(discriminatorName, valueName, cases) ->
+        | :? IUnionCodecRuntime as unionCodec ->
             let caseNodes =
-                cases
-                |> Array.map (fun case ->
-                    let baseProperties = [ discriminatorName, schemaObject [ "const", JString case.Name ] ]
-                    let baseRequired = [ discriminatorName ]
+                unionCodec.CasesRuntime
+                |> List.map (fun case ->
+                    let baseProperties = [ unionCodec.DiscriminatorName, schemaObject [ "const", JString case.Name ] ]
+                    let baseRequired = [ unionCodec.DiscriminatorName ]
 
                     let properties, required =
-                        match case.Schema with
+                        match case.Codec with
                         | Some payloadSchema ->
-                            baseProperties @ [ valueName, exportSchema context false payloadSchema ],
-                            baseRequired @ [ valueName ]
+                            baseProperties @ [ unionCodec.ValueName, exportSchema context false payloadSchema ],
+                            baseRequired @ [ unionCodec.ValueName ]
                         | None -> baseProperties, baseRequired
 
                     objectNode None properties required)
-                |> Array.toList
 
             schemaObject [ "oneOf", JArray caseNodes ]
-        | InlineUnion(discriminatorName, cases) ->
+        | :? IInlineUnionCodecRuntime as inlineUnionCodec ->
             let caseNodes =
-                cases
-                |> Array.map (fun case ->
-                    let baseProperties = [ discriminatorName, schemaObject [ "const", JString case.Name ] ]
-                    let baseRequired = [ discriminatorName ]
+                inlineUnionCodec.CasesRuntime
+                |> List.map (fun case ->
+                    let baseProperties = [ inlineUnionCodec.DiscriminatorName, schemaObject [ "const", JString case.Name ] ]
+                    let baseRequired = [ inlineUnionCodec.DiscriminatorName ]
 
                     let properties, required =
-                        match case.Schema with
+                        match case.Codec with
                         | Some payloadSchema ->
-                            if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                            if not (SchemaRuntime.supportsInlinePayloadShapeObj payloadSchema) then
                                 failwithf "Inline union case '%s' payload schema must be object-shaped" case.Name
 
+                            let payloadTargetType = (payloadSchema :?> ICodecInfo).TargetType
+
                             let payloadContract =
-                                expectObjectContract
-                                    payloadSchema.TargetType
-                                    (exportSchema context false payloadSchema)
+                                expectObjectContract payloadTargetType (exportSchema context false payloadSchema)
 
                             let mergedProperties =
                                 match payloadContract |> List.tryFind (fun (name, _) -> name = "properties") with
                                 | Some(_, JObject properties) ->
                                     properties
                                     |> List.filter (fun (name, _) ->
-                                        if name = discriminatorName then
+                                        if name = inlineUnionCodec.DiscriminatorName then
                                             failwithf
                                                 "Inline union case '%s' payload cannot reuse discriminator field '%s'"
                                                 case.Name
-                                                discriminatorName
+                                                inlineUnionCodec.DiscriminatorName
 
                                         true)
                                 | _ ->
                                     failwithf
                                         "Inline union payload schema for %O must export named object properties"
-                                        payloadSchema.TargetType
+                                        payloadTargetType
 
                             let mergedRequired =
                                 match payloadContract |> List.tryFind (fun (name, _) -> name = "required") with
@@ -263,16 +262,17 @@ module JsonSchema =
                         | None -> baseProperties, baseRequired
 
                     objectNode None properties required)
-                |> Array.toList
 
             schemaObject [ "oneOf", JArray caseNodes ]
+        | _ -> failwithf "JSON Schema export does not support codec %O" targetType
 
-    let private buildRootDocument (schema: ISchema) =
+    let private buildRootDocument (schema: obj) =
+        let targetType = (schema :?> ICodecInfo).TargetType
         let context = {
-            DelayNames = Dictionary<ISchema, string>(SchemaRefComparer())
-            DelayBodies = Dictionary<ISchema, JsonValue>(SchemaRefComparer())
+            DelayNames = Dictionary<obj, string>(CodecObjRefComparer())
+            DelayBodies = Dictionary<obj, JsonValue>(CodecObjRefComparer())
             DelayOrder = ResizeArray()
-            DelayInProgress = HashSet<ISchema>(SchemaRefComparer())
+            DelayInProgress = HashSet<obj>(CodecObjRefComparer())
             UsedNames = Dictionary<string, int>()
         }
 
@@ -291,11 +291,11 @@ module JsonSchema =
         let rootProperties =
             match body with
             | JObject properties -> properties |> List.filter (fun (name, _) -> name <> "title")
-            | _ -> failwithf "Expected exported schema object for %O" schema.TargetType
+            | _ -> failwithf "Expected exported schema object for %O" targetType
 
         let baseDocument = [
             "$schema", JString "https://json-schema.org/draft/2020-12/schema"
-            "title", JString schema.TargetType.Name
+            "title", JString targetType.Name
         ]
 
         let withBody = baseDocument @ rootProperties
@@ -1173,8 +1173,8 @@ module JsonSchema =
     /// The exported schema describes the JSON contract only. XML-specific shape
     /// details and business-rule semantics inside mapping functions are not
     /// representable here and therefore export as the underlying wire form.
-    let generate (schema: Schema<'T>) =
-        buildRootDocument (schema :> ISchema) |> Json.serialize rawJsonCodec
+    let generate (schema: CodecMapper.Codec<'T>) =
+        buildRootDocument (box schema) |> JsonBackend.serialize rawJsonCodec
 
     /// Imports the deterministic JSON Schema subset into a JSON-only `Schema<JsonValue>`.
     ///
@@ -1183,7 +1183,7 @@ module JsonSchema =
     /// as structural refinement over the raw DOM. Unsupported branch-shaping
     /// features currently fall back to the unconstrained raw JSON schema.
     let importWithReportUsing (options: ImportOptions) (jsonSchemaText: string) : ImportReport =
-        let parsedSchema = Json.deserialize (Json.compile Schema.jsonValue) jsonSchemaText
+        let parsedSchema = JsonBackend.deserialize (JsonBackend.compile Schema.jsonValue) jsonSchemaText
 
         let normalizedSchema, normalizedKeywords, normalizationWarnings =
             normalizeSchemaRefs parsedSchema

@@ -11,7 +11,7 @@ open Microsoft.FSharp.Reflection
 /// The XML backend intentionally supports a smaller explicit subset than the
 /// JSON backend: element content only, repeated `<item>` nodes for
 /// collections, and ignorable inter-element whitespace.
-module Xml =
+module XmlBackend =
     /// The byte-level input state for XML decoding.
     type XmlSource = ByteSource
 
@@ -302,15 +302,15 @@ module Xml =
 
             FSharpValue.MakeUnion(someCase, [| value |])
 
-    type private SchemaRefComparer() =
-        interface IEqualityComparer<ISchema> with
+    type private RuntimeSchemaRefComparer() =
+        interface IEqualityComparer<RuntimeSchema> with
             member _.Equals(left, right) = obj.ReferenceEquals(left, right)
             member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
-    let private compileUntyped (rootSchema: ISchema) : CompiledCodec =
-        let cache = Dictionary<ISchema, CompiledCodec>(SchemaRefComparer())
+    let private compileUntyped (rootSchema: RuntimeSchema) : CompiledCodec =
+        let cache = Dictionary<RuntimeSchema, CompiledCodec>(RuntimeSchemaRefComparer())
 
-        let rec loop (schema: ISchema) : CompiledCodec =
+        let rec loop (schema: RuntimeSchema) : CompiledCodec =
             match cache.TryGetValue(schema) with
             | true, codec -> codec
             | false, _ ->
@@ -331,7 +331,7 @@ module Xml =
 
                 let compiled =
                     match schema.Definition with
-                    | Primitive t when t = typeof<int> -> {
+                    | EPrimitive t when t = typeof<int> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -351,7 +351,7 @@ module Xml =
                                 struct (box v, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<int64> -> {
+                    | EPrimitive t when t = typeof<int64> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -373,7 +373,7 @@ module Xml =
                                 struct (box value, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<uint32> -> {
+                    | EPrimitive t when t = typeof<uint32> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -395,7 +395,7 @@ module Xml =
                                 struct (box value, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<uint64> -> {
+                    | EPrimitive t when t = typeof<uint64> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -417,13 +417,13 @@ module Xml =
                                 struct (box value, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<float> -> {
+                    | EPrimitive t when t = typeof<float> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
                                 w.WriteString(tag)
                                 w.WriteByte(62uy)
-                                w.WriteString(Schema.formatFloat (unbox<float> v))
+                                w.WriteString(Core.formatFloat (unbox<float> v))
                                 w.WriteByte(60uy)
                                 w.WriteByte(47uy)
                                 w.WriteString(tag)
@@ -439,7 +439,7 @@ module Xml =
                                 struct (box value, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<decimal> -> {
+                    | EPrimitive t when t = typeof<decimal> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -461,7 +461,7 @@ module Xml =
                                 struct (box value, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<string> -> {
+                    | EPrimitive t when t = typeof<string> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -480,7 +480,7 @@ module Xml =
                                 struct (box v, current))
                         MissingValue = None
                       }
-                    | Primitive t when t = typeof<bool> -> {
+                    | EPrimitive t when t = typeof<bool> -> {
                         Encode =
                             (fun w tag v ->
                                 w.WriteByte(60uy)
@@ -503,7 +503,7 @@ module Xml =
                                 | _ -> failwith "Expected true or false")
                         MissingValue = None
                       }
-                    | StringEnum(_, tryGetName, parseName) -> {
+                    | EStringEnum(_, tryGetName, parseName) -> {
                         Encode =
                             (fun w tag v ->
                                 match tryGetName v with
@@ -525,7 +525,7 @@ module Xml =
                                 struct (parseName text, current))
                         MissingValue = None
                       }
-                    | RawJsonValue ->
+                    | ERawJsonValue ->
                         let fail () =
                             failwith "Schema.jsonValue is JSON-only; XML has no symmetric raw JSON DOM representation"
 
@@ -534,7 +534,7 @@ module Xml =
                             Decode = (fun _ _ -> fail ())
                             MissingValue = None
                         }
-                    | Option innerSchema ->
+                    | EOption innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
 
@@ -569,7 +569,7 @@ module Xml =
                                         struct (Runtime.makeOptionSome optionType value, current))
                             MissingValue = None
                         }
-                    | MissingAsNone innerSchema ->
+                    | EMissingAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
 
@@ -578,7 +578,7 @@ module Xml =
                             Decode = innerCodec.Decode
                             MissingValue = Some(Runtime.makeOptionNone optionType)
                         }
-                    | MissingAsValue(defaultValue, innerSchema) ->
+                    | EMissingAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -586,7 +586,7 @@ module Xml =
                             Decode = innerCodec.Decode
                             MissingValue = Some defaultValue
                         }
-                    | NullAsValue(defaultValue, innerSchema) ->
+                    | ENullAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -603,7 +603,7 @@ module Xml =
                                         struct (value, next))
                             MissingValue = innerCodec.MissingValue
                         }
-                    | EmptyCollectionAsValue(defaultValue, innerSchema) ->
+                    | EEmptyCollectionAsValue(defaultValue, innerSchema) ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -618,7 +618,7 @@ module Xml =
                                         struct (value, next))
                             MissingValue = innerCodec.MissingValue
                         }
-                    | EmptyStringAsNone innerSchema ->
+                    | EEmptyStringAsNone innerSchema ->
                         let innerCodec = loop innerSchema
                         let optionType = schema.TargetType
                         let noneValue = Runtime.makeOptionNone optionType
@@ -645,13 +645,14 @@ module Xml =
                                             struct (value, next))
                             MissingValue = innerCodec.MissingValue
                         }
-                    | Record(t, fields, ctor) ->
+                    | ERecord(t, fields, ctor) ->
                         let compiledFields =
                             fields
+                            |> List.toArray
                             |> Array.map (fun f -> {|
                                 Name = f.Name
-                                Codec = loop f.Schema
-                                GetValue = f.GetValue
+                                Codec = loop f.Codec
+                                GetValue = f.GetObj
                             |})
 
                         {
@@ -696,15 +697,16 @@ module Xml =
                                     struct (ctor args, current))
                             MissingValue = None
                         }
-                    | Union(discriminatorName, valueName, cases) ->
+                    | EUnion(discriminatorName, valueName, cases) ->
                         let compiledCases =
                             cases
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
-                                Codec = case.Schema |> Option.map loop
+                                Codec = case.Codec |> Option.map loop
                             |})
 
-                        let stringCodec = loop (Schema.string :> ISchema)
+                        let stringCodec = loop (RuntimeSchema.toRuntime Schema.string)
 
                         {
                             Encode =
@@ -712,7 +714,7 @@ module Xml =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
@@ -764,19 +766,20 @@ module Xml =
                                                         valueName
 
                                         let current = Runtime.expectCloseTag tag currentAfterValue
-                                        struct (compiled.Case.Construct valueOpt, current)
+                                        struct (compiled.Case.ConstructObj valueOpt, current)
                                     | None -> failwithf "Unknown union case '%s'" caseName)
                             MissingValue = None
                         }
-                    | InlineUnion(discriminatorName, cases) ->
+                    | EInlineUnion(discriminatorName, cases) ->
                         let compiledCases =
                             cases
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
                                 Codec =
-                                    case.Schema
+                                    case.Codec
                                     |> Option.map (fun payloadSchema ->
-                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                        if not (RuntimeSchema.supportsInlinePayloadShape payloadSchema) then
                                             failwithf
                                                 "Inline union case '%s' payload schema must be object-shaped"
                                                 case.Name
@@ -785,7 +788,7 @@ module Xml =
                             |})
 
                         let inlinePayloadTag = "payload"
-                        let stringCodec = loop (Schema.string :> ISchema)
+                        let stringCodec = loop (RuntimeSchema.toRuntime Schema.string)
 
                         let encodeInlinePayload (codec: CompiledCodec) (fieldValue: obj) =
                             let writer = ResizableBuffer.Create(128)
@@ -824,7 +827,7 @@ module Xml =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
@@ -863,7 +866,7 @@ module Xml =
                                         match compiled.Codec with
                                         | None ->
                                             match Runtime.tryReadCloseTag tag current with
-                                            | Some next -> struct (compiled.Case.Construct None, next)
+                                            | Some next -> struct (compiled.Case.ConstructObj None, next)
                                             | None ->
                                                 failwithf
                                                     "Union case '%s' does not accept payload elements alongside <%s>"
@@ -872,12 +875,12 @@ module Xml =
                                         | Some codec ->
                                             let struct (payloadBytes, next) = Runtime.sliceUntilCloseTag tag current
                                             let fieldValue = decodeInlinePayload codec payloadBytes
-                                            struct (compiled.Case.Construct(Some fieldValue), next)
+                                            struct (compiled.Case.ConstructObj(Some fieldValue), next)
                                     | None -> failwithf "Unknown union case '%s'" caseName)
                             MissingValue = None
                         }
-                    | Delay factory -> loop (factory ())
-                    | List innerSchema ->
+                    | EDelay factory -> loop (factory ())
+                    | EList innerSchema ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -919,10 +922,10 @@ module Xml =
                                             current <- next
                                             index <- index + 1
 
-                                    struct (Json.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
+                                    struct (JsonBackend.Runtime.makeList innerSchema.TargetType (results.ToArray()), current))
                             MissingValue = None
                         }
-                    | Array innerSchema ->
+                    | EArray innerSchema ->
                         let innerCodec = loop innerSchema
 
                         {
@@ -976,7 +979,7 @@ module Xml =
                                 )
                             MissingValue = None
                         }
-                    | Map(inner, wrap, unwrapFunc) ->
+                    | EMap(inner, wrap, unwrapFunc) ->
                         let innerCodec = loop inner
 
                         {
@@ -1004,20 +1007,22 @@ module Xml =
 
         loop rootSchema
 
-    /// Compiles a schema into a reusable XML codec.
-    let compile (schema: Schema<'T>) : Codec<'T> =
-        let compiled = compileUntyped (schema :> ISchema)
+    /// Compiles a contract into a reusable XML codec.
+    let compile (schema: CodecMapper.Codec<'T>) : Codec<'T> =
+        let compiled = compileUntyped (RuntimeSchema.toRuntime schema)
+
+        let targetType = (schema :> CodecMapper.ICodecInfo).TargetType
 
         let rootTag =
-            if schema.TargetType = typeof<int> then "int"
-            elif schema.TargetType = typeof<int64> then "int64"
-            elif schema.TargetType = typeof<uint32> then "uint32"
-            elif schema.TargetType = typeof<uint64> then "uint64"
-            elif schema.TargetType = typeof<float> then "float"
-            elif schema.TargetType = typeof<decimal> then "decimal"
-            elif schema.TargetType = typeof<string> then "string"
-            elif schema.TargetType = typeof<bool> then "bool"
-            else schema.TargetType.Name.ToLowerInvariant()
+            if targetType = typeof<int> then "int"
+            elif targetType = typeof<int64> then "int64"
+            elif targetType = typeof<uint32> then "uint32"
+            elif targetType = typeof<uint64> then "uint64"
+            elif targetType = typeof<float> then "float"
+            elif targetType = typeof<decimal> then "decimal"
+            elif targetType = typeof<string> then "string"
+            elif targetType = typeof<bool> then "bool"
+            else targetType.Name.ToLowerInvariant()
 
         {
             Encode = (fun w v -> compiled.Encode w rootTag (box v))
@@ -1035,12 +1040,16 @@ module Xml =
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// XML compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
+    let inline buildAndCompile
+        (builder: SchemaBuilder<'T, 'Ctor, 'T, 'Chain>)
+        : Codec<'T>
+        when 'Chain :> IChainNode<'T, 'Ctor, 'T> =
+        builder |> Schema.build |> compile
 
     ///
     /// `codec` mirrors `Json.codec` for callers that still prefer the direct
     /// schema-to-codec alias over the longer `compile` name.
-    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+    let codec (schema: CodecMapper.Codec<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to XML using the schema-derived root element name.
     let serialize (codec: Codec<'T>) (value: 'T) =

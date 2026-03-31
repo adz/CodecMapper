@@ -13,7 +13,7 @@ Define mapping rules once and reuse them for both decoding and encoding. CodecMa
 
 ### The Codec
 
-A `Codec<'T>` knows how to move a type `'T` to and from a wire format. You build codecs for records, discriminated unions, or primitive values and then reuse them wherever that type crosses the boundary.
+A `Schema<'T>` knows how to move a type `'T` to and from a wire format. You build codecs for records, discriminated unions, or primitive values and then reuse them wherever that type crosses the boundary.
 
 ### The DSL
 
@@ -25,11 +25,11 @@ A typical mapping line consists of four main elements:
 
 ```fsharp
 // [Op]   [Codec]   [Wire Key]   [Getter]
-linkVia  Codec.int   "user_id"    _.UserId
+linkVia  Schema.int   "user_id"    _.UserId
 ```
 
 1.  **Operation (`Op`):** The instruction to the builder (e.g., `linkVia`, `linkViaDefault`, `linkViaOptional`).
-2.  **Codec:** The strategy for converting the value (e.g., `Codec.int`, `Codec.string`, or a custom `Codec<'T>`).
+2.  **Codec:** The strategy for converting the value (e.g., `Schema.int`, `Schema.string`, or a custom `Schema<'T>`).
 3.  **Wire Key:** The name of the property in the wire format (e.g., `"user_id"` in JSON).
 4.  **Getter:** A function that extracts the field from your domain record (e.g., `_.UserId`).
 
@@ -77,8 +77,8 @@ let personCodec =
 let personCodecExplicit =
     codec {
         construct makePerson
-        via Codec.int (mapField "id" _.Id)
-        via Codec.string (mapField "name" _.Name)
+        via Schema.int (mapField "id" _.Id)
+        via Schema.string (mapField "name" _.Name)
     }
 ```
 
@@ -149,8 +149,8 @@ let userCodec =
         int "user_id" _.UserId
         string "display_name" _.DisplayName
 
-        linkViaDefault Codec.int 0 "retry_count" _.RetryCount
-        linkViaOptional (Codec.option Codec.string) "nickname" _.Nickname
+        linkViaDefault Schema.int 0 "retry_count" _.RetryCount
+        linkViaOptional (Schema.option Schema.string) "nickname" _.Nickname
     }
 ```
 
@@ -162,8 +162,8 @@ let userCodec =
 let personCodecMixed =
     codec {
         construct makePerson
-        via Codec.string (mapField "name" _.Name)
-        linkVia Codec.int "id" _.Id
+        via Schema.string (mapField "name" _.Name)
+        linkVia Schema.int "id" _.Id
     }
 ```
 
@@ -192,7 +192,7 @@ let partnerV2Codec =
             { Id = accountId; Name = profile; IsEnabled = (status = "enabled") })
         int "account_id" _.Id
         string "profile_name" _.Name
-        linkVia Codec.string "status" (fun a -> if a.IsEnabled then "enabled" else "disabled")
+        linkVia Schema.string "status" (fun a -> if a.IsEnabled then "enabled" else "disabled")
     }
 ```
 
@@ -235,7 +235,7 @@ let teamCodec =
     codec {
         construct (fun name members -> { Name = name; Members = members })
         string "team_name" _.Name
-        linkVia (Codec.list userCodec) "members" (fun t -> t.Members)
+        linkVia (Schema.list userCodec) "members" (fun t -> t.Members)
     }
 ```
 
@@ -248,9 +248,9 @@ let profileCodec =
     codec {
         construct (fun name nickname retry -> { Name = name; Nickname = nickname; Retry = retry })
 
-        via Codec.string (mapField "name" _.Name)
-        linkViaOptional (Codec.option Codec.string) "nickname" (fun profile -> profile.Nickname)
-        linkViaDefault Codec.int 3 "retry" (fun profile -> profile.Retry)
+        via Schema.string (mapField "name" _.Name)
+        linkViaOptional (Schema.option Schema.string) "nickname" (fun profile -> profile.Nickname)
+        linkViaDefault Schema.int 3 "retry" (fun profile -> profile.Retry)
     }
 ```
 
@@ -282,10 +282,10 @@ If your domain type doesn't match the wire type (e.g., a `DateTime` on the wire 
 Use `imap` when you have a bidirectional transformation.
 
 ```fsharp
-// Codec.string returns string, we transform it to/from a custom type
+// Schema.string returns string, we transform it to/from a custom type
 let userIdCodec = 
-    Codec.string 
-    |> Codec.imap (fun s -> UserId s) (fun (UserId s) -> s)
+    Schema.string 
+    |> Schema.map (fun s -> UserId s) (fun (UserId s) -> s)
 
 // Usage in a record
 let userCodec = codec {
@@ -299,7 +299,7 @@ let userCodec = codec {
 Use `map` when you only need to transform during decoding. Note that encoding will fail if the inverse transformation is required but not provided.
 
 ```fsharp
-let trimmedString = Codec.string |> Codec.map (fun s -> s.Trim())
+let trimmedString = Schema.string |> Codec.map (fun s -> s.Trim())
 ```
 
 ## Collections
@@ -308,11 +308,11 @@ CodecMapper provides built-in generators for common F# and .NET collections.
 
 | Collection Type | Generator | Base Codec |
 | :--- | :--- | :--- |
-| `List<'T>` | `Codec.list` | Any `Codec<'T>` |
-| `Array<'T>` | `Codec.array` | Any `Codec<'T>` |
-| `seq<'T>` | `Codec.seq` | Any `Codec<'T>` |
-| `Set<'T>` | `Codec.set` | Any `Codec<'T>` |
-| `ResizeArray<'T>`| `Codec.resizeArray` | Any `Codec<'T>` |
+| `List<'T>` | `Schema.list` | Any `Schema<'T>` |
+| `Array<'T>` | `Codec.array` | Any `Schema<'T>` |
+| `seq<'T>` | `Codec.seq` | Any `Schema<'T>` |
+| `Set<'T>` | `Codec.set` | Any `Schema<'T>` |
+| `ResizeArray<'T>`| `Codec.resizeArray` | Any `Schema<'T>` |
 | `Map<'K, 'V>` | `Codec.fsharpMap` | `Codec<'K>` and `Codec<'V>` |
 
 ### Collection Example
@@ -327,8 +327,8 @@ type Project = {
 let projectCodec = codec {
     construct (fun name tags meta -> { Name = name; Tags = tags; Metadata = meta })
     string "name" _.Name
-    linkVia (Codec.set Codec.string) "tags" _.Tags
-    linkVia (Codec.fsharpMap Codec.string Codec.string) "metadata" _.Metadata
+    linkVia (Codec.set Schema.string) "tags" _.Tags
+    linkVia (Codec.fsharpMap Schema.string Schema.string) "metadata" _.Metadata
 }
 ```
 

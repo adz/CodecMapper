@@ -1,7 +1,7 @@
-// `CodecMapper` is a schema-first codec library for explicit wire contracts.
+// `CodecMapper` is an explicit-contract codec library for reviewable wire contracts.
 //
-// Start in `Schema` to describe the wire shape, then compile that schema in
-// `Json` or `Xml` depending on the format boundary you need to talk to.
+// Start in `Codec`/`Builder` to describe the wire shape, then compile that
+// contract in `Json`, `Xml`, `Yaml`, or `KeyValue` depending on the boundary.
 namespace CodecMapper
 
 open System.Text
@@ -147,6 +147,12 @@ module Core =
 
     let tryParseFloatInvariant = tryParseFloatPlatformInvariant
     let tryParseDecimalInvariant = tryParseDecimalPlatformInvariant
+
+    let formatFloat (value: float) =
+        if System.Double.IsNaN(value) || System.Double.IsInfinity(value) then
+            failwithf "Invalid float value: %O" value
+        else
+            value.ToString("R", CultureInfo.InvariantCulture)
 
     ///
     /// Fable's packaged `fable-library-js` surface does not currently expose the

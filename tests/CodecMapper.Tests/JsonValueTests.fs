@@ -7,7 +7,7 @@ open TestCommon
 
 [<Fact>]
 let ``Raw JSON values round-trip dynamic objects and arrays`` () =
-    let codec = Json.compile Schema.jsonValue
+    let codec = Json.compileSchema Schema.jsonValue
 
     let value =
         JObject [
@@ -28,7 +28,7 @@ let ``Raw JSON values round-trip dynamic objects and arrays`` () =
 
 [<Fact>]
 let ``Raw JSON values preserve tuple-like arrays without extra schema modeling`` () =
-    let codec = Json.compile Schema.jsonValue
+    let codec = Json.compileSchema Schema.jsonValue
 
     let value = JArray [ JString "header"; JNumber "2"; JObject [ "ok", JBool true ] ]
 
@@ -36,10 +36,10 @@ let ``Raw JSON values preserve tuple-like arrays without extra schema modeling``
 
 [<Fact>]
 let ``Raw JSON fallback exports an unconstrained JSON Schema document`` () =
-    let actual = JsonSchema.generate Schema.jsonValue
+    let actual = JsonSchema.generateSchema Schema.jsonValue
 
     test <@ actual = "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"title\":\"JsonValue\"}" @>
 
 [<Fact>]
 let ``Raw JSON fallback is rejected explicitly by XML codecs`` () =
-    expectFailure "Schema.jsonValue is JSON-only" (fun () -> Xml.serialize (Xml.compile Schema.jsonValue) JNull)
+    expectFailure "Schema.jsonValue is JSON-only" (fun () -> Xml.serialize (Xml.compileSchema Schema.jsonValue) JNull)

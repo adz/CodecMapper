@@ -107,12 +107,12 @@ type private PropertyArbitraries =
 
         FsCheck.FSharp.Arb.fromGen generator
 
-let private jsonPersonCodec = Json.compile personSchema
-let private xmlPersonCodec = Xml.compile personSchema
-let private jsonOptionalCodec = Json.compile optionalRecordSchema
-let private xmlOptionalCodec = Xml.compile optionalRecordSchema
-let private jsonCollectionCodec = Json.compile collectionSchema
-let private xmlCollectionCodec = Xml.compile collectionSchema
+let private jsonPersonCodec = Json.compileSchema personSchema
+let private xmlPersonCodec = Xml.compileSchema personSchema
+let private jsonOptionalCodec = Json.compileSchema optionalRecordSchema
+let private xmlOptionalCodec = Xml.compileSchema optionalRecordSchema
+let private jsonCollectionCodec = Json.compileSchema collectionSchema
+let private xmlCollectionCodec = Xml.compileSchema collectionSchema
 
 [<Property(Arbitrary = [| typeof<PropertyArbitraries> |], MaxTest = 100)>]
 let ``Person round-trips through JSON`` (value: Person) =

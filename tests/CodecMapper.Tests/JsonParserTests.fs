@@ -11,13 +11,13 @@ let idSchema =
     |> Schema.field "id" _.Id
     |> Schema.build
 
-let idCodec = Json.compile idSchema
+let idCodec = Json.compileSchema idSchema
 
 let quoted value = "\"" + value + "\""
 
 [<Fact>]
 let ``Round-trip escaped strings JSON`` () =
-    let codec = Json.compile Schema.string
+    let codec = Json.compileSchema Schema.string
     let value = "He said \"Hello\"\nC:\\temp\\file.txt"
     let json = Json.serialize codec value
 
@@ -28,13 +28,13 @@ let ``Round-trip escaped strings JSON`` () =
 
 [<Fact>]
 let ``Decode unicode escape string JSON`` () =
-    let codec = Json.compile Schema.string
+    let codec = Json.compileSchema Schema.string
     let decoded = Json.deserialize codec (quoted """Hello, Wor\u006c\u0064!""")
     test <@ decoded = "Hello, World!" @>
 
 [<Fact>]
 let ``Round-trip bool JSON`` () =
-    let codec = Json.compile Schema.bool
+    let codec = Json.compileSchema Schema.bool
 
     test <@ Json.serialize codec true = "true" @>
     test <@ Json.serialize codec false = "false" @>
@@ -43,7 +43,7 @@ let ``Round-trip bool JSON`` () =
 
 [<Fact>]
 let ``Reject malformed string escape sequences`` () =
-    let codec = Json.compile Schema.string
+    let codec = Json.compileSchema Schema.string
 
     expectFailure "Invalid escape sequence" (fun () -> Json.deserialize codec (quoted """bad\xescape"""))
     expectFailure "Invalid unicode escape" (fun () -> Json.deserialize codec (quoted """bad\u12xz"""))
@@ -53,8 +53,8 @@ let ``Reject malformed string escape sequences`` () =
 
 [<Fact>]
 let ``Reject trailing content after top-level JSON value`` () =
-    let intCodec = Json.compile Schema.int
-    let stringCodec = Json.compile Schema.string
+    let intCodec = Json.compileSchema Schema.int
+    let stringCodec = Json.compileSchema Schema.string
 
     expectFailure "Trailing content after top-level JSON value" (fun () -> Json.deserialize intCodec "1 2")
 
@@ -88,7 +88,7 @@ let ``Escaped property names match decoded schema field names`` () =
 
 [<Fact>]
 let ``Reject trailing commas in objects and arrays`` () =
-    let listCodec = Json.compile (Schema.list Schema.int)
+    let listCodec = Json.compileSchema (Schema.list Schema.int)
 
     expectFailure "Expected \"" (fun () -> Json.deserialize idCodec """{"id":1,}""")
     expectFailure "Expected digit" (fun () -> Json.deserialize listCodec "[1,2,]")
@@ -101,7 +101,7 @@ let ``Reject malformed object syntax`` () =
 
 [<Fact>]
 let ``Reject numbers with leading zeroes`` () =
-    let codec = Json.compile Schema.int
+    let codec = Json.compileSchema Schema.int
     expectFailure "Leading zeroes are not allowed" (fun () -> Json.deserialize codec "01")
 
 [<Fact>]
@@ -136,21 +136,21 @@ let ``Report nested field path for JSON decode failures`` () =
         |> Schema.fieldWith "home" _.Home addressSchema
         |> Schema.build
 
-    let codec = Json.compile personSchema
+    let codec = Json.compileSchema personSchema
 
     expectFailure "JSON decode error at $.home.street: Expected \"" (fun () ->
         Json.deserialize codec """{"id":1,"name":"Ada","home":{"street":42,"city":"Adelaide"}}""")
 
 [<Fact>]
 let ``Report array index path for JSON decode failures`` () =
-    let codec = Json.compile (Schema.list Schema.int)
+    let codec = Json.compileSchema (Schema.list Schema.int)
 
     expectFailure "JSON decode error at $[1]: Expected digit" (fun () -> Json.deserialize codec """[1,true,3]""")
 
 [<Fact>]
 let ``Reject empty and whitespace-only payloads`` () =
-    let intCodec = Json.compile Schema.int
-    let stringCodec = Json.compile Schema.string
+    let intCodec = Json.compileSchema Schema.int
+    let stringCodec = Json.compileSchema Schema.string
 
     expectFailure "Unexpected end of input" (fun () -> Json.deserialize intCodec "")
     expectFailure "Unexpected end of input" (fun () -> Json.deserialize intCodec "   ")
@@ -158,21 +158,21 @@ let ``Reject empty and whitespace-only payloads`` () =
 
 [<Fact>]
 let ``Reject truncated containers`` () =
-    let listCodec = Json.compile (Schema.list Schema.int)
+    let listCodec = Json.compileSchema (Schema.list Schema.int)
 
     expectFailure "Expected , or }" (fun () -> Json.deserialize idCodec """{"id":1""")
     expectFailure "Expected , or ]" (fun () -> Json.deserialize listCodec "[1,2")
 
 [<Fact>]
 let ``Decode empty containers`` () =
-    let listCodec = Json.compile (Schema.list Schema.int)
+    let listCodec = Json.compileSchema (Schema.list Schema.int)
     let emptyList = Json.deserialize listCodec "[]"
 
     test <@ emptyList = [] @>
 
 [<Fact>]
 let ``Reject unsupported numeric formats deterministically`` () =
-    let codec = Json.compile Schema.int
+    let codec = Json.compileSchema Schema.int
 
     expectFailure "Expected digit" (fun () -> Json.deserialize codec "-")
     expectFailure "Trailing content after top-level JSON value" (fun () -> Json.deserialize codec "1.0")
@@ -182,7 +182,7 @@ let ``Reject unsupported numeric formats deterministically`` () =
 
 [<Fact>]
 let ``Reject incomplete and invalid bool literals`` () =
-    let codec = Json.compile Schema.bool
+    let codec = Json.compileSchema Schema.bool
 
     expectFailure "Expected true or false" (fun () -> Json.deserialize codec "tru")
     expectFailure "Expected true or false" (fun () -> Json.deserialize codec "fals")

@@ -47,7 +47,7 @@ let listSchema =
 
 [<Fact>]
 let ``KeyValue flattens nested records with dotted keys`` () =
-    let codec = KeyValue.compile personSchema
+    let codec = KeyValue.compileSchema personSchema
 
     let value = {
         Id = 42
@@ -66,7 +66,7 @@ let ``KeyValue flattens nested records with dotted keys`` () =
 
 [<Fact>]
 let ``KeyValue omits None values and decodes missing option keys as None`` () =
-    let codec = KeyValue.compile optionalSchema
+    let codec = KeyValue.compileSchema optionalSchema
     let value = { Nickname = None; Age = Some 42 }
 
     let encoded = KeyValue.serialize codec value
@@ -77,7 +77,7 @@ let ``KeyValue omits None values and decodes missing option keys as None`` () =
 
 [<Fact>]
 let ``KeyValue supports env-style key naming through options`` () =
-    let codec = KeyValue.compileUsing KeyValue.Options.environment personSchema
+    let codec = KeyValue.compileSchemaUsing KeyValue.Options.environment personSchema
 
     let value = {
         Id = 7
@@ -94,7 +94,7 @@ let ``KeyValue supports env-style key naming through options`` () =
 
 [<Fact>]
 let ``KeyValue preserves validated wrapper mappings through scalar leaves`` () =
-    let codec = KeyValue.compile accountSchema
+    let codec = KeyValue.compileSchema accountSchema
     let value: Account = { Id = UserId 7; Name = "Ada" }
 
     let encoded = KeyValue.serialize codec value
@@ -105,14 +105,14 @@ let ``KeyValue preserves validated wrapper mappings through scalar leaves`` () =
 
 [<Fact>]
 let ``KeyValue reports nested paths for decode failures`` () =
-    let codec = KeyValue.compile personSchema
+    let codec = KeyValue.compileSchema personSchema
 
     expectFailure "KeyValue decode error at $.home.city: Missing required key 'home.city'" (fun () ->
         KeyValue.deserialize codec (Map.ofList [ "id", "42"; "name", "Ada"; "home.street", "Main" ]))
 
 [<Fact>]
 let ``KeyValue reports validation context for mapped wrappers`` () =
-    let codec = KeyValue.compile accountSchema
+    let codec = KeyValue.compileSchema accountSchema
 
     expectFailure "KeyValue decode error at $.id: Validation failed: UserId must be positive" (fun () ->
         KeyValue.deserialize codec (Map.ofList [ "id", "0"; "name", "Ada" ]))
@@ -120,7 +120,7 @@ let ``KeyValue reports validation context for mapped wrappers`` () =
 [<Fact>]
 let ``KeyValue rejects collection schemas that do not flatten deterministically`` () =
     let error =
-        Assert.Throws<System.Exception>(fun () -> KeyValue.compile listSchema |> ignore)
+        Assert.Throws<System.Exception>(fun () -> KeyValue.compileSchema listSchema |> ignore)
 
     test <@ error.Message.Contains("flattened record and scalar schemas") @>
 
@@ -145,7 +145,7 @@ let ``KeyValue round-trips recursive tagged unions with flattened discriminator 
                     nodeSchema
             ])
 
-    let codec = KeyValue.compile nodeSchema
+    let codec = KeyValue.compileSchema nodeSchema
     let value = Branch(Branch(Leaf "ok"))
 
     let encoded = KeyValue.serialize codec value

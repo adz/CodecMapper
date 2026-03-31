@@ -12,9 +12,9 @@ The current runtime keeps the public DSL pleasant, but it pays for that with int
 - `SchemaDefinition.Record of System.Type * SchemaField[] * (obj[] -> obj)`
 - `Builder<'T, 'Ctor>.App : obj[] -> int -> 'Ctor`
 
-That design makes one generic backend easy to write across JSON, XML, YAML, bridge import, and JSON Schema work. It also forces hot JSON decode through boxed field storage and erased record reconstruction.
+That design makes one generic backend easy to write across JSON, XML, YAML, bridge import, and JSON Schema work. It also forces hot JSON decode through object field storage and object record reconstruction.
 
-The typed-interpreter option exists because there is a real ceiling on how far the current erased record path can go.
+The typed-interpreter option exists because there is a real ceiling on how far the current object-runtime record path can go.
 
 ## Core idea
 
@@ -30,7 +30,7 @@ The schema author still writes one DSL. Internally, that DSL must support both e
 
 ## What "typed all the way through" means
 
-Today a record schema eventually becomes "an array of erased fields plus an erased constructor."
+Today a record schema eventually becomes "an array of object-runtime fields plus an object-runtime constructor."
 
 The typed version would instead preserve the field types in constructor state. Conceptually:
 
@@ -79,7 +79,7 @@ This is the strongest option for typed runtime execution.
 Pros:
 
 - typed encoders/decoders stay typed end-to-end
-- no erased field arrays required in the runtime interpreter
+- no object field arrays required in the runtime interpreter
 - naturally supports multiple format interpreters
 
 Cons:
@@ -189,7 +189,7 @@ The first useful milestone is not "replace the whole schema core."
 The first useful milestone is:
 
 - prove a typed JSON record runtime path for a narrow subset
-- keep the current erased representation as fallback
+- keep the current object-runtime representation as fallback
 - keep public DSL source compatibility
 
 That gives a measurable checkpoint without blocking the whole repo on one rewrite.
@@ -207,7 +207,7 @@ If the answer only solves one of those, it is incomplete.
 
 Each proposal should describe:
 
-- what remains on the current erased path
+- what remains on the current object-runtime path
 - what subset gains a typed path first
 - how compatibility is preserved
 - what benchmark or test should improve if the step succeeds
@@ -227,7 +227,7 @@ A good first slice is:
 - typed JSON runtime only
 - records + primitives + nested records + lists
 - current DSL unchanged
-- erased fallback remains for unsupported wrappers or advanced import/export cases
+- object-runtime fallback remains for unsupported wrappers or advanced import/export cases
 
 A bad first slice is:
 
@@ -237,7 +237,7 @@ A bad first slice is:
 ## Recommended staged plan if this is revived
 
 1. Introduce an internal typed runtime representation for a narrow JSON subset.
-2. Keep the current erased `SchemaDefinition` as the source used by tooling/export.
+2. Keep the current object-runtime `SchemaDefinition` as the source used by tooling/export.
 3. Teach `Json.compile` to choose the typed path when the schema matches the supported subset.
 4. Benchmark nested-record and numeric-heavy decode against the current implementation.
 5. Only then evaluate whether XML should gain the same typed interpreter path.
@@ -247,14 +247,14 @@ A bad first slice is:
 
 This option is worth revisiting if:
 
-- decode benchmarks stop improving materially with erased-path optimizations
+- decode benchmarks stop improving materially with object-runtime optimizations
 - record reconstruction and boxing remain the dominant cost
 - the repo is willing to absorb a medium-to-large internal refactor
 
 This option is not worth revisiting yet if:
 
-- current erased-path optimizations are still yielding meaningful wins
-- the cost is in parser details rather than erased record reconstruction
+- current object-runtime-path optimizations are still yielding meaningful wins
+- the cost is in parser details rather than object record reconstruction
 - the team needs small safe steps more than architectural cleanup
 
 ## Current recommendation

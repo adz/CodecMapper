@@ -6,24 +6,31 @@
     <PackageId>CodecMapper</PackageId>
     <Version>0.3.0</Version>
     <Authors>Adam Davies</Authors>
-    <Description>Schema-first, type-safe JSON and XML codecs for F# with Native AOT and Fable support.</Description>
+    <Description>Explicit-contract, type-safe JSON and XML codecs for F# with Native AOT and Fable support.</Description>
     <PackageProjectUrl>https://adz.github.io/CodecMapper/</PackageProjectUrl>
     <RepositoryUrl>https://github.com/adz/CodecMapper</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReleaseNotes>Added authored tagged unions and recursive unions across JSON, XML, YAML, and KeyValue; JSON Schema export for tagged unions and string enums; inline union, string enum, and message envelope helpers; refreshed docs, compatibility coverage, and benchmark snapshots.</PackageReleaseNotes>
-    <PackageTags>fsharp;json;xml;serialization;deserialization;codec;schema-first;type-safe;fable;fable-javascript;native-aot;data-contract;json-schema</PackageTags>
+    <PackageTags>fsharp;json;xml;serialization;deserialization;codec;explicit-contract;type-safe;fable;fable-javascript;native-aot;data-contract;json-schema</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Include="Core.fs" />
     <Compile Include="Schema.fs" />
+    <Compile Include="ContractsCore.fs" />
+    <Compile Include="JsonTypedRecordDecode.fs" />
     <Compile Include="Json.fs" />
+    <Compile Include="JsonContracts.fs" />
     <Compile Include="JsonSchema.fs" />
     <Compile Include="Xml.fs" />
     <Compile Include="KeyValue.fs" />
     <Compile Include="Yaml.fs" />
+    <Compile Include="JsonSchemaContracts.fs" />
+    <Compile Include="XmlContracts.fs" />
+    <Compile Include="KeyValueContracts.fs" />
+    <Compile Include="YamlContracts.fs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -39,12 +46,18 @@
     <None Include="..\..\README.md" Pack="true" PackagePath="\" />
     <Content Include="$(MSBuildProjectFile)" Pack="true" PackagePath="fable/" />
     <Content Include="Core.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="ContractsCore.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="JsonContracts.fs" Pack="true" PackagePath="fable/" />
     <Content Include="Schema.fs" Pack="true" PackagePath="fable/" />
     <Content Include="Json.fs" Pack="true" PackagePath="fable/" />
     <Content Include="JsonSchema.fs" Pack="true" PackagePath="fable/" />
     <Content Include="Xml.fs" Pack="true" PackagePath="fable/" />
     <Content Include="KeyValue.fs" Pack="true" PackagePath="fable/" />
     <Content Include="Yaml.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="JsonSchemaContracts.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="XmlContracts.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="KeyValueContracts.fs" Pack="true" PackagePath="fable/" />
+    <Content Include="YamlContracts.fs" Pack="true" PackagePath="fable/" />
   </ItemGroup>
 
 </Project>

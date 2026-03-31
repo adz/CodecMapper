@@ -16,7 +16,7 @@ let interopCollectionSchema =
 
 [<Fact>]
 let ``Auto-resolved .NET interop collections round-trip JSON`` () =
-    let codec = Json.compile interopCollectionSchema
+    let codec = Json.compileSchema interopCollectionSchema
 
     let value = {
         Buffer = ResizeArray([ "a"; "b" ])
@@ -34,7 +34,7 @@ let ``Auto-resolved .NET interop collections round-trip JSON`` () =
 
 [<Fact>]
 let ``Auto-resolved .NET interop collections round-trip XML`` () =
-    let codec = Xml.compile interopCollectionSchema
+    let codec = Xml.compileSchema interopCollectionSchema
 
     let expectedXml =
         "<interopcollectionrecord><buffer><item>x</item><item>y</item></buffer><names><item>Quinn</item><item>Rory</item></names><scores><item>5</item><item>8</item></scores></interopcollectionrecord>"

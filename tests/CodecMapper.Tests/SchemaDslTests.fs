@@ -23,7 +23,7 @@ let ``Round-trip using Pipeline DSL`` () =
         |> Schema.fieldWith "home" _.Home addressSchema
         |> Schema.build
 
-    let codec = Json.compile personSchema
+    let codec = Json.compileSchema personSchema
 
     let person = {
         Id = 42
@@ -64,11 +64,11 @@ let ``One schema, multiple formats (JSON and XML)`` () =
         }
     }
 
-    let jsonCodec = Json.compile personSchema
+    let jsonCodec = Json.compileSchema personSchema
     let json = Json.serialize jsonCodec person
     test <@ json = "{\"id\":42,\"name\":\"Adam\",\"home\":{\"street\":\"123 F# Lane\",\"city\":\"AOT City\"}}" @>
 
-    let xmlCodec = Xml.compile personSchema
+    let xmlCodec = Xml.compileSchema personSchema
     let xml = Xml.serialize xmlCodec person
 
     test
@@ -79,7 +79,7 @@ let ``One schema, multiple formats (JSON and XML)`` () =
 [<Fact>]
 let ``Round-trip list of strings JSON`` () =
     let listSchema = Schema.list Schema.string
-    let codec = Json.compile listSchema
+    let codec = Json.compileSchema listSchema
 
     let value = [ "a"; "b"; "c" ]
     let json = Json.serialize codec value
@@ -112,7 +112,8 @@ let ``buildAndCompile composes build and compile across formats`` () =
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
-        |> Json.buildAndCompile
+        |> Schema.build
+        |> Json.compileSchema
 
     let xmlCodec =
         Schema.define<Person>
@@ -127,7 +128,8 @@ let ``buildAndCompile composes build and compile across formats`` () =
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
-        |> Xml.buildAndCompile
+        |> Schema.build
+        |> Xml.compileSchema
 
     let yamlCodec =
         Schema.define<Person>
@@ -142,7 +144,8 @@ let ``buildAndCompile composes build and compile across formats`` () =
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
-        |> Yaml.buildAndCompile
+        |> Schema.build
+        |> Yaml.compileSchema
 
     let keyValueCodec =
         Schema.define<Person>
@@ -157,7 +160,8 @@ let ``buildAndCompile composes build and compile across formats`` () =
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
-        |> KeyValue.buildAndCompile
+        |> Schema.build
+        |> KeyValue.compileSchema
 
     let json = Json.serialize jsonCodec person
     let xml = Xml.serialize xmlCodec person
@@ -180,7 +184,7 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
         |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
         |> Schema.build
 
-    let codec = Json.compile wrappedPersonSchema
+    let codec = Json.compileSchema wrappedPersonSchema
 
     let p = {
         Id = PersonId 123
@@ -200,7 +204,7 @@ let ``Round-trip collections with auto-resolution`` () =
         |> Schema.field "array" _.Array
         |> Schema.build
 
-    let codec = Json.compile collectionSchema
+    let codec = Json.compileSchema collectionSchema
 
     let value = {
         List = [ 1; 2 ]
@@ -238,7 +242,7 @@ let ``Round-trip using typed pipeline with 20 fields`` () =
         |> Schema.field "f20" _.F20
         |> Schema.build
 
-    let codec = Json.compile largeSchema
+    let codec = Json.compileSchema largeSchema
 
     let value = {
         F1 = 1
@@ -289,9 +293,9 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
             ])
 
     let value = Branch(Branch(Leaf "ok"))
-    let jsonCodec = Json.compile nodeSchema
-    let xmlCodec = Xml.compile nodeSchema
-    let yamlCodec = Yaml.compile nodeSchema
+    let jsonCodec = Json.compileSchema nodeSchema
+    let xmlCodec = Xml.compileSchema nodeSchema
+    let yamlCodec = Yaml.compileSchema nodeSchema
 
     let json = Json.serialize jsonCodec value
     let xml = Xml.serialize xmlCodec value
@@ -331,10 +335,10 @@ let ``Inline tagged unions round-trip across JSON XML YAML and KeyValue`` () =
 
     let value = Created { Id = 7; Name = "Ada" }
 
-    let jsonCodec = Json.compile schema
-    let xmlCodec = Xml.compile schema
-    let yamlCodec = Yaml.compile schema
-    let keyValueCodec = KeyValue.compile schema
+    let jsonCodec = Json.compileSchema schema
+    let xmlCodec = Xml.compileSchema schema
+    let yamlCodec = Yaml.compileSchema schema
+    let keyValueCodec = KeyValue.compileSchema schema
 
     let json = Json.serialize jsonCodec value
     let xml = Xml.serialize xmlCodec value
@@ -365,10 +369,10 @@ let ``String enums round-trip across JSON XML YAML and KeyValue`` () =
         |> Schema.build
 
     let value = Lenient
-    let jsonCodec = Json.compile modeSchema
-    let xmlCodec = Xml.compile modeSchema
-    let yamlCodec = Yaml.compile modeSchema
-    let keyValueCodec = KeyValue.compile configSchema
+    let jsonCodec = Json.compileSchema modeSchema
+    let xmlCodec = Xml.compileSchema modeSchema
+    let yamlCodec = Yaml.compileSchema modeSchema
+    let keyValueCodec = KeyValue.compileSchema configSchema
 
     let json = Json.serialize jsonCodec value
     let xml = Xml.serialize xmlCodec value
@@ -407,10 +411,10 @@ let ``Envelope helpers use type and data field names across formats`` () =
         ]
 
     let value = Created { Id = 7; Name = "Ada" }
-    let jsonCodec = Json.compile schema
-    let xmlCodec = Xml.compile schema
-    let yamlCodec = Yaml.compile schema
-    let keyValueCodec = KeyValue.compile schema
+    let jsonCodec = Json.compileSchema schema
+    let xmlCodec = Xml.compileSchema schema
+    let yamlCodec = Yaml.compileSchema schema
+    let keyValueCodec = KeyValue.compileSchema schema
 
     let json = Json.serialize jsonCodec value
     let xml = Xml.serialize xmlCodec value
@@ -450,10 +454,10 @@ let ``Inline envelope helpers inline payload fields next to type`` () =
         ]
 
     let value = Created { Id = 7; Name = "Ada" }
-    let jsonCodec = Json.compile schema
-    let xmlCodec = Xml.compile schema
-    let yamlCodec = Yaml.compile schema
-    let keyValueCodec = KeyValue.compile schema
+    let jsonCodec = Json.compileSchema schema
+    let xmlCodec = Xml.compileSchema schema
+    let yamlCodec = Yaml.compileSchema schema
+    let keyValueCodec = KeyValue.compileSchema schema
 
     let json = Json.serialize jsonCodec value
     let xml = Xml.serialize xmlCodec value
@@ -489,7 +493,7 @@ let ``Pipeline DSL can use opened Schema module at file scope`` () =
         |> fieldWith "home" _.Home addressSchema
         |> build
 
-    let codec = Json.compile personSchema
+    let codec = Json.compileSchema personSchema
 
     let person = {
         Id = 12

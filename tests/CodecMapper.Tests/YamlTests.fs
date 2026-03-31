@@ -36,7 +36,7 @@ let collectionSchema =
 
 [<Fact>]
 let ``Yaml round-trips nested records`` () =
-    let codec = Yaml.compile personSchema
+    let codec = Yaml.compileSchema personSchema
 
     let value = {
         Id = 42
@@ -52,7 +52,7 @@ let ``Yaml round-trips nested records`` () =
 
 [<Fact>]
 let ``Yaml preserves explicit null option values`` () =
-    let codec = Yaml.compile optionalSchema
+    let codec = Yaml.compileSchema optionalSchema
     let value = { Nickname = None; Age = Some 42 }
 
     let yaml = Yaml.serialize codec value
@@ -63,7 +63,7 @@ let ``Yaml preserves explicit null option values`` () =
 
 [<Fact>]
 let ``Yaml round-trips collection shapes through block sequences`` () =
-    let codec = Yaml.compile collectionSchema
+    let codec = Yaml.compileSchema collectionSchema
 
     let value = {
         List = [ 1; 2 ]
@@ -78,7 +78,7 @@ let ``Yaml round-trips collection shapes through block sequences`` () =
 
 [<Fact>]
 let ``Yaml deserializes hand-authored sequences of objects`` () =
-    let codec = Yaml.compile (Schema.list personSchema)
+    let codec = Yaml.compileSchema (Schema.list personSchema)
 
     let yaml =
         "- id: 1\n  name: Ada\n  home:\n    street: Main\n    city: Adelaide\n- id: 2\n  name: Lin\n  home:\n    street: North\n    city: Perth"
@@ -102,14 +102,14 @@ let ``Yaml deserializes hand-authored sequences of objects`` () =
 
 [<Fact>]
 let ``Yaml reports nested schema paths for decode failures`` () =
-    let codec = Yaml.compile personSchema
+    let codec = Yaml.compileSchema personSchema
 
     expectFailure "YAML decode error at $.home.city: Missing required key 'city'" (fun () ->
         Yaml.deserialize codec "id: 1\nname: Ada\nhome:\n  street: Main")
 
 [<Fact>]
 let ``Yaml reports parser failures at the root`` () =
-    let codec = Yaml.compile personSchema
+    let codec = Yaml.compileSchema personSchema
 
     expectFailure "YAML decode error at $: Failed to parse YAML payload" (fun () ->
         Yaml.deserialize codec "id: 1\n\tname: Ada")

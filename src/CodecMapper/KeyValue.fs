@@ -10,7 +10,7 @@ open Microsoft.FSharp.Reflection
 ///
 /// This backend is intentionally narrower than JSON or XML: it targets
 /// flattened key/value surfaces such as app settings or environment variables.
-module KeyValue =
+module KeyValueBackend =
     /// Options controlling how flattened keys are named.
     type Options = {
         Separator: string
@@ -128,7 +128,7 @@ module KeyValue =
         elif targetType = typeof<uint64> then
             (unbox<uint64> value).ToString(CultureInfo.InvariantCulture)
         elif targetType = typeof<float> then
-            Schema.formatFloat (unbox<float> value)
+            Core.formatFloat (unbox<float> value)
         elif targetType = typeof<decimal> then
             (unbox<decimal> value).ToString(CultureInfo.InvariantCulture)
         elif targetType = typeof<string> then
@@ -146,16 +146,18 @@ module KeyValue =
         else
             failwithf "KeyValue does not support primitive type %O" targetType
 
-    type private SchemaRefComparer() =
-        interface IEqualityComparer<ISchema> with
+    type private CodecObjRefComparer() =
+        interface IEqualityComparer<obj> with
             member _.Equals(left, right) = obj.ReferenceEquals(left, right)
             member _.GetHashCode(value) = RuntimeHelpers.GetHashCode(value)
 
-    let private compileUntyped (options: Options) (rootSchema: ISchema) : CompiledCodec =
-        let cache = Dictionary<ISchema, CompiledCodec>(SchemaRefComparer())
+    let private compileUntyped (options: Options) (rootCodec: obj) : CompiledCodec =
+        let cache = Dictionary<obj, CompiledCodec>(CodecObjRefComparer())
 
-        let rec loop (schema: ISchema) : CompiledCodec =
-            match cache.TryGetValue(schema) with
+        let rec loop (codecObj: obj) : CompiledCodec =
+            let targetType = (codecObj :?> ICodecInfo).TargetType
+
+            match cache.TryGetValue(codecObj) with
             | true, codec -> codec
             | false, _ ->
                 let mutable encodeImpl =
@@ -172,11 +174,11 @@ module KeyValue =
                     MissingValue = None
                 }
 
-                cache[schema] <- placeholder
+                cache[codecObj] <- placeholder
 
                 let compiled =
-                    match schema.Definition with
-                    | Primitive targetType -> {
+                    match codecObj with
+                    | :? IPrimitiveCodec -> {
                         Encode = (fun path value -> [ keyName options path, formatPrimitive targetType value ])
                         Decode =
                             (fun path values ->
@@ -184,25 +186,26 @@ module KeyValue =
                                 |> Option.map (fun value -> withPath path (fun () -> parsePrimitive targetType value)))
                         MissingValue = None
                       }
-                    | StringEnum(_, tryGetName, parseName) -> {
+                    | :? IStringEnumCodecRuntime as stringEnum -> {
                         Encode =
                             (fun path value ->
-                                match tryGetName value with
+                                match stringEnum.TryGetNameObj value with
                                 | Some name -> [ keyName options path, name ]
-                                | None -> failwithf "No string enum name matched value for type %O" schema.TargetType)
+                                | None -> failwithf "No string enum name matched value for type %O" targetType)
                         Decode =
                             (fun path values ->
                                 tryFindValue options path values
-                                |> Option.map (fun name -> withPath path (fun () -> parseName name)))
+                                |> Option.map (fun name -> withPath path (fun () -> stringEnum.ParseNameObj name)))
                         MissingValue = None
                       }
-                    | Record(_, fields, ctor) ->
+                    | :? IMappingDefinitionRuntime as mapping ->
                         let compiledFields =
-                            fields
+                            mapping.FieldsRuntime
+                            |> List.toArray
                             |> Array.mapi (fun index field -> {|
                                 Index = index
                                 Field = field
-                                Codec = loop field.Schema
+                                Codec = loop field.Codec
                             |})
 
                         {
@@ -211,7 +214,7 @@ module KeyValue =
                                     compiledFields
                                     |> Array.toList
                                     |> List.collect (fun field ->
-                                        field.Codec.Encode (path @ [ field.Field.Name ]) (field.Field.GetValue value)))
+                                        field.Codec.Encode (path @ [ field.Field.Name ]) (field.Field.GetObj value)))
                             Decode =
                                 (fun path values ->
                                     let decodedFields =
@@ -239,12 +242,12 @@ module KeyValue =
                                                                 "Missing required key '%s'"
                                                                 (keyName options fieldPath)))
 
-                                        Some(ctor args))
+                                        Some(mapping.CreateObj args))
                             MissingValue = None
                         }
-                    | Option innerSchema ->
-                        let innerCodec = loop innerSchema
-                        let optionType = schema.TargetType
+                    | :? IOptionCodecRuntime as optionCodec ->
+                        let innerCodec = loop optionCodec.InnerObj
+                        let optionType = targetType
 
                         {
                             Encode =
@@ -257,50 +260,45 @@ module KeyValue =
                             Decode =
                                 (fun path values ->
                                     match innerCodec.Decode path values with
-                                    | Some value -> Some(Xml.Runtime.makeOptionSome optionType value)
-                                    | None -> Some(Xml.Runtime.makeOptionNone optionType))
-                            MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
+                                    | Some value -> Some(XmlBackend.Runtime.makeOptionSome optionType value)
+                                    | None -> Some(XmlBackend.Runtime.makeOptionNone optionType))
+                            MissingValue = Some(XmlBackend.Runtime.makeOptionNone optionType)
                         }
-                    | MissingAsNone innerSchema ->
-                        let innerCodec = loop innerSchema
-                        let optionType = schema.TargetType
+                    | :? IRuntimeMissingWrapper as wrapped when wrapped.Kind = 0 ->
+                        let innerCodec = loop wrapped.InnerObj
+                        let optionType = targetType
 
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
-                            MissingValue = Some(Xml.Runtime.makeOptionNone optionType)
+                            MissingValue = Some(XmlBackend.Runtime.makeOptionNone optionType)
                         }
-                    | MissingAsValue(defaultValue, innerSchema) ->
-                        let innerCodec = loop innerSchema
+                    | :? IRuntimeMissingWrapper as wrapped when wrapped.Kind = 1 ->
+                        let innerCodec = loop wrapped.InnerObj
 
                         {
                             Encode = innerCodec.Encode
                             Decode = innerCodec.Decode
-                            MissingValue = Some defaultValue
+                            MissingValue = Some wrapped.ValueObj
                         }
-                    | NullAsValue(defaultValue, innerSchema) ->
-                        let innerCodec = loop innerSchema
+                    | :? IRuntimeMissingWrapper as wrapped when wrapped.Kind = 2 ->
+                        let innerCodec = loop wrapped.InnerObj
 
                         {
                             Encode = innerCodec.Encode
                             Decode =
                                 (fun path values ->
                                     match tryFindValue options path values with
-                                    | Some "null" -> Some defaultValue
+                                    | Some "null" -> Some wrapped.ValueObj
                                     | Some _ -> innerCodec.Decode path values
                                     | None -> innerCodec.Decode path values)
                             MissingValue = innerCodec.MissingValue
                         }
-                    | EmptyCollectionAsValue(_, innerSchema) ->
-                        loop
-                            { new ISchema with
-                                member _.TargetType = innerSchema.TargetType
-                                member _.Definition = innerSchema.Definition
-                            }
-                    | EmptyStringAsNone innerSchema ->
-                        let innerCodec = loop innerSchema
-                        let optionType = schema.TargetType
-                        let noneValue = Xml.Runtime.makeOptionNone optionType
+                    | :? IRuntimeMissingWrapper as wrapped when wrapped.Kind = 3 -> loop wrapped.InnerObj
+                    | :? IRuntimeMissingWrapper as wrapped when wrapped.Kind = 4 ->
+                        let innerCodec = loop wrapped.InnerObj
+                        let optionType = targetType
+                        let noneValue = XmlBackend.Runtime.makeOptionNone optionType
 
                         {
                             Encode = innerCodec.Encode
@@ -311,23 +309,24 @@ module KeyValue =
                                     | _ -> innerCodec.Decode path values)
                             MissingValue = innerCodec.MissingValue
                         }
-                    | Map(innerSchema, wrap, unwrap) ->
-                        let innerCodec = loop innerSchema
+                    | :? IMappedCodecRuntime as mapped ->
+                        let innerCodec = loop mapped.InnerObj
 
                         {
-                            Encode = (fun path value -> innerCodec.Encode path (unwrap value))
+                            Encode = (fun path value -> innerCodec.Encode path (mapped.EncodeObj value))
                             Decode =
                                 (fun path values ->
                                     innerCodec.Decode path values
-                                    |> Option.map (fun value -> withValidationContext path (fun () -> wrap value)))
-                            MissingValue = innerCodec.MissingValue |> Option.map wrap
+                                    |> Option.map (fun value -> withValidationContext path (fun () -> mapped.DecodeObj value)))
+                            MissingValue = innerCodec.MissingValue |> Option.map mapped.DecodeObj
                         }
-                    | Union(discriminatorName, valueName, cases) ->
+                    | :? IUnionCodecRuntime as unionCodec ->
                         let compiledCases =
-                            cases
+                            unionCodec.CasesRuntime
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
-                                Codec = case.Schema |> Option.map loop
+                                Codec = case.Codec |> Option.map loop
                             |})
 
                         {
@@ -336,21 +335,21 @@ module KeyValue =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
                                         let caseEntries = [
-                                            keyName options (path @ [ discriminatorName ]), compiled.Case.Name
+                                            keyName options (path @ [ unionCodec.DiscriminatorName ]), compiled.Case.Name
                                         ]
 
                                         match compiled.Codec with
-                                        | Some codec -> caseEntries @ codec.Encode (path @ [ valueName ]) fieldValue
+                                        | Some codec -> caseEntries @ codec.Encode (path @ [ unionCodec.ValueName ]) fieldValue
                                         | None -> caseEntries
-                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" targetType)
                             Decode =
                                 (fun path values ->
-                                    match tryFindValue options (path @ [ discriminatorName ]) values with
+                                    match tryFindValue options (path @ [ unionCodec.DiscriminatorName ]) values with
                                     | None -> None
                                     | Some caseName ->
                                         match
@@ -359,12 +358,12 @@ module KeyValue =
                                         with
                                         | None ->
                                             decodeFailure
-                                                (path @ [ discriminatorName ])
+                                                (path @ [ unionCodec.DiscriminatorName ])
                                                 (sprintf "Unknown union case '%s'" caseName)
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->
-                                                let valuePath = path @ [ valueName ]
+                                                let valuePath = path @ [ unionCodec.ValueName ]
 
                                                 if hasValueAtPath options valuePath values then
                                                     decodeFailure
@@ -374,12 +373,12 @@ module KeyValue =
                                                             caseName
                                                             (keyName options valuePath))
 
-                                                Some(compiled.Case.Construct None)
+                                                Some(compiled.Case.ConstructObj None)
                                             | Some codec ->
-                                                match codec.Decode (path @ [ valueName ]) values with
-                                                | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))
+                                                match codec.Decode (path @ [ unionCodec.ValueName ]) values with
+                                                | Some fieldValue -> Some(compiled.Case.ConstructObj(Some fieldValue))
                                                 | None ->
-                                                    let valuePath = path @ [ valueName ]
+                                                    let valuePath = path @ [ unionCodec.ValueName ]
 
                                                     decodeFailure
                                                         valuePath
@@ -388,15 +387,16 @@ module KeyValue =
                                                             (keyName options valuePath)))
                             MissingValue = None
                         }
-                    | InlineUnion(discriminatorName, cases) ->
+                    | :? IInlineUnionCodecRuntime as inlineUnionCodec ->
                         let compiledCases =
-                            cases
+                            inlineUnionCodec.CasesRuntime
+                            |> List.toArray
                             |> Array.map (fun case -> {|
                                 Case = case
                                 Codec =
-                                    case.Schema
+                                    case.Codec
                                     |> Option.map (fun payloadSchema ->
-                                        if not (Schema.supportsInlinePayloadShape payloadSchema) then
+                                        if not (SchemaRuntime.supportsInlinePayloadShapeObj payloadSchema) then
                                             failwithf
                                                 "Inline union case '%s' payload schema must be object-shaped"
                                                 case.Name
@@ -410,11 +410,11 @@ module KeyValue =
                                     match
                                         compiledCases
                                         |> Array.tryPick (fun compiled ->
-                                            compiled.Case.TryGetValue value
+                                            compiled.Case.TryGetValueObj value
                                             |> Option.map (fun fieldValue -> compiled, fieldValue))
                                     with
                                     | Some(compiled, fieldValue) ->
-                                        let caseKey = keyName options (path @ [ discriminatorName ])
+                                        let caseKey = keyName options (path @ [ inlineUnionCodec.DiscriminatorName ])
                                         let caseEntry = [ caseKey, compiled.Case.Name ]
 
                                         match compiled.Codec with
@@ -429,13 +429,13 @@ module KeyValue =
 
                                             caseEntry @ payloadEntries
                                         | None -> caseEntry
-                                    | None -> failwithf "No union case matched value for type %O" schema.TargetType)
+                                    | None -> failwithf "No union case matched value for type %O" targetType)
                             Decode =
                                 (fun path values ->
-                                    match tryFindValue options (path @ [ discriminatorName ]) values with
+                                    match tryFindValue options (path @ [ inlineUnionCodec.DiscriminatorName ]) values with
                                     | None -> None
                                     | Some caseName ->
-                                        let caseKey = keyName options (path @ [ discriminatorName ])
+                                        let caseKey = keyName options (path @ [ inlineUnionCodec.DiscriminatorName ])
                                         let payloadValues = values |> Map.remove caseKey
 
                                         match
@@ -444,13 +444,13 @@ module KeyValue =
                                         with
                                         | None ->
                                             decodeFailure
-                                                (path @ [ discriminatorName ])
+                                                (path @ [ inlineUnionCodec.DiscriminatorName ])
                                                 (sprintf "Unknown union case '%s'" caseName)
                                         | Some compiled ->
                                             match compiled.Codec with
                                             | None ->
                                                 if payloadValues |> Map.isEmpty then
-                                                    Some(compiled.Case.Construct None)
+                                                    Some(compiled.Case.ConstructObj None)
                                                 else
                                                     decodeFailure
                                                         path
@@ -460,7 +460,7 @@ module KeyValue =
                                                             caseKey)
                                             | Some codec ->
                                                 match codec.Decode path payloadValues with
-                                                | Some fieldValue -> Some(compiled.Case.Construct(Some fieldValue))
+                                                | Some fieldValue -> Some(compiled.Case.ConstructObj(Some fieldValue))
                                                 | None ->
                                                     decodeFailure
                                                         path
@@ -469,11 +469,13 @@ module KeyValue =
                                                             caseName))
                             MissingValue = None
                         }
-                    | Delay factory -> loop (factory ())
-                    | List _
-                    | Array _
-                    | RawJsonValue ->
-                        failwithf "KeyValue only supports flattened record and scalar schemas, got %O" schema.Definition
+                    | :? IDelayCodecRuntime as delayCodec -> loop (delayCodec.FactoryObj())
+                    | :? IListCodecRuntime
+                    | :? IArrayCodecRuntime
+                    | :? IRawJsonValueCodec ->
+                        failwithf "KeyValue only supports flattened record and scalar schemas, got %O" targetType
+                    | _ ->
+                        failwithf "KeyValue does not support codec %O" targetType
 
                 encodeImpl <- compiled.Encode
                 decodeImpl <- compiled.Decode
@@ -485,14 +487,14 @@ module KeyValue =
                     MissingValue = missingValueImpl
                 }
 
-                cache[schema] <- finalized
+                cache[codecObj] <- finalized
                 finalized
 
-        loop rootSchema
+        loop rootCodec
 
-    /// Compiles a schema into a reusable flat key/value codec using explicit options.
-    let compileUsing (options: Options) (schema: Schema<'T>) : Codec<'T> =
-        let compiled = compileUntyped options (schema :> ISchema)
+    /// Compiles a contract into a reusable flat key/value codec using explicit options.
+    let compileUsing (options: Options) (schema: CodecMapper.Codec<'T>) : Codec<'T> =
+        let compiled = compileUntyped options (box schema)
 
         {
             Encode = (fun value -> compiled.Encode [] (box value) |> Map.ofList)
@@ -508,18 +510,22 @@ module KeyValue =
                         | _ -> decodeFailure [] ex.Message)
         }
 
-    /// Compiles a schema into a reusable flat key/value codec using dotted keys.
-    let compile (schema: Schema<'T>) : Codec<'T> = compileUsing Options.defaults schema
+    /// Compiles a contract into a reusable flat key/value codec using dotted keys.
+    let compile (schema: CodecMapper.Codec<'T>) : Codec<'T> = compileUsing Options.defaults schema
 
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// key/value compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
+    let inline buildAndCompile
+        (builder: SchemaBuilder<'T, 'Ctor, 'T, 'Chain>)
+        : Codec<'T>
+        when 'Chain :> IChainNode<'T, 'Ctor, 'T> =
+        builder |> Schema.build |> compile
 
     ///
     /// `codec` remains as the shorter schema-to-codec alias for callers that
     /// prefer the direct compile step under the default options.
-    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+    let codec (schema: CodecMapper.Codec<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to a flat key/value map using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) = codec.Encode value

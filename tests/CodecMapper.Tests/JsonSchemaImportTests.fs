@@ -7,7 +7,7 @@ open TestCommon
 
 [<Fact>]
 let ``Imported primitive schema validates integer instances`` () =
-    let codec = Json.compile (JsonSchema.import """{"type":"integer"}""")
+    let codec = Json.compileSchema (JsonSchema.import """{"type":"integer"}""")
 
     test <@ Json.deserialize codec "42" = JNumber "42" @>
 
@@ -26,7 +26,7 @@ let ``Imported object schema validates required fields and additionalProperties 
             "additionalProperties":false
         }"""
 
-    let codec = Json.compile (JsonSchema.import schemaText)
+    let codec = Json.compileSchema (JsonSchema.import schemaText)
 
     let value = Json.deserialize codec """{"id":1,"name":"Ada"}"""
 
@@ -39,7 +39,7 @@ let ``Imported object schema validates required fields and additionalProperties 
 [<Fact>]
 let ``Imported array schema validates items recursively`` () =
     let codec =
-        Json.compile (JsonSchema.import """{"type":"array","items":{"type":"boolean"}}""")
+        Json.compileSchema (JsonSchema.import """{"type":"array","items":{"type":"boolean"}}""")
 
     test <@ Json.deserialize codec """[true,false]""" = JArray [ JBool true; JBool false ] @>
 
@@ -47,8 +47,8 @@ let ``Imported array schema validates items recursively`` () =
 
 [<Fact>]
 let ``Imported enum and const rules are enforced over raw JSON values`` () =
-    let enumCodec = Json.compile (JsonSchema.import """{"enum":["red","green"]}""")
-    let constCodec = Json.compile (JsonSchema.import """{"const":{"kind":"fixed"}}""")
+    let enumCodec = Json.compileSchema (JsonSchema.import """{"enum":["red","green"]}""")
+    let constCodec = Json.compileSchema (JsonSchema.import """{"const":{"kind":"fixed"}}""")
 
     test <@ Json.deserialize enumCodec "\"red\"" = JString "red" @>
     test <@ Json.deserialize constCodec """{"kind":"fixed"}""" = JObject [ "kind", JString "fixed" ] @>
@@ -60,10 +60,10 @@ let ``Imported enum and const rules are enforced over raw JSON values`` () =
 [<Fact>]
 let ``Imported string and numeric constraints are enforced when supported`` () =
     let stringCodec =
-        Json.compile (JsonSchema.import """{"type":"string","minLength":2,"maxLength":4}""")
+        Json.compileSchema (JsonSchema.import """{"type":"string","minLength":2,"maxLength":4}""")
 
     let numberCodec =
-        Json.compile (JsonSchema.import """{"type":"number","minimum":0,"exclusiveMaximum":10,"multipleOf":2}""")
+        Json.compileSchema (JsonSchema.import """{"type":"number","minimum":0,"exclusiveMaximum":10,"multipleOf":2}""")
 
     test <@ Json.deserialize stringCodec "\"Ada\"" = JString "Ada" @>
     test <@ Json.deserialize numberCodec "8" = JNumber "8" @>
@@ -81,7 +81,7 @@ let ``Imported string and numeric constraints are enforced when supported`` () =
 [<Fact>]
 let ``Imported pattern constraints are enforced for strings`` () =
     let codec =
-        Json.compile (JsonSchema.import """{"type":"string","pattern":"^[A-Z]+$"}""")
+        Json.compileSchema (JsonSchema.import """{"type":"string","pattern":"^[A-Z]+$"}""")
 
     test <@ Json.deserialize codec "\"ABC\"" = JString "ABC" @>
 
@@ -89,7 +89,7 @@ let ``Imported pattern constraints are enforced for strings`` () =
 
 [<Fact>]
 let ``Imported built-in formats are enforced when configured by defaults`` () =
-    let codec = Json.compile (JsonSchema.import """{"type":"string","format":"uuid"}""")
+    let codec = Json.compileSchema (JsonSchema.import """{"type":"string","format":"uuid"}""")
 
     test
         <@
@@ -110,7 +110,7 @@ let ``Imported custom format validators can be supplied by the caller`` () =
                 Error "String did not match the upper-code format")
 
     let codec =
-        Json.compile (JsonSchema.importUsing options """{"type":"string","format":"upper-code"}""")
+        Json.compileSchema (JsonSchema.importUsing options """{"type":"string","format":"upper-code"}""")
 
     test <@ Json.deserialize codec "\"ABC\"" = JString "ABC" @>
 
@@ -119,10 +119,10 @@ let ``Imported custom format validators can be supplied by the caller`` () =
 [<Fact>]
 let ``Imported collection size constraints are enforced when supported`` () =
     let arrayCodec =
-        Json.compile (JsonSchema.import """{"type":"array","minItems":1,"maxItems":2}""")
+        Json.compileSchema (JsonSchema.import """{"type":"array","minItems":1,"maxItems":2}""")
 
     let objectCodec =
-        Json.compile (JsonSchema.import """{"type":"object","minProperties":1,"maxProperties":2}""")
+        Json.compileSchema (JsonSchema.import """{"type":"object","minProperties":1,"maxProperties":2}""")
 
     test <@ Json.deserialize arrayCodec "[1]" = JArray [ JNumber "1" ] @>
     test <@ Json.deserialize objectCodec """{"a":1}""" = JObject [ "a", JNumber "1" ] @>
@@ -138,7 +138,7 @@ let ``Imported collection size constraints are enforced when supported`` () =
 [<Fact>]
 let ``Imported dynamic object keywords validate keys and unknown properties`` () =
     let codec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "type":"object",
@@ -167,7 +167,7 @@ let ``Imported dynamic object keywords validate keys and unknown properties`` ()
 [<Fact>]
 let ``Imported tuple-like arrays and contains are enforced`` () =
     let codec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "type":"array",
@@ -189,7 +189,7 @@ let ``Imported tuple-like arrays and contains are enforced`` () =
 [<Fact>]
 let ``Imported conditional schemas enforce then and else branches`` () =
     let codec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "if":{"type":"object","properties":{"kind":{"const":"adult"}}},
@@ -221,7 +221,7 @@ let ``Imported conditional schemas enforce then and else branches`` () =
 [<Fact>]
 let ``Imported oneOf and anyOf branches are validated over raw values`` () =
     let oneOfCodec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "oneOf":[
@@ -232,7 +232,7 @@ let ``Imported oneOf and anyOf branches are validated over raw values`` () =
         )
 
     let anyOfCodec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "anyOf":[
@@ -266,7 +266,7 @@ let ``Imported local defs and refs are normalized into enforced rules`` () =
                 "required":["id"]
             }"""
 
-    let codec = Json.compile report.Schema
+    let codec = Json.compileSchema report.Schema
 
     test <@ report.EnforcedKeywords |> List.contains "$defs" @>
     test <@ report.EnforcedKeywords |> List.contains "$ref" @>
@@ -305,7 +305,7 @@ let ``Import report flags not as a fallback keyword`` () =
 [<Fact>]
 let ``Unsupported fallback keywords do not suppress supported sibling rules`` () =
     let codec =
-        Json.compile (
+        Json.compileSchema (
             JsonSchema.import
                 """{
                     "type":"string",
@@ -339,7 +339,7 @@ let ``Imported allOf schemas are normalized and enforced together`` () =
                 ]
             }"""
 
-    let codec = Json.compile report.Schema
+    let codec = Json.compileSchema report.Schema
 
     test <@ report.EnforcedKeywords |> List.contains "allOf" @>
     test <@ report.NormalizedKeywords |> List.contains "allOf" @>
@@ -367,7 +367,7 @@ let ``Import report warns when no format validator is configured`` () =
 [<Fact>]
 let ``Unsupported branch-shaping keywords fall back to raw JSON acceptance`` () =
     let codec =
-        Json.compile (JsonSchema.import """{"oneOf":[{"type":"string"},{"type":"integer"}]}""")
+        Json.compileSchema (JsonSchema.import """{"oneOf":[{"type":"string"},{"type":"integer"}]}""")
 
     test <@ Json.deserialize codec "\"x\"" = JString "x" @>
     test <@ Json.deserialize codec "5" = JNumber "5" @>

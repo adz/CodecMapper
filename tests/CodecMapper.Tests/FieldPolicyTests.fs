@@ -58,7 +58,7 @@ let collectionPolicySchema =
 
 [<Fact>]
 let ``Missing defaults apply in JSON without weakening explicit values`` () =
-    let codec = Json.compile configSchema
+    let codec = Json.compileSchema configSchema
 
     let value = Json.deserialize codec """{"mode":"lenient"}"""
 
@@ -72,7 +72,7 @@ let ``Missing defaults apply in JSON without weakening explicit values`` () =
 
 [<Fact>]
 let ``Missing defaults apply in XML`` () =
-    let codec = Xml.compile configSchema
+    let codec = Xml.compileSchema configSchema
 
     let value = Xml.deserialize codec "<configrecord><mode>strict</mode></configrecord>"
 
@@ -86,7 +86,7 @@ let ``Missing defaults apply in XML`` () =
 
 [<Fact>]
 let ``Missing defaults apply in KeyValue for flat shapes`` () =
-    let keyValueCodec = KeyValue.compile flatConfigSchema
+    let keyValueCodec = KeyValue.compileSchema flatConfigSchema
 
     let fromKeyValue =
         KeyValue.deserialize keyValueCodec (Map.ofList [ "mode", "strict" ])
@@ -96,7 +96,7 @@ let ``Missing defaults apply in KeyValue for flat shapes`` () =
 
 [<Fact>]
 let ``Missing defaults apply in Yaml for collection-bearing config shapes`` () =
-    let yamlCodec = Yaml.compile configSchema
+    let yamlCodec = Yaml.compileSchema configSchema
 
     let fromYaml = Yaml.deserialize yamlCodec "mode: strict"
 
@@ -106,8 +106,8 @@ let ``Missing defaults apply in Yaml for collection-bearing config shapes`` () =
 
 [<Fact>]
 let ``Missing defaults do not change explicit encoding`` () =
-    let jsonCodec = Json.compile configSchema
-    let xmlCodec = Xml.compile configSchema
+    let jsonCodec = Json.compileSchema configSchema
+    let xmlCodec = Xml.compileSchema configSchema
 
     let value = {
         Mode = "strict"
@@ -124,7 +124,7 @@ let ``Missing defaults do not change explicit encoding`` () =
 
 [<Fact>]
 let ``Missing default fields are omitted from JSON Schema required`` () =
-    let schema = JsonSchema.generate configSchema
+    let schema = JsonSchema.generateSchema configSchema
 
     test <@ schema.Contains("\"required\":[\"mode\"]") = false @>
     test <@ schema.Contains("\"required\":[]") = false @>
@@ -133,8 +133,8 @@ let ``Missing default fields are omitted from JSON Schema required`` () =
 
 [<Fact>]
 let ``Null defaults apply in JSON and YAML without weakening explicit values`` () =
-    let jsonCodec = Json.compile nullConfigSchema
-    let yamlCodec = Yaml.compile nullConfigSchema
+    let jsonCodec = Json.compileSchema nullConfigSchema
+    let yamlCodec = Yaml.compileSchema nullConfigSchema
 
     let fromJson = Json.deserialize jsonCodec """{"mode":"strict","region":null}"""
     let fromYaml = Yaml.deserialize yamlCodec "mode: strict\nregion: null"
@@ -146,7 +146,7 @@ let ``Null defaults apply in JSON and YAML without weakening explicit values`` (
 
 [<Fact>]
 let ``Null defaults apply in XML through empty elements`` () =
-    let codec = Xml.compile nullConfigSchema
+    let codec = Xml.compileSchema nullConfigSchema
 
     let value =
         Xml.deserialize codec "<nullconfigrecord><mode>strict</mode><region></region></nullconfigrecord>"
@@ -155,15 +155,15 @@ let ``Null defaults apply in XML through empty elements`` () =
 
 [<Fact>]
 let ``Null defaults stay required in JSON Schema`` () =
-    let schema = JsonSchema.generate nullConfigSchema
+    let schema = JsonSchema.generateSchema nullConfigSchema
 
     test <@ schema.Contains("\"required\":[\"mode\",\"region\"]") @>
 
 [<Fact>]
 let ``Empty collection defaults apply in JSON XML and YAML without weakening non-empty values`` () =
-    let jsonCodec = Json.compile collectionPolicySchema
-    let xmlCodec = Xml.compile collectionPolicySchema
-    let yamlCodec = Yaml.compile collectionPolicySchema
+    let jsonCodec = Json.compileSchema collectionPolicySchema
+    let xmlCodec = Xml.compileSchema collectionPolicySchema
+    let yamlCodec = Yaml.compileSchema collectionPolicySchema
 
     let fromJson = Json.deserialize jsonCodec """{"labels":[]}"""
 
@@ -180,6 +180,6 @@ let ``Empty collection defaults apply in JSON XML and YAML without weakening non
 
 [<Fact>]
 let ``Empty collection defaults stay required in JSON Schema`` () =
-    let schema = JsonSchema.generate collectionPolicySchema
+    let schema = JsonSchema.generateSchema collectionPolicySchema
 
     test <@ schema.Contains("\"required\":[\"labels\"]") @>

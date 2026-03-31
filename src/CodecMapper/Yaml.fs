@@ -9,7 +9,7 @@ open Microsoft.FSharp.Reflection
 ///
 /// This intentionally supports a small YAML subset suitable for config-style
 /// contracts: mappings, sequences, scalars, `null`, and quoted/plain strings.
-module Yaml =
+module YamlBackend =
     type Codec<'T> = {
         Encode: 'T -> string
         Decode: string -> 'T
@@ -25,7 +25,7 @@ module Yaml =
 
     type private Line = { Indent: int; Content: string }
 
-    let private rawJsonCodec = Json.compile Schema.jsonValue
+    let private rawJsonCodec = JsonBackend.compile Schema.jsonValue
 
     let private raiseDecodeFailure path detail inner =
         raise (YamlDecodeException(path, detail, inner))
@@ -37,15 +37,15 @@ module Yaml =
         | :? YamlDecodeException -> reraise ()
         | ex -> raiseDecodeFailure path detail ex
 
-    let private renderJsonPath (segments: Json.DecodePathSegment list) =
+    let private renderJsonPath (segments: JsonBackend.DecodePathSegment list) =
         let builder = StringBuilder("$")
 
         for segment in segments do
             match segment with
-            | Json.Property name ->
+            | JsonBackend.Property name ->
                 builder.Append('.') |> ignore
                 builder.Append(name) |> ignore
-            | Json.Index index ->
+            | JsonBackend.Index index ->
                 builder.Append('[') |> ignore
                 builder.Append(index) |> ignore
                 builder.Append(']') |> ignore
@@ -57,15 +57,15 @@ module Yaml =
 
     let private parseJsonValueText (json: string) =
         let bytes = Encoding.UTF8.GetBytes(json)
-        let struct (value, rest) = Json.Runtime.jsonValueDecoder (ByteSource(bytes, 0))
-        let rest = Json.Runtime.skipWhitespace rest
+        let struct (value, rest) = JsonBackend.Runtime.jsonValueDecoder (ByteSource(bytes, 0))
+        let rest = JsonBackend.Runtime.skipWhitespace rest
 
         if rest.Offset <> bytes.Length then
             raiseDecodeFailure "$" "Trailing content after top-level JSON value" null
 
         value
 
-    let private renderJsonValueText (value: JsonValue) = Json.serialize rawJsonCodec value
+    let private renderJsonValueText (value: JsonValue) = JsonBackend.serialize rawJsonCodec value
 
     let private yamlNumberPattern =
         System.Text.RegularExpressions.Regex("^-?(0|[1-9][0-9]*)(\\.[0-9]+)?([eE][+-]?[0-9]+)?$")
@@ -356,13 +356,13 @@ module Yaml =
     /// The YAML surface is intentionally small and config-oriented. It reuses
     /// the compiled JSON codec and a `JsonValue` projection instead of adding
     /// a second full schema compiler.
-    let compile (schema: Schema<'T>) : Codec<'T> =
-        let jsonCodec = Json.compile schema
+    let compile (schema: CodecMapper.Codec<'T>) : Codec<'T> =
+        let jsonCodec = JsonBackend.compile schema
 
         {
             Encode =
                 (fun value ->
-                    let json = Json.serialize jsonCodec value
+                    let json = JsonBackend.serialize jsonCodec value
                     let jsonValue = parseJsonValueText json
                     renderYamlValue 0 jsonValue)
             Decode =
@@ -372,22 +372,26 @@ module Yaml =
                             wrapYamlFailure "$" "Failed to parse YAML payload" (fun () -> parseYamlValue yaml)
 
                         let json = renderJsonValueText jsonValue
-                        Json.deserialize jsonCodec json
+                        JsonBackend.deserialize jsonCodec json
                     with
                     | :? YamlDecodeException as ex -> raise ex
-                    | :? Json.JsonDecodeException as ex -> raiseDecodeFailure (renderJsonPath ex.Path) ex.Detail ex
+                    | :? JsonBackend.JsonDecodeException as ex -> raiseDecodeFailure (renderJsonPath ex.Path) ex.Detail ex
                     | ex -> raiseDecodeFailure "$" ex.Message ex)
         }
 
     ///
     /// Inline schema pipelines read more clearly when the final `build` and
     /// YAML compile step collapse into one terminal pipeline stage.
-    let inline buildAndCompile (builder: Builder<'T, 'T>) : Codec<'T> = builder |> Schema.build |> compile
+    let inline buildAndCompile
+        (builder: SchemaBuilder<'T, 'Ctor, 'T, 'Chain>)
+        : Codec<'T>
+        when 'Chain :> IChainNode<'T, 'Ctor, 'T> =
+        builder |> Schema.build |> compile
 
     ///
     /// `codec` mirrors the other format modules for callers that still prefer
     /// the shorter schema-to-codec alias over the longer `compile` name.
-    let codec (schema: Schema<'T>) : Codec<'T> = compile schema
+    let codec (schema: CodecMapper.Codec<'T>) : Codec<'T> = compile schema
 
     /// Serializes a value to YAML using a previously compiled codec.
     let serialize (codec: Codec<'T>) (value: 'T) = codec.Encode value

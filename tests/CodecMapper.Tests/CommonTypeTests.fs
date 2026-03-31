@@ -22,7 +22,7 @@ let commonTypeSchema =
 
 [<Fact>]
 let ``Auto-resolved common types round-trip JSON`` () =
-    let codec = Json.compile commonTypeSchema
+    let codec = Json.compileSchema commonTypeSchema
 
     let value = {
         Age = 42s
@@ -43,7 +43,7 @@ let ``Auto-resolved common types round-trip JSON`` () =
 
 [<Fact>]
 let ``Auto-resolved common types round-trip XML`` () =
-    let codec = Xml.compile commonTypeSchema
+    let codec = Xml.compileSchema commonTypeSchema
 
     let value = {
         Age = 42s
@@ -64,10 +64,10 @@ let ``Auto-resolved common types round-trip XML`` () =
 
 [<Fact>]
 let ``Reject out-of-range common numeric decodes`` () =
-    expectFailure "int16 value out of range" (fun () -> Json.deserialize (Json.compile Schema.int16) "32768")
-    expectFailure "byte value out of range" (fun () -> Json.deserialize (Json.compile Schema.byte) "256")
-    expectFailure "sbyte value out of range" (fun () -> Json.deserialize (Json.compile Schema.sbyte) "-129")
-    expectFailure "uint16 value out of range" (fun () -> Json.deserialize (Json.compile Schema.uint16) "65536")
+    expectFailure "int16 value out of range" (fun () -> Json.deserialize (Json.compileSchema Schema.int16) "32768")
+    expectFailure "byte value out of range" (fun () -> Json.deserialize (Json.compileSchema Schema.byte) "256")
+    expectFailure "sbyte value out of range" (fun () -> Json.deserialize (Json.compileSchema Schema.sbyte) "-129")
+    expectFailure "uint16 value out of range" (fun () -> Json.deserialize (Json.compileSchema Schema.uint16) "65536")
 
     expectFailure "char value must contain exactly one character" (fun () ->
-        Json.deserialize (Json.compile Schema.char) "\"AB\"")
+        Json.deserialize (Json.compileSchema Schema.char) "\"AB\"")

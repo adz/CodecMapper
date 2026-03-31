@@ -24,10 +24,10 @@ let private statusSchema =
             string
     ]
 
-let private jsonCodec = Json.compile statusSchema
-let private xmlCodec = Xml.compile statusSchema
-let private yamlCodec = Yaml.compile statusSchema
-let private keyValueCodec = KeyValue.compile statusSchema
+let private jsonCodec = Json.compileSchema statusSchema
+let private xmlCodec = Xml.compileSchema statusSchema
+let private yamlCodec = Yaml.compileSchema statusSchema
+let private keyValueCodec = KeyValue.compileSchema statusSchema
 
 let private jsonUnknownCase = """{"case":"broken"}"""
 let private jsonMissingPayload = """{"case":"ready"}"""
@@ -72,10 +72,10 @@ let private eventSchema =
             createdDataSchema
     ]
 
-let private inlineJsonCodec = Json.compile eventSchema
-let private inlineXmlCodec = Xml.compile eventSchema
-let private inlineYamlCodec = Yaml.compile eventSchema
-let private inlineKeyValueCodec = KeyValue.compile eventSchema
+let private inlineJsonCodec = Json.compileSchema eventSchema
+let private inlineXmlCodec = Xml.compileSchema eventSchema
+let private inlineYamlCodec = Yaml.compileSchema eventSchema
+let private inlineKeyValueCodec = KeyValue.compileSchema eventSchema
 
 let private inlineJsonUnknownCase = """{"case":"broken","id":7,"name":"Ada"}"""
 let private inlineJsonMissingPayloadField = """{"case":"created","id":7}"""
@@ -230,4 +230,4 @@ let ``Inline tagged unions reject non-object payload schemas at compile time`` (
         ]
 
     expectFailure "Inline union case 'ready' payload schema must be object-shaped" (fun () ->
-        Json.compile invalidSchema |> ignore)
+        Json.compileSchema invalidSchema |> ignore)

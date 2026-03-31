@@ -13,7 +13,7 @@ let enumSchema =
 
 [<Fact>]
 let ``Auto-resolved enums round-trip JSON through their underlying numeric shape`` () =
-    let codec = Json.compile enumSchema
+    let codec = Json.compileSchema enumSchema
     let value = { Status = OrderStatus.Suspended }
 
     let json = Json.serialize codec value
@@ -24,7 +24,7 @@ let ``Auto-resolved enums round-trip JSON through their underlying numeric shape
 
 [<Fact>]
 let ``Auto-resolved enums round-trip XML through their underlying numeric shape`` () =
-    let codec = Xml.compile enumSchema
+    let codec = Xml.compileSchema enumSchema
     let value = { Status = OrderStatus.Active }
 
     let xml = Xml.serialize codec value

@@ -8,6 +8,7 @@ namespace CodecMapper.Bridge
 open System
 open System.Collections.Concurrent
 open System.Collections.Generic
+open System.Globalization
 open System.Reflection
 open System.Runtime.Serialization
 open System.Text.Json.Serialization
@@ -60,20 +61,37 @@ type private ConstructionPlan =
     | Constructor of ConstructorInfo * MemberBinding array
     | Setters of ConstructorInfo * MemberBinding array
 
-type private SchemaFactory =
-    static member Create<'T>(definition: SchemaDefinition) : ISchema = Schema.create<'T> definition :> ISchema
+type private ImportedSchema<'T>(fields: FieldRuntime list, createObj: obj[] -> obj) =
+    inherit Schema<'T>()
 
-    static member BuildListSchema<'T>(inner: ISchema) : ISchema =
-        let typedInner = inner :?> Schema<'T>
+    interface IMappingDefinitionRuntime with
+        member _.FieldsRuntime = fields
+        member _.CreateObj(values) = createObj values
+
+type private SchemaFactory =
+    static member CreateImported<'T>(fields: FieldRuntime list, createFunc: Func<obj[], obj>) : Schema<'T> =
+        ImportedSchema<'T>(fields, fun values -> createFunc.Invoke(values)) :> Schema<'T>
+
+    static member BuildListSchema<'T>(inner: Schema<'T>) : Schema<List<'T>> =
+        let typedInner = inner
 
         Schema.array typedInner
         |> Schema.map (fun (items: 'T[]) -> new List<'T>(items)) (fun (items: List<'T>) -> items.ToArray())
-        :> ISchema
+        :> Schema<List<'T>>
+
+    static member BuildReadOnlyListSchema<'T>(inner: Schema<'T>) : Schema<IReadOnlyList<'T>> =
+        Schema.readOnlyList inner
+
+    static member BuildCollectionSchema<'T>(inner: Schema<'T>) : Schema<ICollection<'T>> =
+        Schema.collection inner
+
+    static member BuildArraySchema<'T>(inner: Schema<'T>) : Schema<'T array> =
+        Schema.array inner
 
     static member BuildNullableSchema<'T when 'T: struct and 'T :> ValueType and 'T: (new: unit -> 'T)>
-        (inner: ISchema)
-        : ISchema =
-        let typedInner = inner :?> Schema<'T>
+        (inner: Schema<'T>)
+        : Schema<Nullable<'T>> =
+        let typedInner = inner
 
         Schema.option typedInner
         |> Schema.map
@@ -82,27 +100,50 @@ type private SchemaFactory =
                 | Some innerValue -> Nullable innerValue
                 | None -> Nullable())
             (fun (value: Nullable<'T>) -> if value.HasValue then Some value.Value else None)
-        :> ISchema
+        :> Schema<Nullable<'T>>
+
+    static member BuildEnumSchema<'TEnum, 'TUnderlying when 'TUnderlying: struct and 'TUnderlying :> ValueType and 'TUnderlying: (new: unit -> 'TUnderlying)>
+        (inner: Schema<'TUnderlying>)
+        : Schema<'TEnum> =
+        Schema.map
+            (fun value -> Enum.ToObject(typeof<'TEnum>, box value) :?> 'TEnum)
+            (fun (value: 'TEnum) ->
+                unbox<'TUnderlying>(Convert.ChangeType(value, typeof<'TUnderlying>, CultureInfo.InvariantCulture)))
+            inner
 
 module private Runtime =
     let private findGenericMethod name =
         typeof<SchemaFactory>.GetMethods(BindingFlags.Static ||| BindingFlags.Public ||| BindingFlags.NonPublic)
         |> Array.find (fun methodInfo -> methodInfo.Name = name && methodInfo.IsGenericMethodDefinition)
 
-    let private createSchemaMethod = findGenericMethod (nameof SchemaFactory.Create)
+    let private createImportedMethod = findGenericMethod (nameof SchemaFactory.CreateImported)
 
     let private buildListSchemaMethod =
         findGenericMethod (nameof SchemaFactory.BuildListSchema)
 
+    let private buildReadOnlyListSchemaMethod =
+        findGenericMethod (nameof SchemaFactory.BuildReadOnlyListSchema)
+
+    let private buildCollectionSchemaMethod =
+        findGenericMethod (nameof SchemaFactory.BuildCollectionSchema)
+
+    let private buildArraySchemaMethod =
+        findGenericMethod (nameof SchemaFactory.BuildArraySchema)
+
     let private buildNullableSchemaMethod =
         findGenericMethod (nameof SchemaFactory.BuildNullableSchema)
 
-    let private cache = ConcurrentDictionary<Flavor * Type, ISchema>()
+    let private buildEnumSchemaMethod =
+        findGenericMethod (nameof SchemaFactory.BuildEnumSchema)
+
+    let private cache = ConcurrentDictionary<Flavor * Type, obj>()
 
     let private publicInstance = BindingFlags.Instance ||| BindingFlags.Public
 
-    let private createErased (targetType: Type) (definition: SchemaDefinition) =
-        createSchemaMethod.MakeGenericMethod([| targetType |]).Invoke(null, [| box definition |]) :?> ISchema
+    let createImported (targetType: Type) (fields: FieldRuntime list) (createFunc: obj[] -> obj) =
+        createImportedMethod
+            .MakeGenericMethod([| targetType |])
+            .Invoke(null, [| box fields; Func<obj[], obj>(createFunc) |])
 
     let private convertName namingPolicy (name: string) =
         let splitWords (value: string) =
@@ -131,10 +172,70 @@ module private Runtime =
         | KebabCaseLower -> words |> Array.map _.ToLowerInvariant() |> String.concat "-"
         | KebabCaseUpper -> words |> Array.map _.ToUpperInvariant() |> String.concat "-"
 
-    let private tryResolveBuiltin (targetType: Type) =
-        try
-            Some(Schema.resolveSchema targetType)
-        with _ ->
+    let rec tryResolveBuiltin (targetType: Type) : obj option =
+        let buildInner (methodInfo: MethodInfo) innerType innerSchema =
+            methodInfo.MakeGenericMethod([| innerType |]).Invoke(null, [| innerSchema |])
+
+        if targetType = typeof<int> then
+            Some(box Schema.int)
+        elif targetType = typeof<int64> then
+            Some(box Schema.int64)
+        elif targetType = typeof<uint32> then
+            Some(box Schema.uint32)
+        elif targetType = typeof<uint64> then
+            Some(box Schema.uint64)
+        elif targetType = typeof<float> then
+            Some(box Schema.float)
+        elif targetType = typeof<decimal> then
+            Some(box Schema.decimal)
+        elif targetType = typeof<string> then
+            Some(box Schema.string)
+        elif targetType = typeof<bool> then
+            Some(box Schema.bool)
+        elif targetType = typeof<int16> then
+            Some(box Schema.int16)
+        elif targetType = typeof<byte> then
+            Some(box Schema.byte)
+        elif targetType = typeof<sbyte> then
+            Some(box Schema.sbyte)
+        elif targetType = typeof<uint16> then
+            Some(box Schema.uint16)
+        elif targetType = typeof<Guid> then
+            Some(box Schema.guid)
+        elif targetType = typeof<char> then
+            Some(box Schema.char)
+        elif targetType = typeof<DateTime> then
+            Some(box Schema.dateTime)
+        elif targetType = typeof<DateTimeOffset> then
+            Some(box Schema.dateTimeOffset)
+        elif targetType = typeof<TimeSpan> then
+            Some(box Schema.timeSpan)
+        elif targetType = typeof<JsonValue> then
+            Some(box Schema.jsonValue)
+        elif targetType.IsEnum then
+            let underlyingType = Enum.GetUnderlyingType(targetType)
+
+            tryResolveBuiltin underlyingType
+            |> Option.map (fun innerSchema ->
+                buildEnumSchemaMethod
+                    .MakeGenericMethod([| targetType; underlyingType |])
+                    .Invoke(null, [| innerSchema |]))
+        elif targetType.IsGenericType && targetType.GetGenericTypeDefinition() = typedefof<Nullable<_>> then
+            let innerType = targetType.GetGenericArguments().[0]
+            tryResolveBuiltin innerType |> Option.map (buildInner buildNullableSchemaMethod innerType)
+        elif targetType.IsGenericType && targetType.GetGenericTypeDefinition() = typedefof<List<_>> then
+            let innerType = targetType.GetGenericArguments().[0]
+            tryResolveBuiltin innerType |> Option.map (buildInner buildListSchemaMethod innerType)
+        elif targetType.IsGenericType && targetType.GetGenericTypeDefinition() = typedefof<IReadOnlyList<_>> then
+            let innerType = targetType.GetGenericArguments().[0]
+            tryResolveBuiltin innerType |> Option.map (buildInner buildReadOnlyListSchemaMethod innerType)
+        elif targetType.IsGenericType && targetType.GetGenericTypeDefinition() = typedefof<ICollection<_>> then
+            let innerType = targetType.GetGenericArguments().[0]
+            tryResolveBuiltin innerType |> Option.map (buildInner buildCollectionSchemaMethod innerType)
+        elif targetType.IsArray then
+            let innerType = targetType.GetElementType()
+            tryResolveBuiltin innerType |> Option.map (buildInner buildArraySchemaMethod innerType)
+        else
             None
 
     let private hasUnsupportedTypeAttributes flavor (targetType: Type) =
@@ -370,7 +471,7 @@ module private Runtime =
 
             Constructor(ctor, orderedMembers)
 
-    let rec private importType flavor (options: BridgeOptions) (path: Type list) (targetType: Type) : ISchema =
+    let rec private importType flavor (options: BridgeOptions) (path: Type list) (targetType: Type) : obj =
         match tryResolveBuiltin targetType with
         | Some schema -> schema
         | None ->
@@ -382,86 +483,64 @@ module private Runtime =
                 fun _ ->
                     let nextPath = targetType :: path
 
-                    match Nullable.GetUnderlyingType(targetType) with
-                    | null ->
-                        if
-                            targetType.IsGenericType
-                            && targetType.GetGenericTypeDefinition() = typedefof<List<_>>
-                        then
-                            let elementType = targetType.GetGenericArguments().[0]
-                            let innerSchema = importType flavor options nextPath elementType
+                    hasUnsupportedTypeAttributes flavor targetType
 
-                            buildListSchemaMethod
-                                .MakeGenericMethod([| elementType |])
-                                .Invoke(null, [| box innerSchema |])
-                            :?> ISchema
-                        else
-                            hasUnsupportedTypeAttributes flavor targetType
+                    let members = getProperties flavor options targetType
 
-                            let members = getProperties flavor options targetType
+                    if members.Length = 0 then
+                        failwithf
+                            "Could not import %s because it exposes no readable public properties."
+                            targetType.FullName
 
-                            if members.Length = 0 then
-                                failwithf
-                                    "Could not import %s because it exposes no readable public properties."
-                                    targetType.FullName
+                    let duplicateNames =
+                        members
+                        |> Array.countBy _.WireName
+                        |> Array.filter (fun (_, count) -> count > 1)
 
-                            let duplicateNames =
-                                members
-                                |> Array.countBy _.WireName
-                                |> Array.filter (fun (_, count) -> count > 1)
+                    if duplicateNames.Length > 0 then
+                        let names = duplicateNames |> Array.map fst |> String.concat ", "
 
-                            if duplicateNames.Length > 0 then
-                                let names = duplicateNames |> Array.map fst |> String.concat ", "
+                        failwithf
+                            "Type %s maps multiple members to the same wire name: %s."
+                            targetType.FullName
+                            names
 
-                                failwithf
-                                    "Type %s maps multiple members to the same wire name: %s."
-                                    targetType.FullName
-                                    names
+                    let memberSchemas =
+                        members
+                        |> Array.map (fun memberInfo ->
+                            memberInfo.ClrName, importType flavor options nextPath memberInfo.MemberType)
+                        |> dict
 
-                            let memberSchemas =
-                                members
-                                |> Array.map (fun memberInfo ->
-                                    memberInfo.ClrName, importType flavor options nextPath memberInfo.MemberType)
-                                |> dict
+                    let makeField (memberInfo: MemberBinding) = {
+                        Name = memberInfo.WireName
+                        Codec = memberSchemas[memberInfo.ClrName]
+                        GetObj = memberInfo.Getter
+                    }
 
-                            let makeField (memberInfo: MemberBinding) = {
-                                Name = memberInfo.WireName
-                                Type = memberInfo.MemberType
-                                GetValue = memberInfo.Getter
-                                Schema = memberSchemas[memberInfo.ClrName]
-                            }
+                    let plan = getConstructionPlan flavor targetType members
 
-                            let plan = getConstructionPlan flavor targetType members
+                    let fields, buildFunc =
+                        match plan with
+                        | Constructor(ctor, orderedMembers) ->
+                            let fields = orderedMembers |> Array.map makeField |> Array.toList
+                            let buildFunc (args: obj[]) : obj = ctor.Invoke(args)
+                            fields, buildFunc
+                        | Setters(ctor, orderedMembers) ->
+                            let fields = orderedMembers |> Array.map makeField |> Array.toList
 
-                            let fields, buildFunc =
-                                match plan with
-                                | Constructor(ctor, orderedMembers) ->
-                                    let fields = orderedMembers |> Array.map makeField
-                                    let buildFunc (args: obj[]) : obj = ctor.Invoke(args)
-                                    fields, buildFunc
-                                | Setters(ctor, orderedMembers) ->
-                                    let fields = orderedMembers |> Array.map makeField
+                            let buildFunc (args: obj[]) : obj =
+                                let instance = ctor.Invoke(Array.empty)
 
-                                    let buildFunc (args: obj[]) : obj =
-                                        let instance = ctor.Invoke(Array.empty)
+                                for i = 0 to orderedMembers.Length - 1 do
+                                    match orderedMembers[i].Setter with
+                                    | Some setter -> setter instance args[i]
+                                    | None -> invalidOp "Setter plan contained a non-settable member."
 
-                                        for i = 0 to orderedMembers.Length - 1 do
-                                            match orderedMembers[i].Setter with
-                                            | Some setter -> setter instance args[i]
-                                            | None -> invalidOp "Setter plan contained a non-settable member."
+                                instance
 
-                                        instance
+                            fields, buildFunc
 
-                                    fields, buildFunc
-
-                            createErased targetType (Record(targetType, fields, buildFunc))
-                    | underlyingType ->
-                        let innerSchema = importType flavor options nextPath underlyingType
-
-                        buildNullableSchemaMethod
-                            .MakeGenericMethod([| underlyingType |])
-                            .Invoke(null, [| box innerSchema |])
-                        :?> ISchema
+                    createImported targetType fields buildFunc
             )
 
     let import<'T> flavor options : Schema<'T> =
@@ -497,14 +576,13 @@ type private SetterFieldBinding<'T> = {
     FieldType: Type
     GetValue: obj -> obj
     Setter: 'T -> obj -> unit
-    Schema: ISchema
+    Schema: obj
 }
 
 /// Mutable fluent builder for authoring setter-bound schemas from C#.
 ///
-/// This is intentionally a thin wrapper over the existing `SchemaDefinition`
-/// model rather than a second schema system. It is best suited to new
-/// parameterless C# classes with settable properties.
+/// This is a object bridge over the normal `Schema` runtime for parameterless
+/// C# classes with settable properties.
 [<Sealed>]
 type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
     let fields = ResizeArray<SetterFieldBinding<'T>>()
@@ -514,7 +592,7 @@ type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
             nullArg (nameof factory)
 
     member private _.AddField<'Field>
-        (name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>, schema: ISchema)
+        (name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>, schema: Schema<'Field>)
         =
         if String.IsNullOrWhiteSpace(name) then
             invalidArg (nameof name) "Field name must not be empty."
@@ -539,8 +617,9 @@ type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
 
     /// Adds a field that can be resolved automatically from its CLR type.
     member this.Field<'Field>(name: string, getter: Func<'T, 'Field>, setter: Action<'T, 'Field>) =
-        let schema = Schema.resolveSchema typeof<'Field>
-        this.AddField(name, getter, setter, schema)
+        match Runtime.tryResolveBuiltin typeof<'Field> with
+        | Some schema -> this.AddField(name, getter, setter, unbox<Schema<'Field>> schema)
+        | None -> failwithf "Could not automatically resolve schema for type %O." typeof<'Field>
 
     /// Adds a field with an explicit child schema.
     member this.FieldWith<'Field>
@@ -549,7 +628,7 @@ type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
         if isNull (box schema) then
             nullArg (nameof schema)
 
-        this.AddField(name, getter, setter, schema :> ISchema)
+        this.AddField(name, getter, setter, schema)
 
     /// Closes the fluent builder and returns a normal `Schema<'T>`.
     member _.Build() : Schema<'T> =
@@ -557,21 +636,20 @@ type SetterRecordBuilder<'T when 'T: not struct>(factory: Func<'T>) as this =
             fields
             |> Seq.map (fun field -> {
                 Name = field.Name
-                Type = field.FieldType
-                GetValue = field.GetValue
-                Schema = field.Schema
+                Codec = field.Schema
+                GetObj = field.GetValue
             })
-            |> Seq.toArray
+            |> Seq.toList
 
         let buildFunc (args: obj[]) : obj =
             let instance = factory.Invoke()
 
-            for i = 0 to schemaFields.Length - 1 do
+            for i = 0 to fields.Count - 1 do
                 fields[i].Setter instance args[i]
 
             box instance
 
-        Schema.create<'T> (Record(typeof<'T>, schemaFields, buildFunc))
+        Runtime.createImported typeof<'T> schemaFields buildFunc :?> Schema<'T>
 
 /// C#-friendly entry points for schema authoring and codec compilation.
 ///
@@ -584,13 +662,13 @@ type CSharpSchema =
     static member Record<'T when 'T: not struct>(factory: Func<'T>) = SetterRecordBuilder<'T>(factory)
 
     /// Compiles a schema into a JSON codec.
-    static member Json<'T>(schema: Schema<'T>) = Json.compile schema
+    static member Json<'T>(schema: Schema<'T>) = Json.compileSchema schema
 
     /// Compiles a schema into an XML codec.
-    static member Xml<'T>(schema: Schema<'T>) = Xml.compile schema
+    static member Xml<'T>(schema: Schema<'T>) = Xml.compileSchema schema
 
     /// Compiles a schema into a flat key/value codec.
-    static member KeyValue<'T>(schema: Schema<'T>) = KeyValue.compile schema
+    static member KeyValue<'T>(schema: Schema<'T>) = KeyValue.compileSchema schema
 
     /// Compiles a schema into a YAML codec.
-    static member Yaml<'T>(schema: Schema<'T>) = Yaml.compile schema
+    static member Yaml<'T>(schema: Schema<'T>) = Yaml.compileSchema schema

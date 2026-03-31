@@ -16,7 +16,7 @@ let accountSchema =
 
 [<Fact>]
 let ``Smart-constructor wrapper round-trips JSON`` () =
-    let codec = Json.compile accountSchema
+    let codec = Json.compileSchema accountSchema
     let value: Account = { Id = UserId 42; Name = "Ada" }
     let json = Json.serialize codec value
     let decoded = Json.deserialize codec json
@@ -25,7 +25,7 @@ let ``Smart-constructor wrapper round-trips JSON`` () =
 
 [<Fact>]
 let ``Smart-constructor wrapper round-trips XML`` () =
-    let codec = Xml.compile accountSchema
+    let codec = Xml.compileSchema accountSchema
     let value: Account = { Id = UserId 42; Name = "Ada" }
     let xml = Xml.serialize codec value
     let decoded = Xml.deserialize codec xml
@@ -34,8 +34,8 @@ let ``Smart-constructor wrapper round-trips XML`` () =
 
 [<Fact>]
 let ``Smart-constructor wrapper rejects invalid decoded values`` () =
-    let jsonCodec = Json.compile accountSchema
-    let xmlCodec = Xml.compile accountSchema
+    let jsonCodec = Json.compileSchema accountSchema
+    let xmlCodec = Xml.compileSchema accountSchema
 
     expectFailure "JSON decode error at $.id: Validation failed: UserId must be positive" (fun () ->
         Json.deserialize jsonCodec """{"id":0,"name":"Ada"}""")
@@ -46,17 +46,17 @@ let ``Smart-constructor wrapper rejects invalid decoded values`` () =
 [<Fact>]
 let ``Opt-in validated helpers reject invalid scalar values`` () =
     expectFailure "Validation failed: string must not be empty" (fun () ->
-        Json.deserialize (Json.compile Schema.nonEmptyString) "\"\"")
+        Json.deserialize (Json.compileSchema Schema.nonEmptyString) "\"\"")
 
     expectFailure "Validation failed: int must be positive" (fun () ->
-        Json.deserialize (Json.compile Schema.positiveInt) "0")
+        Json.deserialize (Json.compileSchema Schema.positiveInt) "0")
 
     expectFailure "Validation failed: list must contain at least one item" (fun () ->
-        Json.deserialize (Json.compile (Schema.nonEmptyList Schema.int)) "[]")
+        Json.deserialize (Json.compileSchema (Schema.nonEmptyList Schema.int)) "[]")
 
 [<Fact>]
 let ``Trimmed string helper normalizes on encode and decode`` () =
-    let codec = Json.compile Schema.trimmedString
+    let codec = Json.compileSchema Schema.trimmedString
 
     test <@ Json.deserialize codec "\"  Ada  \"" = "Ada" @>
     test <@ Json.serialize codec "  Ada  " = "\"Ada\"" @>

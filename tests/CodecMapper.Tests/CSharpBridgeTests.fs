@@ -17,7 +17,7 @@ let private assertImportFails<'T> (expectedFragment: string) (import: BridgeOpti
 [<Fact>]
 let ``System.Text.Json bridge imports constructor-bound classes`` () =
     let schema = SystemTextJson.import<StjUser> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value =
         StjUser(7, "Ada", StjAddress("Adelaide", "5000"), [| "fsharp"; "json" |], System.Nullable 42)
@@ -40,7 +40,7 @@ let ``System.Text.Json bridge imports constructor-bound classes`` () =
 [<Fact>]
 let ``System.Text.Json bridge imports setter-bound classes`` () =
     let schema = SystemTextJson.import<StjSettings> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value = StjSettings()
     value.RetryCount <- 3
@@ -60,7 +60,7 @@ let ``System.Text.Json bridge imports setter-bound classes`` () =
 [<Fact>]
 let ``System.Text.Json bridge imports interface collection members`` () =
     let schema = SystemTextJson.import<StjCollectionSettings> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value =
         StjCollectionSettings(
@@ -78,7 +78,7 @@ let ``System.Text.Json bridge imports interface collection members`` () =
 [<Fact>]
 let ``System.Text.Json bridge imports enum members through numeric wire values`` () =
     let schema = SystemTextJson.import<StjEnumSettings> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value = StjEnumSettings(StjStatus.Suspended)
 
@@ -91,7 +91,7 @@ let ``System.Text.Json bridge imports enum members through numeric wire values``
 [<Fact>]
 let ``Newtonsoft bridge imports constructor-bound classes`` () =
     let schema = NewtonsoftJson.import<NewtonsoftUser> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value =
         NewtonsoftUser(9, "Lin", NewtonsoftAddress("Perth", "6000"), new List<string>([ "bridge"; "newtonsoft" ]))
@@ -113,7 +113,7 @@ let ``Newtonsoft bridge imports constructor-bound classes`` () =
 [<Fact>]
 let ``DataContract bridge imports constructor-bound classes`` () =
     let schema = DataContracts.import<DataContractUser> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value = DataContractUser(11, "Quinn", DataContractAddress("Melbourne", "3000"))
 
@@ -129,7 +129,7 @@ let ``DataContract bridge imports constructor-bound classes`` () =
 [<Fact>]
 let ``DataContract bridge imports setter-bound classes`` () =
     let schema = DataContracts.import<DataContractSettings> BridgeOptions.defaults
-    let codec = Json.compile schema
+    let codec = Json.compileSchema schema
 
     let value = DataContractSettings()
     value.Enabled <- true

@@ -22,7 +22,7 @@ let personSchema =
 
 [<Fact>]
 let ``Round-trip nested records XML`` () =
-    let codec = Xml.compile personSchema
+    let codec = Xml.compileSchema personSchema
 
     let value = {
         Id = 42
@@ -40,7 +40,7 @@ let ``Round-trip nested records XML`` () =
 
 [<Fact>]
 let ``Decode XML with inter-element whitespace`` () =
-    let codec = Xml.compile personSchema
+    let codec = Xml.compileSchema personSchema
 
     let xml =
         """
@@ -70,7 +70,7 @@ let ``Decode XML with inter-element whitespace`` () =
 
 [<Fact>]
 let ``Round-trip escaped string content XML`` () =
-    let codec = Xml.compile Schema.string
+    let codec = Xml.compileSchema Schema.string
     let value = """A & B <tag> "quoted" 'single'"""
     let xml = Xml.serialize codec value
 
@@ -88,7 +88,7 @@ let ``Round-trip collections and mapped wrappers XML`` () =
         |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
         |> Schema.build
 
-    let codec = Xml.compile wrappedPersonSchema
+    let codec = Xml.compileSchema wrappedPersonSchema
 
     let value = {
         Id = PersonId 123
@@ -104,7 +104,7 @@ let ``Round-trip collections and mapped wrappers XML`` () =
 [<Fact>]
 let ``Round-trip bool and arrays XML`` () =
     let codec =
-        Xml.compile (
+        Xml.compileSchema (
             Schema.define<BoolArrayRecord>
             |> Schema.construct makeBoolArrayRecord
             |> Schema.field "enabled" _.Enabled
@@ -124,7 +124,7 @@ let ``Round-trip bool and arrays XML`` () =
 
 [<Fact>]
 let ``Reject mismatched XML tags deterministically`` () =
-    let codec = Xml.compile personSchema
+    let codec = Xml.compileSchema personSchema
 
     expectFailure "XML decode error at $/name: Expected <name>" (fun () ->
         Xml.deserialize
@@ -133,7 +133,7 @@ let ``Reject mismatched XML tags deterministically`` () =
 
 [<Fact>]
 let ``Report nested XML element path for decode failures`` () =
-    let codec = Xml.compile personSchema
+    let codec = Xml.compileSchema personSchema
 
     expectFailure "XML decode error at $/home/street: Expected <street>" (fun () ->
         Xml.deserialize
@@ -142,7 +142,7 @@ let ``Report nested XML element path for decode failures`` () =
 
 [<Fact>]
 let ``Reject trailing XML content after the root value`` () =
-    let codec = Xml.compile Schema.int
+    let codec = Xml.compileSchema Schema.int
 
     expectFailure "XML decode error at $: Trailing content after top-level XML value" (fun () ->
         Xml.deserialize codec "<int>1</int><int>2</int>")
