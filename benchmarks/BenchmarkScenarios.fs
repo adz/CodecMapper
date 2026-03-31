@@ -85,7 +85,7 @@ module ParserScanExperiment =
             failwith "Unexpected end of JSON payload"
 
         match data[src.Offset] with
-        | byte '{' ->
+        | token when token = byte '{' ->
             let mutable current = Json.Runtime.skipWhitespaceShared (src.Advance(1))
             let mutable hash = 19
             let mutable continueLoop = true
@@ -116,7 +116,7 @@ module ParserScanExperiment =
                     failwith "Expected , or }"
 
             struct (hash, current)
-        | byte '[' ->
+        | token when token = byte '[' ->
             let mutable current = Json.Runtime.skipWhitespaceShared (src.Advance(1))
             let mutable hash = 23
             let mutable continueLoop = true
@@ -140,15 +140,14 @@ module ParserScanExperiment =
                     failwith "Expected , or ]"
 
             struct (hash, current)
-        | byte '"' ->
+        | token when token = byte '"' ->
             let struct (start, length, hadEscapes, next) = Json.Runtime.stringRaw src
             let hash = mixHash (hashBytes data start length) (if hadEscapes then 1 else 0)
             struct (hash, next)
-        | byte 't'
-        | byte 'f' ->
+        | token when token = byte 't' || token = byte 'f' ->
             let struct (value, next) = Json.Runtime.boolDecoder src
             struct ((if value then 31 else 29), next)
-        | byte 'n' ->
+        | token when token = byte 'n' ->
             let next = Json.Runtime.nullDecoder src
             struct (37, next)
         | _ ->
