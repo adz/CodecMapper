@@ -50,7 +50,7 @@ let userIdSchema =
 let schemaText = JsonSchema.generate userIdSchema
 ```
 
-That schema still exports as an integer contract because the JSON wire value is still an integer.
+That schema still exports as an integer schema because the JSON wire value is still an integer.
 
 ## Export optional fields
 
@@ -67,7 +67,7 @@ If you use `Schema.missingAsNone` inside a record field, the field is removed fr
 
 ## Know what is and is not exported
 
-`JsonSchema.generate` exports the structural JSON contract:
+`JsonSchema.generate` exports the structural JSON schema:
 
 - primitive types
 - arrays
@@ -83,7 +83,7 @@ It does not infer extra validation keywords from smart constructors or arbitrary
 
 ## Export authored tagged unions
 
-`Tagged.union` exports as a discriminated `oneOf` contract:
+`Tagged.union` exports as a discriminated `oneOf` schema:
 
 ```fsharp
 type Status =
@@ -140,7 +140,7 @@ The exported document uses local `$defs` / `$ref` rather than unrolling the recu
 
 ## Use the raw fallback for non-deterministic imported shapes
 
-If an imported schema cannot be lowered into a normal record/array/primitive contract, use `Schema.jsonValue` as the escape hatch:
+If an imported schema cannot be lowered into a normal record/array/primitive schema, use `Schema.jsonValue` as the escape hatch:
 
 ```fsharp
 let codec = Json.compile Schema.jsonValue
@@ -150,7 +150,7 @@ That keeps the dynamic case explicit instead of weakening the common typed path.
 
 ## Import a JSON Schema for receive-side validation
 
-If you are receiving payloads from an external JSON Schema contract, import it into `Schema<JsonValue>`:
+If you are receiving payloads from an external JSON Schema schema, import it into `Schema<JsonValue>`:
 
 ```fsharp
 let imported =
@@ -169,7 +169,7 @@ let value = Json.deserialize codec """{"id":42,"name":"Ada"}"""
 
 This path preserves the incoming JSON shape as `JsonValue`. It enforces the supported structural subset and leaves unsupported branch-heavy features on the raw JSON fallback path.
 
-This is not a round-trip back into a typed authored schema. It is a receive-side integration boundary for external schema-owned contracts.
+This is not a round-trip back into a typed authored schema. It is a receive-side integration boundary for external schema-owned payloads.
 
 If you need to know what was enforced, use `JsonSchema.importWithReport`:
 
@@ -217,7 +217,7 @@ let report = JsonSchema.importWithReport schemaText
 let codec = Json.compile report.Schema
 ```
 
-That path parses into `JsonValue` and enforces the supported dynamic-shape keywords over the raw JSON structure. It is appropriate for external contracts you do not control. For contracts you author yourself, prefer normal explicit `Schema<'T>` values.
+That path parses into `JsonValue` and enforces the supported dynamic-shape keywords over the raw JSON structure. It is appropriate for external schemas you do not control. For schemas you author yourself, prefer normal explicit `Schema<'T>` values.
 
 Example:
 

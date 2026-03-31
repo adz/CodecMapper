@@ -119,7 +119,7 @@ let userIdSchema =
     |> Schema.tryMap UserId.create UserId.value
 ```
 
-That keeps the wire contract simple while making the domain type stricter.
+That keeps the wire schema simple while making the domain type stricter.
 
 ## Where to go next
 
@@ -128,7 +128,7 @@ Take the next pages in this order:
 1. [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
 2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
-4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+4. [How To Model A Versioned Schema](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
 5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 Once the schema-authoring path is clear:

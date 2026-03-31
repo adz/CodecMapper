@@ -29,4 +29,4 @@ let accountSchema =
     |> Schema.build
 ```
 
-Extract the `Schema.tryMap` pipeline into a named codec when the same wrapper rule appears across multiple contracts.
+Extract the `Schema.tryMap` pipeline into a named codec when the same wrapper rule appears across multiple schemas.

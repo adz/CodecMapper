@@ -41,7 +41,7 @@ let decoded = Json.deserialize codec json
 
 `CodecMapper` is not trying to discover a schema from your record type.
 
-Instead, the authored schema is the contract.
+Instead, the authored schema is the source of truth.
 
 That makes it useful when:
 

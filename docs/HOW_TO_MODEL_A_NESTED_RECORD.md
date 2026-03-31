@@ -1,6 +1,6 @@
 # How To Model A Nested Record
 
-Use this pattern when one field is itself another authored contract and you want that boundary to stay explicit.
+Use this pattern when one field is itself another authored schema and you want that boundary to stay explicit.
 
 ```fsharp
 open CodecMapper
@@ -27,4 +27,4 @@ let personSchema =
     |> Schema.build
 ```
 
-Use `Schema.fieldWith` when the child value has its own explicit contract boundary instead of relying on the built-in auto-resolved cases.
+Use `Schema.fieldWith` when the child value has its own explicit schema boundary instead of relying on the built-in auto-resolved cases.

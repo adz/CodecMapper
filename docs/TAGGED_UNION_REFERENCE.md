@@ -86,7 +86,7 @@ value: boom
 
 ## KeyValue shape
 
-KeyValue flattens the same contract into dotted paths:
+KeyValue flattens the same schema into dotted paths:
 
 ```text
 case=pending
@@ -231,7 +231,7 @@ JSON:
 
 ## Message and envelope helpers
 
-For message and event contracts, the helper names can read more directly than
+For message and event schemas, the helper names can read more directly than
  the generic tagged-union names:
 
 - `message` is the same authored tag shape as `tag`
@@ -290,7 +290,7 @@ let rec nodeSchema : Schema<RecursiveNode> =
         ])
 ```
 
-That recursive authored contract currently compiles for:
+That recursive authored schema currently compiles for:
 
 - JSON
 - XML

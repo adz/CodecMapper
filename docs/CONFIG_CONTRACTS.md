@@ -1,10 +1,10 @@
-# Configuration As An Explicit Contract
+# Configuration As An Explicit Schema
 
-This guide shows how to stop treating configuration as an incidental serializer shape and start treating it as an explicit contract.
+This guide shows how to stop treating configuration as an incidental serializer shape and start treating it as an explicit schema.
 
 The core idea is simple:
 
-- define a contract for the wire format on purpose
+- define a schema for the wire format on purpose
 - add an explicit `version` field
 - read old versions and upgrade them forward
 - write only the latest version
@@ -16,7 +16,7 @@ If you currently have a mix of JSON and XML config files, the recommendation her
 - **XML is migration input only**
 - **the application always writes the latest JSON form**
 
-If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored contract rather than as a second implicit contract.
+If you also need a flat key/value view for environment variables or app-settings style inputs, treat that as a projection of the same authored schema rather than as a second implicit shape.
 
 If you need a human-edited text format without dropping back to serializer conventions, the same schema can also compile to the library's small YAML subset for mappings, sequences, scalars, and `null`.
 
@@ -25,11 +25,11 @@ If you need a human-edited text format without dropping back to serializer conve
 Unversioned config files are brittle because:
 
 - field changes are hard to track
-- serializer behavior becomes the contract by accident
+- serializer behavior becomes the schema by accident
 - migrations are implicit and easy to break
 - XML and JSON drift apart over time
 
-An explicit contract gives you:
+An explicit schema gives you:
 
 - reviewable wire shape
 - planned version changes
@@ -91,11 +91,11 @@ let appConfigSchema =
     |> Schema.build
 ```
 
-That keeps the default local to the contract instead of smuggling it through serializer settings or post-deserialize mutation.
+That keeps the default local to the schema instead of smuggling it through serializer settings or post-deserialize mutation.
 
 ## Explicit Null And Empty Collection Policies
 
-Some config boundaries treat an explicit `null` or an explicit empty collection as "use the contract default" rather than as a distinct payload state. Keep that normalization local to the field too:
+Some config boundaries treat an explicit `null` or an explicit empty collection as "use the schema default" rather than as a distinct payload state. Keep that normalization local to the field too:
 
 ```fsharp
 open CodecMapper
@@ -123,8 +123,8 @@ let serviceConfigSchema =
 That means:
 
 - missing fields still fail unless you also opt into `Schema.missingAsValue` or `Schema.missingAsNone`
-- explicit `null` can map to a contract default with `Schema.nullAsValue`
-- explicit `[]` can map to a contract default with `Schema.emptyCollectionAsValue`
+- explicit `null` can map to a schema default with `Schema.nullAsValue`
+- explicit `[]` can map to a schema default with `Schema.emptyCollectionAsValue`
 - whitespace-only strings stay literal input; there is no implicit trimming or blank-string coercion beyond `Schema.emptyStringAsNone`
 
 ## YAML Projection
@@ -184,7 +184,7 @@ Why:
 
 ## C# First
 
-Start with ordinary C# wire-contract classes if that is where your config already lives.
+Start with ordinary C# wire-schema classes if that is where your config already lives.
 
 ### Version 1
 
@@ -265,11 +265,11 @@ Then the application flow is:
 3. run the application on `AppConfigV2`
 4. write back only `VersionedConfigV2`
 
-## F# Versioned Contracts
+## F# Versioned Schemas
 
 The same idea works cleanly in F#.
 
-### Wire Contracts
+### Wire Schemas
 
 ```fsharp
 type AppConfigV1 =
@@ -300,7 +300,7 @@ type VersionEnvelope<'T> =
     }
 ```
 
-Then deserialize by version and upgrade to the latest contract.
+Then deserialize by version and upgrade to the latest schema.
 
 ### Upgrade Functions
 
@@ -330,9 +330,9 @@ The important policy is:
 
 That stops config churn from spreading throughout the app.
 
-## Schema As The Contract
+## Schema As The Source Of Truth
 
-With `CodecMapper`, the wire contract should be explicit in the schema, not inferred accidentally from serializer defaults.
+With `CodecMapper`, the wire schema should be explicit in the schema, not inferred accidentally from serializer defaults.
 
 A versioned envelope schema is the right place to make changes visible:
 
@@ -407,7 +407,7 @@ If XML exists today, deprecate it in stages.
 
 Do not keep XML and JSON as equal first-class config formats unless you have a hard external compatibility requirement.
 
-## Separate Wire Contracts From Better Domain Models
+## Separate Wire Schemas From Better Domain Models
 
 A config file often starts with plain strings and ints because that is what legacy code or external tools expect.
 
@@ -415,7 +415,7 @@ That does not mean the application must stay modeled that way internally.
 
 Use a staged approach:
 
-### Stage 1: stable wire contract
+### Stage 1: stable wire schema
 
 ```fsharp
 type AppConfigV2 =
@@ -462,7 +462,7 @@ module DomainConfig =
 
 This is the key migration idea:
 
-- the wire contract remains explicit and stable
+- the wire schema remains explicit and stable
 - the domain model gets better over time
 - conversion between them is intentional and reviewable
 
@@ -474,7 +474,7 @@ Two modeling improvements usually pay off quickly.
 
 If a value is genuinely optional in the application, model it as `option` in the domain.
 
-You do not have to expose that immediately in the wire format. Legacy wire contracts can still use sentinel values or old fields while the domain becomes clearer first.
+You do not have to expose that immediately in the wire format. Legacy wire schemas can still use sentinel values or old fields while the domain becomes clearer first.
 
 ### Discriminated Unions
 
@@ -498,21 +498,21 @@ type AppConfigV2 =
     }
 ```
 
-Again, the wire contract can stay string-based at first while the domain moves to a DU through an explicit mapping layer.
+Again, the wire schema can stay string-based at first while the domain moves to a DU through an explicit mapping layer.
 
 ## Practical Migration Pattern
 
 A good working pattern is:
 
-1. define versioned wire contracts
+1. define versioned wire schemas
 2. define schemas explicitly
 3. read old versions
-4. upgrade to latest wire contract
-5. map latest wire contract to richer domain config
+4. upgrade to latest wire schema
+5. map latest wire schema to richer domain config
 6. run the app on domain config
-7. serialize only the latest wire contract as JSON
+7. serialize only the latest wire schema as JSON
 
-That gives you stable external contracts and steadily improving internal models.
+That gives you stable external schemas and steadily improving internal models.
 
 ## What To Avoid
 
@@ -520,18 +520,18 @@ Avoid these traps:
 
 - one giant config record with many optional legacy fields
 - unversioned config files
-- serializer defaults becoming the contract by accident
+- serializer defaults becoming the schema by accident
 - dual XML/JSON write paths
 - mixing wire concerns and domain concerns in the same type forever
 
 ## Recommendation
 
-For configuration and message-like contracts, prefer:
+For configuration and message-like schemas, prefer:
 
 - explicit schemas
 - explicit version envelopes
 - latest-only write policy
 - JSON as the canonical format
-- wire-contract types separate from richer domain types
+- wire-schema types separate from richer domain types
 
 That is the foundation that makes later bridge/codegen/schema-export work make sense instead of becoming another layer of serializer guesswork.

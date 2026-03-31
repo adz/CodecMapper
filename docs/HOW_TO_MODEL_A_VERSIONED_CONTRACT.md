@@ -1,4 +1,4 @@
-# How To Model A Versioned Contract
+# How To Model A Versioned Schema
 
 Use this pattern for config files or messages that evolve over time and need an explicit version marker in the wire shape.
 
@@ -30,4 +30,4 @@ let settingsV2Schema =
     |> Schema.build
 ```
 
-Keep the version field explicit so contract evolution stays visible in one authored contract. If you also need omission policies or defaults, compose those helpers directly at the field boundary.
+Keep the version field explicit so schema evolution stays visible in one authored schema. If you also need omission policies or defaults, compose those helpers directly at the field boundary.

@@ -100,7 +100,7 @@ It supports:
 - heterogeneous arrays
 - nested combinations of raw JSON values
 
-It is intentionally JSON-only. XML compilation fails explicitly rather than pretending there is a symmetric XML DOM contract for arbitrary JSON.
+It is intentionally JSON-only. XML compilation fails explicitly rather than pretending there is a symmetric XML DOM schema for arbitrary JSON.
 
 ## Dynamic-shape import keywords
 
@@ -117,17 +117,17 @@ This is intentionally different from the normal authored `Schema<'T>` path:
 
 - the payload is still parsed as `JsonValue`
 - the schema keywords are enforced over that parsed raw value
-- you should document these receive-side contracts as advanced or dynamic-shape scenarios, not as the preferred path for schemas you author yourself
+- you should document these receive-side schemas as advanced or dynamic-shape scenarios, not as the preferred path for schemas you author yourself
 
-## Keep authored contracts and imported contracts separate
+## Keep Authored Schemas And Imported Schemas Separate
 
-For contracts you own:
+For schemas you own:
 
 - author `Schema<'T>` directly
 - compile it into typed codecs
 - export JSON Schema only when another system needs the document
 
-For contracts owned by an external schema document:
+For schemas owned by an external schema document:
 
 - import the JSON Schema
 - accept the `Schema<JsonValue>` receive boundary

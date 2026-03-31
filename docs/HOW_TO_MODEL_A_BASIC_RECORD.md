@@ -1,6 +1,6 @@
 # How To Model A Basic Record
 
-Use this pattern when the wire contract is a single flat object and your F# record already matches that shape.
+Use this pattern when the wire schema is a single flat object and your F# record already matches that shape.
 
 ```fsharp
 open CodecMapper
@@ -16,4 +16,4 @@ let codec =
     |> Json.buildAndCompile
 ```
 
-This is the smallest authored contract shape: define the record target, provide the constructor, then map each field explicitly and finish with `Json.buildAndCompile`.
+This is the smallest authored schema shape: define the record target, provide the constructor, then map each field explicitly and finish with `Json.buildAndCompile`.

@@ -2,7 +2,7 @@
 
 ![CodecMapper logo](logo.png)
 
-`CodecMapper` is an explicit-contract serialization library for F# focused on symmetric encode/decode behavior and portability across .NET AOT and Fable-oriented targets.
+`CodecMapper` is a schema-first serialization library for F# focused on symmetric encode/decode behavior and portability across .NET AOT and Fable-oriented targets.
 
 ## Tutorials
 
@@ -11,36 +11,36 @@ Tutorials are for first learning.
 - [Introduction](INTRODUCTION.md)
   Learn the core mental model before branching into format or integration details.
 - [Getting Started](GETTING_STARTED.md)
-  Follow one linear path from basic schema authoring to nested contracts and validated wrappers.
+  Follow one linear path from basic schema authoring to nested schemas and validated wrappers.
 
 Recommended order after that:
 
 1. [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
 2. [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
 3. [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
-4. [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+4. [How To Model A Versioned Schema](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
 5. [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
 
 ## How-To Guides
 
 How-to guides are for goal-oriented tasks.
 
-- [Contract Pattern Index](HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md)
+- [Schema Pattern Index](HOW_TO_MODEL_COMMON_CONTRACT_PATTERNS.md)
   Jump to the most common authored-schema patterns.
 - [How To Model A Basic Record](HOW_TO_MODEL_A_BASIC_RECORD.md)
   Start from the smallest flat object mapping.
 - [How To Model A Nested Record](HOW_TO_MODEL_A_NESTED_RECORD.md)
-  Keep child contract boundaries explicit with `Schema.fieldWith`.
+  Keep child schema boundaries explicit with `Schema.fieldWith`.
 - [How To Model A Validated Wrapper](HOW_TO_MODEL_A_VALIDATED_WRAPPER.md)
   Use `Schema.tryMap` for smart-constructor domain types.
-- [How To Model A Versioned Contract](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
+- [How To Model A Versioned Schema](HOW_TO_MODEL_A_VERSIONED_CONTRACT.md)
   Add an explicit version envelope for evolving messages and config.
 - [How To Model A Recursive Tagged Union](HOW_TO_MODEL_A_RECURSIVE_TAGGED_UNION.md)
   Use `Tagged.union` and `Schema.delay` for explicit recursive case trees.
-- [Configuration As An Explicit Contract](CONFIG_CONTRACTS.md)
+- [Configuration As An Explicit Schema](CONFIG_CONTRACTS.md)
   Model versioned application configuration in JSON, YAML, XML, or key/value form.
 - [How To Export JSON Schema](HOW_TO_EXPORT_JSON_SCHEMA.md)
-  Generate JSON Schema documents from authored `Schema<'T>` contracts.
+  Generate JSON Schema documents from authored `Schema<'T>` values.
 - [How To Import Existing C# Contracts](HOW_TO_IMPORT_CSHARP_CONTRACTS.md)
   Choose between `CSharpSchema`, the serializer-attribute bridge, and JSON Schema import for C#-heavy systems.
 - [How To Profile Benchmark Hot Paths](HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md)
@@ -68,8 +68,8 @@ Explanations are for design reasoning and mental models.
 
 ## Product Summary
 
-- Author one explicit contract and compile it into reusable codecs.
+- Author one explicit schema and compile it into reusable codecs.
 - Keep encode and decode semantics together.
 - Model explicit tagged unions and recursive case trees without switching to a separate schema system.
-- Reuse the same contract across JSON and XML, with config-oriented YAML and KeyValue projections where appropriate.
+- Reuse the same schema across JSON and XML, with config-oriented YAML and KeyValue projections where appropriate.
 - Keep dynamic JSON receive paths explicit through `Schema.jsonValue` and JSON Schema import boundaries.
