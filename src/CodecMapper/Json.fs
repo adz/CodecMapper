@@ -503,16 +503,30 @@ module JsonBackend =
 
                 let appendSegment startIdx endIdx =
                     if endIdx > startIdx then
-#if !FABLE_COMPILER
-                        let segment = Encoding.UTF8.GetString(data, startIdx, endIdx - startIdx)
-#else
-                        let segment = Encoding.UTF8.GetString(data.[startIdx .. endIdx - 1])
-#endif
-
                         if isNull builder then
                             builder <- StringBuilder()
 
-                        builder.Append(segment) |> ignore
+                        let mutable scan = startIdx
+                        let mutable asciiOnly = true
+
+                        while scan < endIdx && asciiOnly do
+                            if data[scan] >= 128uy then
+                                asciiOnly <- false
+                            else
+                                scan <- scan + 1
+
+                        if asciiOnly then
+                            let mutable appendIndex = startIdx
+
+                            while appendIndex < endIdx do
+                                builder.Append(char data[appendIndex]) |> ignore
+                                appendIndex <- appendIndex + 1
+                        else
+#if !FABLE_COMPILER
+                            builder.Append(Encoding.UTF8.GetString(data, startIdx, endIdx - startIdx)) |> ignore
+#else
+                            builder.Append(Encoding.UTF8.GetString(data.[startIdx .. endIdx - 1])) |> ignore
+#endif
 
                 let hexValue (b: byte) =
                     if b >= 48uy && b <= 57uy then int b - int 48uy
