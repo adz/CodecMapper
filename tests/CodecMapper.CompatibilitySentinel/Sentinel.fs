@@ -93,15 +93,13 @@ module Domain =
 
 module Schemas =
     let address =
-        Schema.define<Address>
-        |> Schema.construct makeAddress
+        Schema.record makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
     let person =
-        Schema.define<Person>
-        |> Schema.construct makePerson
+        Schema.record makePerson
         |> Schema.field "id" _.Id
         |> Schema.field "name" _.Name
         |> Schema.fieldWith "home" _.Home address
@@ -110,8 +108,7 @@ module Schemas =
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
     let wrappedPerson =
-        Schema.define<WrappedPerson>
-        |> Schema.construct makeWrappedPerson
+        Schema.record makeWrappedPerson
         |> Schema.fieldWith "id" _.Id personId
         |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
         |> Schema.build
@@ -119,22 +116,19 @@ module Schemas =
     let userId = Schema.int |> Schema.tryMap UserId.create UserId.value
 
     let account =
-        Schema.define<Account>
-        |> Schema.construct makeAccount
+        Schema.record makeAccount
         |> Schema.fieldWith "id" _.Id userId
         |> Schema.field "name" _.Name
         |> Schema.build
 
     let optionalRecord =
-        Schema.define<OptionalRecord>
-        |> Schema.construct makeOptionalRecord
+        Schema.record makeOptionalRecord
         |> Schema.field "nickname" _.Nickname
         |> Schema.field "age" _.Age
         |> Schema.build
 
     let numericRecord =
-        Schema.define<NumericRecord>
-        |> Schema.construct makeNumericRecord
+        Schema.record makeNumericRecord
         |> Schema.field "total" _.Total
         |> Schema.field "count" _.Count
         |> Schema.field "capacity" _.Capacity
@@ -143,30 +137,26 @@ module Schemas =
         |> Schema.build
 
     let auditRecord =
-        Schema.define<AuditRecord>
-        |> Schema.construct makeAuditRecord
+        Schema.record makeAuditRecord
         |> Schema.field "userId" _.UserId
         |> Schema.field "createdAt" _.CreatedAt
         |> Schema.field "duration" _.Duration
         |> Schema.build
 
     let interopCollectionRecord =
-        Schema.define<InteropCollectionRecord>
-        |> Schema.construct makeInteropCollectionRecord
+        Schema.record makeInteropCollectionRecord
         |> Schema.fieldWith "buffer" _.Buffer (Schema.resizeArray Schema.string)
         |> Schema.field "names" _.Names
         |> Schema.field "scores" _.Scores
         |> Schema.build
 
     let enumRecord =
-        Schema.define<EnumRecord>
-        |> Schema.construct makeEnumRecord
+        Schema.record makeEnumRecord
         |> Schema.field "status" _.Status
         |> Schema.build
 
     let keyValueRecord =
-        Schema.define<Person>
-        |> Schema.construct makePerson
+        Schema.record makePerson
         |> Schema.field "id" _.Id
         |> Schema.field "name" _.Name
         |> Schema.fieldWith "home" _.Home address

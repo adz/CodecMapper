@@ -5,8 +5,7 @@ Use this page as a quick jump list when you know the kind of schema you need and
 All examples stay on the stable authored DSL:
 
 ```fsharp
-Schema.define<'T>
-|> Schema.construct ctor
+Schema.record ctor
 |> Schema.field ...
 |> Schema.build
 ```

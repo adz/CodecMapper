@@ -15,8 +15,7 @@ let makeSettingsV2 version mode region =
     { Version = version; Mode = mode; Region = region }
 
 let settingsV2Schema =
-    Schema.define<SettingsV2>
-    |> Schema.construct makeSettingsV2
+    Schema.record makeSettingsV2
     |> Schema.fieldWith "version" _.Version (
         Schema.int
         |> Schema.tryMap

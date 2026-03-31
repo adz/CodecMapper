@@ -169,8 +169,7 @@ type Event =
 let makeCreatedData id name = { Id = id; Name = name }
 
 let createdDataSchema =
-    Schema.define<CreatedData>
-    |> Schema.construct makeCreatedData
+    Schema.record makeCreatedData
     |> Schema.field "id" _.Id
     |> Schema.field "name" _.Name
     |> Schema.build

@@ -9,11 +9,10 @@ type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let codec =
-    Schema.define<Person>
-    |> Schema.construct makePerson
+    Schema.record makePerson
     |> Schema.field "id" _.Id
     |> Schema.field "name" _.Name
     |> Json.buildAndCompile
 ```
 
-This is the smallest authored schema shape: define the record target, provide the constructor, then map each field explicitly and finish with `Json.buildAndCompile`.
+This is the smallest authored schema shape: start the record with its constructor, then map each field explicitly and finish with `Json.buildAndCompile`.

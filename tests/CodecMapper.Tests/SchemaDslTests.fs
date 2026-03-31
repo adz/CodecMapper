@@ -9,6 +9,36 @@ open TestCommon
 [<Fact>]
 let ``Round-trip using Pipeline DSL`` () =
     let addressSchema =
+        Schema.record makeAddress
+        |> Schema.field "street" (fun (address: Address) -> address.Street)
+        |> Schema.field "city" (fun (address: Address) -> address.City)
+        |> Schema.build
+
+    let personSchema =
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
+        |> Schema.build
+
+    let codec = Json.compileSchema personSchema
+
+    let person = {
+        Id = 42
+        Name = "Adam"
+        Home = {
+            Street = "123 F# Lane"
+            City = "Pipeline City"
+        }
+    }
+
+    let json = Json.serialize codec person
+    let decoded = Json.deserialize codec json
+    test <@ decoded = person @>
+
+[<Fact>]
+let ``Round-trip using define construct DSL`` () =
+    let addressSchema =
         Schema.define<Address>
         |> Schema.construct makeAddress
         |> Schema.field "street" _.Street

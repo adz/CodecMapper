@@ -12,15 +12,13 @@ type Person = { Id: int; Name: string; Home: Address }
 let makePerson id name home = { Id = id; Name = name; Home = home }
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
+    Schema.record makeAddress
     |> Schema.field "street" _.Street
     |> Schema.field "city" _.City
     |> Schema.build
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
+    Schema.record makePerson
     |> Schema.field "id" _.Id
     |> Schema.field "name" _.Name
     |> Schema.fieldWith "home" _.Home addressSchema

@@ -860,6 +860,11 @@ module Schema =
         Chain = FieldsEnd<'Record, 'Ctor>()
     }
 
+    let ``record``<'Record, 'Ctor>
+        (ctor: 'Ctor)
+        : SchemaBuilder<'Record, 'Ctor, 'Ctor, FieldsEnd<'Record, 'Ctor>> =
+        construct ctor define<'Record>
+
     let fieldWith
         (name: string)
         (getter: 'Record -> 'Field)
@@ -888,7 +893,9 @@ module Schema =
         (builder: SchemaBuilder<'Record, 'Ctor, 'Field -> 'Next, 'Chain>)
         : SchemaBuilder<'Record, 'Ctor, 'Next, FieldsAppend<'Record, 'Ctor, 'Field, 'Next, 'Chain>>
         when 'Chain :> IChainNode<'Record, 'Ctor, 'Field -> 'Next> =
-        field name getter builder
+        match Inference.tryResolve typeof<'Field> with
+        | Some codecObj -> fieldWith name getter (unbox<Codec<'Field>> codecObj) builder
+        | None -> failwithf "Cannot infer codec for field '%s' of type %O" name typeof<'Field>
 
     let build
         (builder: SchemaBuilder<'Record, 'Ctor, 'Record, 'Chain>)
@@ -947,6 +954,7 @@ module Schema =
 
 module Builder =
     let define<'Record> = Schema.define<'Record>
+    let ``record`` ctor = Schema.record ctor
     let construct ctor builder = Schema.construct ctor builder
     let field name getter builder = Schema.field name getter builder
     let fieldWith name getter codec builder = Schema.fieldWith name getter codec builder

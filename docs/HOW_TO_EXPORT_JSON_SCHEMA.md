@@ -18,8 +18,7 @@ type Person = { Id: int; Name: string }
 let makePerson id name = { Id = id; Name = name }
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
+    Schema.record makePerson
     |> Schema.fieldInfer "id" _.Id
     |> Schema.fieldInfer "name" _.Name
     |> Schema.build

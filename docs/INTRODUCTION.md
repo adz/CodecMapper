@@ -16,17 +16,15 @@ That schema is the important idea in the library:
 Most authored schemas follow one stable shape:
 
 ```fsharp
-Schema.define<'T>
-|> Schema.construct ctor
+Schema.record ctor
 |> Schema.field ...
 |> Schema.build
 ```
 
 Read that pipeline from top to bottom:
 
-- `Schema.define<'T>` says which value the schema describes
-- `Schema.construct ctor` says how decode rebuilds the value
-- each `Schema.field` or `Schema.fieldWith` maps one wire field to one domain field
+- `Schema.record ctor` says which value the schema describes and how decode rebuilds it
+- each `Schema.field` maps one wire field to one domain field
 - `Schema.build` finishes the authored schema
 
 Then you compile that schema into a codec for the format boundary you need:

@@ -22,8 +22,7 @@ let userIdSchema =
     |> Schema.tryMap UserId.create UserId.value
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
+    Schema.record makeAccount
     |> Schema.fieldWith "id" _.Id userIdSchema
     |> Schema.field "name" _.Name
     |> Schema.build

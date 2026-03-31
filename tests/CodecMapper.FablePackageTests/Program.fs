@@ -44,15 +44,13 @@ module Domain =
 
 module Schemas =
     let address =
-        Schema.define<Address>
-        |> Schema.construct makeAddress
+        Schema.record makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
     let person =
-        Schema.define<Person>
-        |> Schema.construct makePerson
+        Schema.record makePerson
         |> Schema.field "id" _.Id
         |> Schema.field "name" _.Name
         |> Schema.fieldWith "home" _.Home address
@@ -61,15 +59,13 @@ module Schemas =
     let userId = Schema.int |> Schema.tryMap UserId.create UserId.value
 
     let account =
-        Schema.define<Account>
-        |> Schema.construct makeAccount
+        Schema.record makeAccount
         |> Schema.fieldWith "id" _.Id userId
         |> Schema.field "name" _.Name
         |> Schema.build
 
     let numericRecord =
-        Schema.define<NumericRecord>
-        |> Schema.construct makeNumericRecord
+        Schema.record makeNumericRecord
         |> Schema.field "total" _.Total
         |> Schema.field "count" _.Count
         |> Schema.field "capacity" _.Capacity

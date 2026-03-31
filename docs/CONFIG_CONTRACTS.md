@@ -83,8 +83,7 @@ let makeAppConfig mode retryCount labels =
     }
 
 let appConfigSchema =
-    Schema.define<AppConfig>
-    |> Schema.construct makeAppConfig
+    Schema.record makeAppConfig
     |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
     |> Schema.fieldWith "retry_count" _.RetryCount (Schema.int |> Schema.missingAsValue 3)
     |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.missingAsValue [])
@@ -113,8 +112,7 @@ let makeServiceConfig region labels =
     }
 
 let serviceConfigSchema =
-    Schema.define<ServiceConfig>
-    |> Schema.construct makeServiceConfig
+    Schema.record makeServiceConfig
     |> Schema.fieldWith "region" _.Region (Schema.string |> Schema.nullAsValue "global")
     |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.emptyCollectionAsValue [ "general" ])
     |> Schema.build
@@ -361,8 +359,7 @@ module Schemas =
         }
 
     let appConfigV2 =
-        Schema.define<AppConfigV2>
-        |> Schema.construct makeAppConfigV2
+        Schema.record makeAppConfigV2
         |> Schema.field "service_url" _.ServiceUrl
         |> Schema.field "retry_count" _.RetryCount
         |> Schema.field "mode" _.Mode
@@ -377,8 +374,7 @@ module Schemas =
         { Version = version; Config = config }
 
     let versionEnvelope inner =
-        Schema.define<VersionEnvelope<'T>>
-        |> Schema.construct makeVersionEnvelope
+        Schema.record makeVersionEnvelope
         |> Schema.field "version" _.Version
         |> Schema.fieldWith "config" _.Config inner
         |> Schema.build
