@@ -851,36 +851,49 @@ module JsonBackend =
                 | _ -> JsonDecodeException([ Property fieldName ], ex.Message, ex) :> exn)
     }
 
+    let rec private tryCompileTypedRecordRuntimeDecoder (schema: RuntimeSchema) : (ByteSource -> struct (obj * ByteSource)) option =
+        match schema.Definition with
+        | ERecord(targetType, fields, _) ->
+            let typedFields =
+                fields
+                |> List.map (fun field ->
+                    match field.Codec.Definition with
+                    | EPrimitive t when t = typeof<int> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.intDecoder)
+                    | EPrimitive t when t = typeof<int64> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.int64Decoder)
+                    | EPrimitive t when t = typeof<uint32> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.uint32Decoder)
+                    | EPrimitive t when t = typeof<uint64> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.uint64Decoder)
+                    | EPrimitive t when t = typeof<float> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.floatDecoder)
+                    | EPrimitive t when t = typeof<decimal> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.decimalDecoder)
+                    | EPrimitive t when t = typeof<string> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.stringDecoder)
+                    | EPrimitive t when t = typeof<bool> ->
+                        Some(JsonTypedRecordDecode.createField field.Name Runtime.boolDecoder)
+                    | ERecord _ when field.TargetType = field.Codec.TargetType ->
+                        tryCompileTypedRecordRuntimeDecoder field.Codec
+                        |> Option.map (fun runtimeDecoder ->
+                            JsonTypedRecordDecode.createFieldFromRuntimeDynamic field.TargetType field.Name runtimeDecoder)
+                    | _ -> None)
+
+            if typedFields |> List.exists Option.isNone then
+                None
+            else
+                JsonTypedRecordDecode.tryCompileRecordDecoderRuntime
+                    typedRuntime
+                    targetType
+                    (typedFields |> List.choose id |> List.toArray)
+        | _ -> None
+
     let private tryCompileTypedRecordDecoder (targetType: System.Type) (fields: RuntimeField list) =
-        let tryCompileTypedField (field: RuntimeField) =
-            match field.Codec.Definition with
-            | EPrimitive t when t = typeof<int> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.intDecoder)
-            | EPrimitive t when t = typeof<int64> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.int64Decoder)
-            | EPrimitive t when t = typeof<uint32> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.uint32Decoder)
-            | EPrimitive t when t = typeof<uint64> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.uint64Decoder)
-            | EPrimitive t when t = typeof<float> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.floatDecoder)
-            | EPrimitive t when t = typeof<decimal> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.decimalDecoder)
-            | EPrimitive t when t = typeof<string> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.stringDecoder)
-            | EPrimitive t when t = typeof<bool> ->
-                Some(JsonTypedRecordDecode.createField field.Name Runtime.boolDecoder)
-            | _ -> None
-
-        let typedFields = fields |> List.map tryCompileTypedField
-
-        if typedFields |> List.exists Option.isNone then
-            None
-        else
-            JsonTypedRecordDecode.tryCompileRecordDecoderRuntime
-                typedRuntime
-                targetType
-                (typedFields |> List.choose id |> List.toArray)
+        tryCompileTypedRecordRuntimeDecoder {
+            TargetType = targetType
+            Definition = ERecord(targetType, fields, fun _ -> failwith "unreachable placeholder ctor")
+        }
 
     let private compileUntyped (rootSchema: RuntimeSchema) : CompiledCodec =
         let cache = Dictionary<RuntimeSchema, CompiledCodec>(RuntimeSchemaRefComparer())
