@@ -1177,30 +1177,41 @@ module JsonBackend =
 
                             hash
 
-                        let rawFieldIndices = Dictionary<struct (uint64 * int), int>(compiledFields.Length)
+                        let useDirectRawLookup = compiledFields.Length <= 8
 
-                        let rawFieldCollisions = Dictionary<struct (uint64 * int), int array>()
+                        let rawFieldIndices =
+                            if useDirectRawLookup then
+                                Unchecked.defaultof<Dictionary<struct (uint64 * int), int>>
+                            else
+                                Dictionary<struct (uint64 * int), int>(compiledFields.Length)
+
+                        let rawFieldCollisions =
+                            if useDirectRawLookup then
+                                Unchecked.defaultof<Dictionary<struct (uint64 * int), int array>>
+                            else
+                                Dictionary<struct (uint64 * int), int array>()
 
                         do
-                            let buckets =
-                                Dictionary<struct (uint64 * int), ResizeArray<int>>(compiledFields.Length)
+                            if not useDirectRawLookup then
+                                let buckets =
+                                    Dictionary<struct (uint64 * int), ResizeArray<int>>(compiledFields.Length)
 
-                            for field in compiledFields do
-                                let key =
-                                    struct (hashRawBytes field.RawName 0 field.RawName.Length, field.RawName.Length)
+                                for field in compiledFields do
+                                    let key =
+                                        struct (hashRawBytes field.RawName 0 field.RawName.Length, field.RawName.Length)
 
-                                match buckets.TryGetValue(key) with
-                                | true, bucket -> bucket.Add(field.Index)
-                                | false, _ ->
-                                    let bucket = ResizeArray()
-                                    bucket.Add(field.Index)
-                                    buckets[key] <- bucket
+                                    match buckets.TryGetValue(key) with
+                                    | true, bucket -> bucket.Add(field.Index)
+                                    | false, _ ->
+                                        let bucket = ResizeArray()
+                                        bucket.Add(field.Index)
+                                        buckets[key] <- bucket
 
-                            for KeyValue(key, bucket) in buckets do
-                                if bucket.Count = 1 then
-                                    rawFieldIndices[key] <- bucket[0]
-                                else
-                                    rawFieldCollisions[key] <- bucket.ToArray()
+                                for KeyValue(key, bucket) in buckets do
+                                    if bucket.Count = 1 then
+                                        rawFieldIndices[key] <- bucket[0]
+                                    else
+                                        rawFieldCollisions[key] <- bucket.ToArray()
 
                         ///
                         /// Object decode used to linearly scan every field name for every
@@ -1237,26 +1248,44 @@ module JsonBackend =
                             /// compare the raw UTF-8 bytes first and only allocate a key
                             /// string when the payload uses escapes in the property name.
                             let tryFindFieldIndexByRawKey (start: int) (length: int) (data: byte[]) : int option =
-                                let key = struct (hashRawBytes data start length, length)
+                                if useDirectRawLookup then
+                                    let mutable fieldIndex = 0
+                                    let mutable matched: int option = None
 
-                                match rawFieldIndices.TryGetValue(key) with
-                                | true, index -> Some index
-                                | false, _ ->
-                                    match rawFieldCollisions.TryGetValue(key) with
-                                    | false, _ -> None
-                                    | true, candidates ->
-                                        let mutable candidateIndex = 0
-                                        let mutable matched: int option = None
+                                    while fieldIndex < compiledFields.Length && matched.IsNone do
+                                        let candidate = compiledFields[fieldIndex].RawName
 
-                                        while candidateIndex < candidates.Length && matched.IsNone do
-                                            let candidate = compiledFields[candidates[candidateIndex]].RawName
+                                        if
+                                            candidate.Length = length
+                                            && candidate[0] = data[start]
+                                            && Runtime.bytesEqual candidate data start length
+                                        then
+                                            matched <- Some compiledFields[fieldIndex].Index
 
-                                            if Runtime.bytesEqual candidate data start length then
-                                                matched <- Some candidates[candidateIndex]
+                                        fieldIndex <- fieldIndex + 1
 
-                                            candidateIndex <- candidateIndex + 1
+                                    matched
+                                else
+                                    let key = struct (hashRawBytes data start length, length)
 
-                                        matched
+                                    match rawFieldIndices.TryGetValue(key) with
+                                    | true, index -> Some index
+                                    | false, _ ->
+                                        match rawFieldCollisions.TryGetValue(key) with
+                                        | false, _ -> None
+                                        | true, candidates ->
+                                            let mutable candidateIndex = 0
+                                            let mutable matched: int option = None
+
+                                            while candidateIndex < candidates.Length && matched.IsNone do
+                                                let candidate = compiledFields[candidates[candidateIndex]].RawName
+
+                                                if Runtime.bytesEqual candidate data start length then
+                                                    matched <- Some candidates[candidateIndex]
+
+                                                candidateIndex <- candidateIndex + 1
+
+                                            matched
 
                             let data = src.Data
                             let mutable current = src.Advance(1)
