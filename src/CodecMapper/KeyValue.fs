@@ -198,7 +198,7 @@ module KeyValueBackend =
                                 |> Option.map (fun name -> withPath path (fun () -> stringEnum.ParseNameObj name)))
                         MissingValue = None
                       }
-                    | :? IMappingDefinitionRuntime as mapping ->
+                    | :? IRecordRuntime as mapping ->
                         let compiledFields =
                             mapping.FieldsRuntime
                             |> List.toArray
@@ -225,24 +225,30 @@ module KeyValueBackend =
                                     if decodedFields |> Array.forall (fun (_, decoded) -> decoded.IsNone) then
                                         None
                                     else
-                                        let args =
-                                            decodedFields
-                                            |> Array.map (fun (field, decoded) ->
-                                                match decoded with
-                                                | Some value -> value
-                                                | None ->
-                                                    match field.Codec.MissingValue with
-                                                    | Some value -> value
+                                        let recordState = mapping.CreateStateObj()
+
+                                        try
+                                            for field, decoded in decodedFields do
+                                                let value =
+                                                    match decoded with
+                                                    | Some decodedValue -> decodedValue
                                                     | None ->
-                                                        let fieldPath = path @ [ field.Field.Name ]
+                                                        match field.Codec.MissingValue with
+                                                        | Some missingValue -> missingValue
+                                                        | None ->
+                                                            let fieldPath = path @ [ field.Field.Name ]
 
-                                                        decodeFailure
-                                                            fieldPath
-                                                            (sprintf
-                                                                "Missing required key '%s'"
-                                                                (keyName options fieldPath)))
+                                                            decodeFailure
+                                                                fieldPath
+                                                                (sprintf
+                                                                    "Missing required key '%s'"
+                                                                    (keyName options fieldPath))
 
-                                        Some(mapping.CreateObj args))
+                                                mapping.StoreFieldObj(recordState, field.Index, value)
+
+                                            Some(mapping.CompleteObj recordState)
+                                        finally
+                                            mapping.ReleaseStateObj recordState)
                             MissingValue = None
                         }
                     | :? IOptionCodecRuntime as optionCodec ->

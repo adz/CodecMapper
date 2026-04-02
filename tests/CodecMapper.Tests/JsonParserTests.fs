@@ -6,9 +6,8 @@ open CodecMapper
 open TestCommon
 
 let idSchema =
-    Schema.define<IdOnly>
-    |> Schema.construct makeIdOnly
-    |> Schema.field "id" _.Id
+    Schema.record makeIdOnly
+    |> Schema.field "id" (fun (value: IdOnly) -> value.Id)
     |> Schema.build
 
 let idCodec = Json.compileSchema idSchema
@@ -122,18 +121,16 @@ let ``Reject missing required keys`` () =
 [<Fact>]
 let ``Report nested field path for JSON decode failures`` () =
     let addressSchema =
-        Schema.define<Address>
-        |> Schema.construct makeAddress
-        |> Schema.field "street" _.Street
-        |> Schema.field "city" _.City
+        Schema.record makeAddress
+        |> Schema.field "street" (fun (address: Address) -> address.Street)
+        |> Schema.field "city" (fun (address: Address) -> address.City)
         |> Schema.build
 
     let personSchema =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
-        |> Schema.fieldWith "home" _.Home addressSchema
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
         |> Schema.build
 
     let codec = Json.compileSchema personSchema

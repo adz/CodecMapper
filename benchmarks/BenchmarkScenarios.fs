@@ -659,37 +659,33 @@ module TypedJsonExperiment =
 
 module Schemas =
     let address =
-        Schema.define<Address>
-        |> Schema.construct (fun street city -> { Street = street; City = city })
-        |> Schema.field "Street" _.Street
-        |> Schema.field "City" _.City
+        Schema.record (fun street city -> { Street = street; City = city })
+        |> Schema.field "Street" (fun (address: Address) -> address.Street)
+        |> Schema.field "City" (fun (address: Address) -> address.City)
         |> Schema.build
 
     let person =
-        Schema.define<Person>
-        |> Schema.construct (fun id name home -> { Id = id; Name = name; Home = home })
-        |> Schema.field "Id" _.Id
-        |> Schema.field "Name" _.Name
-        |> Schema.fieldWith "Home" _.Home address
+        Schema.record (fun id name home -> { Id = id; Name = name; Home = home })
+        |> Schema.field "Id" (fun (person: Person) -> person.Id)
+        |> Schema.field "Name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "Home" (fun (person: Person) -> person.Home) address
         |> Schema.build
 
     let smallMessage =
-        Schema.define<SmallMessage>
-        |> Schema.construct (fun id kind success traceId -> {
+        Schema.record (fun id kind success traceId -> {
             Id = id
             Kind = kind
             Success = success
             TraceId = traceId
         })
-        |> Schema.field "Id" _.Id
-        |> Schema.field "Kind" _.Kind
-        |> Schema.field "Success" _.Success
-        |> Schema.field "TraceId" _.TraceId
+        |> Schema.field "Id" (fun (message: SmallMessage) -> message.Id)
+        |> Schema.field "Kind" (fun (message: SmallMessage) -> message.Kind)
+        |> Schema.field "Success" (fun (message: SmallMessage) -> message.Success)
+        |> Schema.field "TraceId" (fun (message: SmallMessage) -> message.TraceId)
         |> Schema.build
 
     let article =
-        Schema.define<Article>
-        |> Schema.construct (fun id slug title body tags author -> {
+        Schema.record (fun id slug title body tags author -> {
             Id = id
             Slug = slug
             Title = title
@@ -697,17 +693,16 @@ module Schemas =
             Tags = tags
             Author = author
         })
-        |> Schema.field "Id" _.Id
-        |> Schema.field "Slug" _.Slug
-        |> Schema.field "Title" _.Title
-        |> Schema.field "Body" _.Body
-        |> Schema.field "Tags" _.Tags
-        |> Schema.fieldWith "Author" _.Author person
+        |> Schema.field "Id" (fun (article: Article) -> article.Id)
+        |> Schema.field "Slug" (fun (article: Article) -> article.Slug)
+        |> Schema.field "Title" (fun (article: Article) -> article.Title)
+        |> Schema.field "Body" (fun (article: Article) -> article.Body)
+        |> Schema.field "Tags" (fun (article: Article) -> article.Tags)
+        |> Schema.fieldWith "Author" (fun (article: Article) -> article.Author) person
         |> Schema.build
 
     let telemetryPoint =
-        Schema.define<TelemetryPoint>
-        |> Schema.construct (fun sensorId timestamp temperature humidity voltage retryCount sequence healthy -> {
+        Schema.record (fun sensorId timestamp temperature humidity voltage retryCount sequence healthy -> {
             SensorId = sensorId
             Timestamp = timestamp
             Temperature = temperature
@@ -717,14 +712,14 @@ module Schemas =
             Sequence = sequence
             Healthy = healthy
         })
-        |> Schema.field "SensorId" _.SensorId
-        |> Schema.field "Timestamp" _.Timestamp
-        |> Schema.field "Temperature" _.Temperature
-        |> Schema.field "Humidity" _.Humidity
-        |> Schema.field "Voltage" _.Voltage
-        |> Schema.field "RetryCount" _.RetryCount
-        |> Schema.field "Sequence" _.Sequence
-        |> Schema.field "Healthy" _.Healthy
+        |> Schema.field "SensorId" (fun (point: TelemetryPoint) -> point.SensorId)
+        |> Schema.field "Timestamp" (fun (point: TelemetryPoint) -> point.Timestamp)
+        |> Schema.field "Temperature" (fun (point: TelemetryPoint) -> point.Temperature)
+        |> Schema.field "Humidity" (fun (point: TelemetryPoint) -> point.Humidity)
+        |> Schema.field "Voltage" (fun (point: TelemetryPoint) -> point.Voltage)
+        |> Schema.field "RetryCount" (fun (point: TelemetryPoint) -> point.RetryCount)
+        |> Schema.field "Sequence" (fun (point: TelemetryPoint) -> point.Sequence)
+        |> Schema.field "Healthy" (fun (point: TelemetryPoint) -> point.Healthy)
         |> Schema.build
 
     let personList = Schema.list person

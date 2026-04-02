@@ -54,8 +54,7 @@ let private keyValueUnexpectedPayload =
 // discriminator. These tests keep that behavior readable enough to cite
 // directly from the docs.
 let private createdDataSchema =
-    define<CreatedData>
-    |> construct makeCreatedData
+    record makeCreatedData
     |> field "id" _.Id
     |> field "name" _.Name
     |> build

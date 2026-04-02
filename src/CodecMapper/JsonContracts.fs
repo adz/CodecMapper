@@ -279,7 +279,13 @@ module Json =
                 }
                 |> box |> unbox<FieldJsonCodec<'T>>
             | _ ->
-                let compiled = JsonBackend.compile codec
+                ///
+                /// Nested authored schemas should follow the same specialization
+                /// path as the top-level schema instead of silently falling back
+                /// to the generic runtime compiler. Keeping one compiler entry
+                /// point here avoids a split "specialized at the root, generic
+                /// in fields" behavior.
+                let compiled = JsonCompiler.Compile codec
                 {
                     Encode = compiled.Encode
                     Decode = compiled.Decode

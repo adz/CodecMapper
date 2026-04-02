@@ -157,6 +157,14 @@ type RuntimeField = {
     GetObj: obj -> obj
 }
 
+and RuntimeRecord = {
+    Fields: RuntimeField list
+    CreateState: unit -> obj
+    StoreField: obj * int * obj -> unit
+    Complete: obj -> obj
+    Release: obj -> unit
+}
+
 and RuntimeTaggedCase = {
     Name: string
     FieldType: System.Type option
@@ -168,7 +176,7 @@ and RuntimeTaggedCase = {
 and RuntimeDefinition =
     | EPrimitive of System.Type
     | EStringEnum of names: string[] * tryGetName: (obj -> string option) * parseName: (string -> obj)
-    | ERecord of System.Type * RuntimeField list * (obj[] -> obj)
+    | ERecord of System.Type * RuntimeRecord
     | EList of RuntimeSchema
     | EArray of RuntimeSchema
     | EOption of RuntimeSchema
@@ -206,12 +214,14 @@ type IChainFactory<'Record> =
 type IChainNode<'Record, 'CtorIn, 'CtorOut> =
     abstract member GetFields: int -> Field<'Record> list * int
     abstract member Apply: obj * obj array -> obj
+    abstract member ApplyFrom: obj * (int -> obj) -> obj
     abstract member Build: IChainFactory<'Record> -> IChainResult<'Record, 'CtorIn, 'CtorOut>
 
 type FieldsEnd<'Record, 'Ctor>() =
     interface IChainNode<'Record, 'Ctor, 'Ctor> with
         member _.GetFields(index) = [], index
         member _.Apply(ctor, _) = ctor
+        member _.ApplyFrom(ctor, _) = ctor
         member _.Build(factory) = factory.OnEnd()
 
 type FieldsAppend<'Record, 'CtorIn, 'Field, 'NextCtor, 'Head
@@ -241,19 +251,301 @@ type FieldsAppend<'Record, 'CtorIn, 'Field, 'NextCtor, 'Head
             let typedCtor = headResult :?> ('Field -> 'NextCtor)
             box (typedCtor (values[myIndex] :?> 'Field))
 
+        member _.ApplyFrom(ctor, getValue) =
+            let headResult = head.ApplyFrom(ctor, getValue)
+            let myIndex = head.GetFields(0) |> snd
+            let typedCtor = headResult :?> ('Field -> 'NextCtor)
+            box (typedCtor (getValue myIndex :?> 'Field))
+
         member _.Build(factory) =
             let headResult = head.Build(factory)
             factory.OnField(name, getter, codec, headResult)
 
 type IMappingDefinition<'Record> =
     abstract member Fields: Field<'Record> list
-    abstract member Create: obj array -> 'Record
+    abstract member CreateFrom: (int -> obj) -> 'Record
     abstract member Specialize: IChainFactory<'Record> -> Codec<'Record>
 
-type IMappingDefinitionRuntime =
+type IRecordRuntime =
     inherit IRuntimeCodecShape
     abstract member FieldsRuntime: FieldRuntime list
-    abstract member CreateObj: obj array -> obj
+    abstract member CreateStateObj: unit -> obj
+    abstract member StoreFieldObj: state: obj * index: int * value: obj -> unit
+    abstract member CompleteObj: state: obj -> obj
+    abstract member ReleaseStateObj: state: obj -> unit
+
+type IRecordConstructionState =
+    abstract member GetFieldObj: index: int -> obj
+    abstract member SetFieldObj: index: int * value: obj -> unit
+    abstract member Clear: unit -> unit
+
+type private SmallRecordConstructionState1() =
+    let mutable value0 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() = value0 <- null
+
+type private SmallRecordConstructionState2() =
+    let mutable value0 = null
+    let mutable value1 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+
+type private SmallRecordConstructionState3() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+
+type private SmallRecordConstructionState4() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+    let mutable value3 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | 3 -> value3
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | 3 -> value3 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+            value3 <- null
+
+type private SmallRecordConstructionState5() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+    let mutable value3 = null
+    let mutable value4 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | 3 -> value3
+            | 4 -> value4
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | 3 -> value3 <- value
+            | 4 -> value4 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+            value3 <- null
+            value4 <- null
+
+type private SmallRecordConstructionState6() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+    let mutable value3 = null
+    let mutable value4 = null
+    let mutable value5 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | 3 -> value3
+            | 4 -> value4
+            | 5 -> value5
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | 3 -> value3 <- value
+            | 4 -> value4 <- value
+            | 5 -> value5 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+            value3 <- null
+            value4 <- null
+            value5 <- null
+
+type private SmallRecordConstructionState7() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+    let mutable value3 = null
+    let mutable value4 = null
+    let mutable value5 = null
+    let mutable value6 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | 3 -> value3
+            | 4 -> value4
+            | 5 -> value5
+            | 6 -> value6
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | 3 -> value3 <- value
+            | 4 -> value4 <- value
+            | 5 -> value5 <- value
+            | 6 -> value6 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+            value3 <- null
+            value4 <- null
+            value5 <- null
+            value6 <- null
+
+type private SmallRecordConstructionState8() =
+    let mutable value0 = null
+    let mutable value1 = null
+    let mutable value2 = null
+    let mutable value3 = null
+    let mutable value4 = null
+    let mutable value5 = null
+    let mutable value6 = null
+    let mutable value7 = null
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) =
+            match index with
+            | 0 -> value0
+            | 1 -> value1
+            | 2 -> value2
+            | 3 -> value3
+            | 4 -> value4
+            | 5 -> value5
+            | 6 -> value6
+            | 7 -> value7
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.SetFieldObj(index, value) =
+            match index with
+            | 0 -> value0 <- value
+            | 1 -> value1 <- value
+            | 2 -> value2 <- value
+            | 3 -> value3 <- value
+            | 4 -> value4 <- value
+            | 5 -> value5 <- value
+            | 6 -> value6 <- value
+            | 7 -> value7 <- value
+            | _ -> invalidArg (nameof index) "Field index out of range."
+
+        member _.Clear() =
+            value0 <- null
+            value1 <- null
+            value2 <- null
+            value3 <- null
+            value4 <- null
+            value5 <- null
+            value6 <- null
+            value7 <- null
+
+type private ArrayRecordConstructionState(fieldCount: int) =
+    let values = Array.zeroCreate<obj> fieldCount
+
+    interface IRecordConstructionState with
+        member _.GetFieldObj(index) = values[index]
+        member _.SetFieldObj(index, value) = values[index] <- value
+        member _.Clear() = System.Array.Clear(values, 0, values.Length)
+
+type private RecordConstructionStateFactory =
+    static member Create(fieldCount: int) : IRecordConstructionState =
+        match fieldCount with
+        | 1 -> SmallRecordConstructionState1() :> IRecordConstructionState
+        | 2 -> SmallRecordConstructionState2() :> IRecordConstructionState
+        | 3 -> SmallRecordConstructionState3() :> IRecordConstructionState
+        | 4 -> SmallRecordConstructionState4() :> IRecordConstructionState
+        | 5 -> SmallRecordConstructionState5() :> IRecordConstructionState
+        | 6 -> SmallRecordConstructionState6() :> IRecordConstructionState
+        | 7 -> SmallRecordConstructionState7() :> IRecordConstructionState
+        | 8 -> SmallRecordConstructionState8() :> IRecordConstructionState
+        | _ -> ArrayRecordConstructionState(fieldCount) :> IRecordConstructionState
 
 type MappingDefinition<'Record, 'Ctor, 'Chain when 'Chain :> IChainNode<'Record, 'Ctor, 'Record>>
     (ctor: 'Ctor, chain: 'Chain) =
@@ -264,12 +556,18 @@ type MappingDefinition<'Record, 'Ctor, 'Chain when 'Chain :> IChainNode<'Record,
 
     interface IMappingDefinition<'Record> with
         member _.Fields = chain.GetFields(0) |> fst
-        member _.Create(values) = chain.Apply(box ctor, values) :?> 'Record
+        member _.CreateFrom(getValue) = chain.ApplyFrom(box ctor, getValue) :?> 'Record
         member _.Specialize(factory) =
             let result = chain.Build(factory)
             factory.OnComplete(ctor, result)
 
-    interface IMappingDefinitionRuntime with
+    ///
+    /// Backends need one shared record-construction contract so they can stop
+    /// depending on raw `obj[] -> obj` constructors directly. The initial
+    /// implementation still uses an array-backed state internally, but that
+    /// storage is now hidden behind this interface so a better strategy can be
+    /// swapped in centrally later.
+    interface IRecordRuntime with
         member _.FieldsRuntime =
             (chain.GetFields(0) |> fst)
             |> List.map (fun field -> {
@@ -277,7 +575,22 @@ type MappingDefinition<'Record, 'Ctor, 'Chain when 'Chain :> IChainNode<'Record,
                 Codec = field.Codec
                 GetObj = fun record -> field.Get (unbox record)
             })
-        member _.CreateObj(values) = box (chain.Apply(box ctor, values) :?> 'Record)
+
+        member this.CreateStateObj() =
+            let fieldCount = (this :> IRecordRuntime).FieldsRuntime.Length
+            box (RecordConstructionStateFactory.Create(fieldCount))
+
+        member _.StoreFieldObj(state, index, value) =
+            let recordState = unbox<IRecordConstructionState> state
+            recordState.SetFieldObj(index, value)
+
+        member _.CompleteObj(state) =
+            let recordState = unbox<IRecordConstructionState> state
+            box (chain.ApplyFrom(box ctor, recordState.GetFieldObj) :?> 'Record)
+
+        member _.ReleaseStateObj(state) =
+            let recordState = unbox<IRecordConstructionState> state
+            recordState.Clear()
 
 type private UnionCodec<'Union>(discriminatorName: string, valueName: string, cases: UnionCase<'Union> list) =
     inherit Codec<'Union>()
@@ -669,7 +982,7 @@ module internal RuntimeSchema =
                     match codecObj with
                     | :? IPrimitiveCodec as primitive -> EPrimitive primitive.TargetType
                     | :? IRawJsonValueCodec -> ERawJsonValue
-                    | :? IMappingDefinitionRuntime as mapping ->
+                    | :? IRecordRuntime as mapping ->
                         let fields =
                             mapping.FieldsRuntime
                             |> List.map (fun field -> {
@@ -679,7 +992,16 @@ module internal RuntimeSchema =
                                 GetObj = field.GetObj
                             })
 
-                        ERecord(targetType, fields, mapping.CreateObj)
+                        ERecord(
+                            targetType,
+                            {
+                                Fields = fields
+                                CreateState = mapping.CreateStateObj
+                                StoreField = mapping.StoreFieldObj
+                                Complete = mapping.CompleteObj
+                                Release = mapping.ReleaseStateObj
+                            }
+                        )
                     | :? IUnionCodecRuntime as unionCodec ->
                         let cases =
                             unionCodec.CasesRuntime
@@ -738,7 +1060,7 @@ module internal RuntimeSchema =
 module internal SchemaRuntime =
     let rec supportsInlinePayloadShapeObj (codecObj: obj) =
         match codecObj with
-        | :? IMappingDefinitionRuntime -> true
+        | :? IRecordRuntime -> true
         | :? IDelayCodecRuntime as delayCodec -> supportsInlinePayloadShapeObj (delayCodec.FactoryObj())
         | :? IRuntimeMissingWrapper as wrapped -> supportsInlinePayloadShapeObj wrapped.InnerObj
         | :? IMappedCodecRuntime as mapped -> supportsInlinePayloadShapeObj mapped.InnerObj
@@ -847,12 +1169,12 @@ module internal Inference =
         else None
 
 module Schema =
-    let define<'Record> : SchemaBuilder<'Record, unit, unit, FieldsEnd<'Record, unit>> = {
+    let private start<'Record> : SchemaBuilder<'Record, unit, unit, FieldsEnd<'Record, unit>> = {
         Ctor = ()
         Chain = FieldsEnd<'Record, unit>()
     }
 
-    let construct
+    let private withCtor
         (ctor: 'Ctor)
         (_builder: SchemaBuilder<'Record, unit, unit, FieldsEnd<'Record, unit>>)
         : SchemaBuilder<'Record, 'Ctor, 'Ctor, FieldsEnd<'Record, 'Ctor>> = {
@@ -863,7 +1185,7 @@ module Schema =
     let ``record``<'Record, 'Ctor>
         (ctor: 'Ctor)
         : SchemaBuilder<'Record, 'Ctor, 'Ctor, FieldsEnd<'Record, 'Ctor>> =
-        construct ctor define<'Record>
+        withCtor ctor start<'Record>
 
     let fieldWith
         (name: string)
@@ -951,12 +1273,3 @@ module Schema =
     let envelopeNamed = Tagged.envelopeNamed
     let inlineEnvelope = Tagged.inlineEnvelope
     let inlineEnvelopeNamed = Tagged.inlineEnvelopeNamed
-
-module Builder =
-    let define<'Record> = Schema.define<'Record>
-    let ``record`` ctor = Schema.record ctor
-    let construct ctor builder = Schema.construct ctor builder
-    let field name getter builder = Schema.field name getter builder
-    let fieldWith name getter codec builder = Schema.fieldWith name getter codec builder
-    let fieldInfer name getter builder = Schema.fieldInfer name getter builder
-    let build builder = Schema.build builder

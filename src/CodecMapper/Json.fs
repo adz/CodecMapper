@@ -866,7 +866,9 @@ module JsonBackend =
 
     let rec private tryCompileTypedRecordRuntimeDecoder (schema: RuntimeSchema) : (ByteSource -> struct (obj * ByteSource)) option =
         match schema.Definition with
-        | ERecord(targetType, fields, _) ->
+        | ERecord(targetType, recordRuntime) ->
+            let fields = recordRuntime.Fields
+
             let typedFields =
                 fields
                 |> List.map (fun field ->
@@ -905,7 +907,17 @@ module JsonBackend =
     let private tryCompileTypedRecordDecoder (targetType: System.Type) (fields: RuntimeField list) =
         tryCompileTypedRecordRuntimeDecoder {
             TargetType = targetType
-            Definition = ERecord(targetType, fields, fun _ -> failwith "unreachable placeholder ctor")
+            Definition =
+                ERecord(
+                    targetType,
+                    {
+                        Fields = fields
+                        CreateState = (fun () -> failwith "unreachable placeholder state")
+                        StoreField = (fun _ -> failwith "unreachable placeholder store")
+                        Complete = (fun _ -> failwith "unreachable placeholder complete")
+                        Release = (fun _ -> ())
+                    }
+                )
         }
 
     let private compileUntyped (rootSchema: RuntimeSchema) : CompiledCodec =
@@ -1150,7 +1162,9 @@ module JsonBackend =
                                         innerCodec.Decode src)
                             MissingValue = innerCodec.MissingValue
                         }
-                    | ERecord(t, fields, ctor) ->
+                    | ERecord(t, recordRuntime) ->
+                        let fields = recordRuntime.Fields
+
                         let compiledFields =
                             fields
                             |> List.toArray
@@ -1289,7 +1303,7 @@ module JsonBackend =
 
                             let data = src.Data
                             let mutable current = src.Advance(1)
-                            let fieldValues = Runtime.rentObjectArray compiledFields.Length
+                            let recordState = recordRuntime.CreateState()
                             let useSeenMask = compiledFields.Length <= 64
                             let mutable fieldSeenMask = 0UL
 
@@ -1333,7 +1347,7 @@ module JsonBackend =
                                         let struct (value, nextSrc) =
                                             Runtime.decodeAtPath (Property field.Name) field.Codec.Decode valSrc
 
-                                        fieldValues[index] <- value
+                                        recordRuntime.StoreField(recordState, index, value)
 
                                         if useSeenMask then
                                             fieldSeenMask <- fieldSeenMask ||| (1UL <<< index)
@@ -1361,19 +1375,19 @@ module JsonBackend =
 
                                     if not seen then
                                         match f.Codec.MissingValue with
-                                        | Some value -> fieldValues[f.Index] <- value
+                                        | Some value -> recordRuntime.StoreField(recordState, f.Index, value)
                                         | None ->
                                             Runtime.withPath (Property f.Name) (fun () ->
                                                 Runtime.decodeFailure (sprintf "Missing required key '%s'" f.Name))
 
                                 try
-                                    struct (ctor fieldValues, current)
+                                    struct (recordRuntime.Complete recordState, current)
                                 with ex ->
                                     match ex with
                                     | :? JsonDecodeException -> raise ex
                                     | _ -> raise (JsonDecodeException([], ex.Message, ex))
                             finally
-                                Runtime.returnObjectArray fieldValues compiledFields.Length
+                                recordRuntime.Release recordState
 
                         let decoder =
                             match tryCompileTypedRecordDecoder t fields with

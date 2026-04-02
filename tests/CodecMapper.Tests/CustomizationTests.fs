@@ -8,9 +8,8 @@ open TestCommon
 let userIdSchema = Schema.int |> Schema.tryMap UserId.create UserId.value
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
-    |> Schema.fieldWith "id" _.Id userIdSchema
+    Schema.record makeAccount
+    |> Schema.fieldWith "id" (fun (account: Account) -> account.Id) userIdSchema
     |> Schema.field "name" _.Name
     |> Schema.build
 

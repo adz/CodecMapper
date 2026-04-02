@@ -2,14 +2,15 @@
 
 Active work only. Historical completed work lives in [notes/AGENT_NOTES.md](notes/AGENT_NOTES.md) and [AGENTS.md](AGENTS.md).
 
-- [ ] **Task 42: Delete the old boxed schema engine completely**
-  - Remove `ISchema`, `SchemaDefinition`, `SchemaField`, and `obj[] -> obj` record construction from the active implementation.
+- [x] **Task 42: Finalize the core boxed contract runtime**
+  - Remove `ISchema`, `SchemaDefinition`, `SchemaField`, and `obj[] -> obj` record construction from the active core implementation.
   - Move the public authored DSL to `Schema.*` over `Schema<'T>`.
   - Delete the old schema DSL instead of keeping compatibility shims.
   - Retarget `Json`, `Xml`, `Yaml`, `KeyValue`, and `JsonSchema` to compile from the new boxed contract IR directly.
   - Remove any `Lowering.lower` or legacy boxed-schema bridge from the runtime path.
-  - Update tests, benchmarks, bridge code, and docs to the new surface.
-  - Completion bar: there is no old boxed DSL left, publicly or internally.
+  - Update tests, benchmarks, and docs to the new surface.
+  - Explicitly exclude bridge internals from this task. Bridge cleanup can follow once the core runtime shape is stable.
+  - Completion bar: there is no old boxed DSL left in the core runtime path or public authored surface.
 
 - [ ] **Task 49: Review and improve the new DSL for DX**
   - After Task 42, review the new `Schema.*` surface for compactness, clarity, and maintainability.

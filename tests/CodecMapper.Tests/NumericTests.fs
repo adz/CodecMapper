@@ -6,8 +6,7 @@ open CodecMapper
 open TestCommon
 
 let numericSchema =
-    Schema.define<NumericRecord>
-    |> Schema.construct makeNumericRecord
+    Schema.record makeNumericRecord
     |> Schema.field "total" _.Total
     |> Schema.field "count" _.Count
     |> Schema.field "capacity" _.Capacity

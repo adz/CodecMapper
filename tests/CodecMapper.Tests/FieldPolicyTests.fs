@@ -17,8 +17,7 @@ let makeConfigRecord mode retries labels = {
 }
 
 let configSchema =
-    Schema.define<ConfigRecord>
-    |> Schema.construct makeConfigRecord
+    Schema.record makeConfigRecord
     |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
     |> Schema.fieldWith "retries" _.Retries (Schema.int |> Schema.missingAsValue 3)
     |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.missingAsValue [])
@@ -29,8 +28,7 @@ type FlatConfigRecord = { Mode: string; Retries: int }
 let makeFlatConfigRecord mode retries = { Mode = mode; Retries = retries }
 
 let flatConfigSchema =
-    Schema.define<FlatConfigRecord>
-    |> Schema.construct makeFlatConfigRecord
+    Schema.record makeFlatConfigRecord
     |> Schema.fieldWith "mode" _.Mode (Schema.string |> Schema.missingAsValue "strict")
     |> Schema.fieldWith "retries" _.Retries (Schema.int |> Schema.missingAsValue 3)
     |> Schema.build
@@ -40,8 +38,7 @@ type NullConfigRecord = { Mode: string; Region: string }
 let makeNullConfigRecord mode region = { Mode = mode; Region = region }
 
 let nullConfigSchema =
-    Schema.define<NullConfigRecord>
-    |> Schema.construct makeNullConfigRecord
+    Schema.record makeNullConfigRecord
     |> Schema.field "mode" _.Mode
     |> Schema.fieldWith "region" _.Region (Schema.string |> Schema.nullAsValue "global")
     |> Schema.build
@@ -51,8 +48,7 @@ type CollectionPolicyRecord = { Labels: string list }
 let makeCollectionPolicyRecord labels = { Labels = labels }
 
 let collectionPolicySchema =
-    Schema.define<CollectionPolicyRecord>
-    |> Schema.construct makeCollectionPolicyRecord
+    Schema.record makeCollectionPolicyRecord
     |> Schema.fieldWith "labels" _.Labels (Schema.list Schema.string |> Schema.emptyCollectionAsValue [ "general" ])
     |> Schema.build
 

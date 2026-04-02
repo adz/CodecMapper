@@ -25,7 +25,7 @@ module YamlBackend =
 
     type private Line = { Indent: int; Content: string }
 
-    let private rawJsonCodec = JsonBackend.compile Schema.jsonValue
+    let private rawJsonCodec = CodecMapper.Json.compile Schema.jsonValue
 
     let private raiseDecodeFailure path detail inner =
         raise (YamlDecodeException(path, detail, inner))
@@ -353,11 +353,11 @@ module YamlBackend =
 
     /// Compiles a schema into a reusable YAML codec.
     ///
-    /// The YAML surface is intentionally small and config-oriented. It reuses
-    /// the compiled JSON codec and a `JsonValue` projection instead of adding
-    /// a second full schema compiler.
+    /// The YAML surface is intentionally small and config-oriented. It keeps
+    /// authored schemas on the same compiled JSON contract path and only adds
+    /// a `JsonValue` projection instead of a second full schema compiler.
     let compile (schema: CodecMapper.Codec<'T>) : Codec<'T> =
-        let jsonCodec = JsonBackend.compile schema
+        let jsonCodec = CodecMapper.Json.compile schema
 
         {
             Encode =

@@ -6,30 +6,26 @@ open CodecMapper
 open TestCommon
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
+    Schema.record makeAddress
     |> Schema.field "street" _.Street
     |> Schema.field "city" _.City
     |> Schema.build
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
+    Schema.record makePerson
+    |> Schema.field "id" (fun (person: Person) -> person.Id)
+    |> Schema.field "name" (fun (person: Person) -> person.Name)
+    |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
     |> Schema.build
 
 let optionalRecordSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.field "nickname" _.Nickname
     |> Schema.field "age" _.Age
     |> Schema.build
 
 let optionalNicknameSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.fieldWith "nickname" _.Nickname (Schema.option Schema.string |> Schema.missingAsNone)
     |> Schema.field "age" _.Age
     |> Schema.build
@@ -37,15 +33,13 @@ let optionalNicknameSchema =
 let userIdSchema = Schema.int |> Schema.tryMap UserId.create UserId.value
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
-    |> Schema.fieldWith "id" _.Id userIdSchema
-    |> Schema.field "name" _.Name
+    Schema.record makeAccount
+    |> Schema.fieldWith "id" (fun (account: Account) -> account.Id) userIdSchema
+    |> Schema.field "name" (fun (account: Account) -> account.Name)
     |> Schema.build
 
 let commonTypeSchema =
-    Schema.define<CommonTypeRecord>
-    |> Schema.construct makeCommonTypeRecord
+    Schema.record makeCommonTypeRecord
     |> Schema.field "age" _.Age
     |> Schema.field "level" _.Level
     |> Schema.field "delta" _.Delta
@@ -58,10 +52,9 @@ let commonTypeSchema =
     |> Schema.build
 
 let createdDataSchema =
-    Schema.define<CreatedData>
-    |> Schema.construct makeCreatedData
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
+    Schema.record makeCreatedData
+    |> Schema.field "id" (fun (data: CreatedData) -> data.Id)
+    |> Schema.field "name" (fun (data: CreatedData) -> data.Name)
     |> Schema.build
 
 [<Fact>]

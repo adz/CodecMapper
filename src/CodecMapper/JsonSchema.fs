@@ -187,7 +187,7 @@ module JsonSchemaBackend =
                 context.DelayBodies[codecObj]
             else
                 schemaRef definitionName
-        | :? IMappingDefinitionRuntime as mapping ->
+        | :? IRecordRuntime as mapping ->
             let properties =
                 mapping.FieldsRuntime
                 |> List.map (fun field -> field.Name, exportSchema context false field.Codec)

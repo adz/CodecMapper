@@ -105,15 +105,15 @@ The project ships both a manual scenario runner and a repeatable `perf` workflow
 - profiling guide: [docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md](docs/HOW_TO_PROFILE_BENCHMARK_HOT_PATHS.md)
 - full benchmark page: [docs/BENCHMARKS.md](docs/BENCHMARKS.md)
 
-Latest local manual snapshot, measured on March 31, 2026:
+Latest local manual snapshot, measured on April 2, 2026:
 
 | Scenario | CodecMapper serialize | STJ serialize | CodecMapper deserialize | STJ deserialize | Takeaway |
 | --- | ---: | ---: | ---: | ---: | --- |
-| `small-message` | `526.5 ns` | `715.0 ns` | `641.6 ns` | `907.5 ns` | `CodecMapper` still leads both directions on the tiny-message case. |
-| `person-batch-25` | `8.33 us` | `7.37 us` | `24.29 us` | `18.22 us` | Medium nested workloads still trail `STJ`, but remain comfortably ahead of `Newtonsoft.Json`. |
-| `person-batch-250` | `84.95 us` | `69.09 us` | `229.36 us` | `168.44 us` | Larger nested batches still trail `STJ`, but stay ahead of `Newtonsoft.Json`. |
-| `escaped-articles-20` | `43.45 us` | `30.85 us` | `98.00 us` | `59.33 us` | String-heavy payloads remain a clear weak spot, especially on decode. |
-| `telemetry-500` | `413.04 us` | `298.93 us` | `516.87 us` | `513.80 us` | Numeric-heavy decode is still roughly tied with `STJ`, while serialize trails. |
-| `person-batch-25-unknown-fields` | `9.05 us` | `7.85 us` | `30.93 us` | `25.00 us` | Unknown-field decode is still in range, but not especially close to `STJ`. |
+| `small-message` | `441.8 ns` | `627.1 ns` | `644.6 ns` | `889.1 ns` | `CodecMapper` still leads both directions on the tiny-message case. |
+| `person-batch-25` | `7.96 us` | `7.29 us` | `27.13 us` | `20.84 us` | Medium nested workloads still trail `STJ`, but remain ahead of `Newtonsoft.Json` on decode. |
+| `person-batch-250` | `83.89 us` | `71.53 us` | `294.50 us` | `217.70 us` | Larger nested batches still trail `STJ`, and the decode gap widened on this run. |
+| `escaped-articles-20` | `45.97 us` | `34.71 us` | `115.38 us` | `66.25 us` | String-heavy payloads remain a clear weak spot, especially on decode. |
+| `telemetry-500` | `421.70 us` | `317.53 us` | `559.46 us` | `556.73 us` | Numeric-heavy decode is still roughly tied with `STJ`, while serialize trails. |
+| `person-batch-25-unknown-fields` | `8.56 us` | `7.63 us` | `34.38 us` | `29.37 us` | Unknown-field decode is still in range, but not especially close to `STJ`. |
 
 Those numbers are machine-specific. Compare ratios and workload shape more than the absolute values.

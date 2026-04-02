@@ -7,30 +7,26 @@ open CodecMapper
 open TestCommon
 
 let private addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
-    |> Schema.field "street" _.Street
-    |> Schema.field "city" _.City
+    Schema.record makeAddress
+    |> Schema.field "street" (fun (address: Address) -> address.Street)
+    |> Schema.field "city" (fun (address: Address) -> address.City)
     |> Schema.build
 
 let private personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
+    Schema.record makePerson
+    |> Schema.field "id" (fun (person: Person) -> person.Id)
+    |> Schema.field "name" (fun (person: Person) -> person.Name)
+    |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
     |> Schema.build
 
 let private optionalRecordSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.field "nickname" _.Nickname
     |> Schema.field "age" _.Age
     |> Schema.build
 
 let private collectionSchema =
-    Schema.define<CollectionRecord>
-    |> Schema.construct makeCollectionRecord
+    Schema.record makeCollectionRecord
     |> Schema.field "list" _.List
     |> Schema.field "array" _.Array
     |> Schema.build

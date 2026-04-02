@@ -6,15 +6,13 @@ open CodecMapper
 open TestCommon
 
 let optionalRecordSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.field "nickname" _.Nickname
     |> Schema.field "age" _.Age
     |> Schema.build
 
 let relaxedOptionalRecordSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.fieldWith
         "nickname"
         _.Nickname

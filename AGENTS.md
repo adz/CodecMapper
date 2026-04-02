@@ -34,10 +34,10 @@ These standards represent the user's preferred style and architectural philosoph
 ## 4. Architectural Patterns
 - **Decoder Pattern:** `JsonSource -> struct('T * JsonSource)`
 - **Encoder Pattern:** `JsonWriter -> 'T -> unit`
-- **Pipeline Blueprint:** Use `Schema.define<'T> |> Schema.construct ctor |> Schema.field ... |> Schema.build` to define symmetric mappings. This is the current stable DSL.
+- **Pipeline Blueprint:** Use `Schema.record ctor |> Schema.field ... |> Schema.build` to define symmetric mappings. This is the current stable DSL.
 
 ## 5. Current Findings & Edge Cases
-- **Do not collapse `Schema.define` and `Schema.construct` without proving it compiles across the repo.** A direct `Schema.define makeCtor` style was attempted and rejected because F# either mis-inferred record targets when field names overlapped (`Id`, `Name`) or collapsed the constructor state to `obj`.
+- **Keep `Schema.record` as the stable entry point.** Earlier experiments that split record initialization into separate entry points or tried to collapse everything into one differently shaped helper ran into F# inference failures around overlapping record fields such as `Id` and `Name`.
 - **Keep `Json.compile` explicit.** Hiding compilation inside `serialize`/`deserialize` would either recompile on each call or require implicit caching, which is poor UX for a performance-oriented library.
 - **Explicit nested/custom schemas currently use `Schema.fieldWith`.** Auto-resolution exists for primitives, lists, and arrays only. Future work may rename this, but the explicit-schema distinction is currently meaningful.
 - **Benchmarks should use the same DSL as tests and docs.** Avoid introducing parallel schema-definition styles unless the repo deliberately adopts a second public API.

@@ -64,9 +64,24 @@ type private ConstructionPlan =
 type private ImportedSchema<'T>(fields: FieldRuntime list, createObj: obj[] -> obj) =
     inherit Schema<'T>()
 
-    interface IMappingDefinitionRuntime with
+    ///
+    /// Bridge imports still depend on CLR-oriented construction plans, but the
+    /// active runtime only understands the boxed record-state contract now.
+    interface IRecordRuntime with
         member _.FieldsRuntime = fields
-        member _.CreateObj(values) = createObj values
+        member _.CreateStateObj() = box (Array.zeroCreate<obj> fields.Length)
+
+        member _.StoreFieldObj(state, index, value) =
+            let values = unbox<obj array> state
+            values[index] <- value
+
+        member _.CompleteObj(state) =
+            let values = unbox<obj array> state
+            createObj values
+
+        member _.ReleaseStateObj(state) =
+            let values = unbox<obj array> state
+            System.Array.Clear(values, 0, values.Length)
 
 type private SchemaFactory =
     static member CreateImported<'T>(fields: FieldRuntime list, createFunc: Func<obj[], obj>) : Schema<'T> =

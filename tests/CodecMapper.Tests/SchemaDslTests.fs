@@ -37,20 +37,18 @@ let ``Round-trip using Pipeline DSL`` () =
     test <@ decoded = person @>
 
 [<Fact>]
-let ``Round-trip using define construct DSL`` () =
+let ``Round-trip using record DSL`` () =
     let addressSchema =
-        Schema.define<Address>
-        |> Schema.construct makeAddress
+        Schema.record makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
     let personSchema =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
-        |> Schema.fieldWith "home" _.Home addressSchema
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
         |> Schema.build
 
     let codec = Json.compileSchema personSchema
@@ -71,18 +69,16 @@ let ``Round-trip using define construct DSL`` () =
 [<Fact>]
 let ``One schema, multiple formats (JSON and XML)`` () =
     let addressSchema =
-        Schema.define<Address>
-        |> Schema.construct makeAddress
+        Schema.record makeAddress
         |> Schema.field "street" _.Street
         |> Schema.field "city" _.City
         |> Schema.build
 
     let personSchema =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
-        |> Schema.fieldWith "home" _.Home addressSchema
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
         |> Schema.build
 
     let person = {
@@ -130,15 +126,13 @@ let ``buildAndCompile composes build and compile across formats`` () =
     }
 
     let jsonCodec =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
         |> Schema.fieldWith
             "home"
             _.Home
-            (Schema.define<Address>
-             |> Schema.construct makeAddress
+            (Schema.record makeAddress
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
@@ -146,15 +140,13 @@ let ``buildAndCompile composes build and compile across formats`` () =
         |> Json.compileSchema
 
     let xmlCodec =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
         |> Schema.fieldWith
             "home"
             _.Home
-            (Schema.define<Address>
-             |> Schema.construct makeAddress
+            (Schema.record makeAddress
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
@@ -162,15 +154,13 @@ let ``buildAndCompile composes build and compile across formats`` () =
         |> Xml.compileSchema
 
     let yamlCodec =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
         |> Schema.fieldWith
             "home"
             _.Home
-            (Schema.define<Address>
-             |> Schema.construct makeAddress
+            (Schema.record makeAddress
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
@@ -178,15 +168,13 @@ let ``buildAndCompile composes build and compile across formats`` () =
         |> Yaml.compileSchema
 
     let keyValueCodec =
-        Schema.define<Person>
-        |> Schema.construct makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makePerson
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
         |> Schema.fieldWith
             "home"
             _.Home
-            (Schema.define<Address>
-             |> Schema.construct makeAddress
+            (Schema.record makeAddress
              |> Schema.field "street" _.Street
              |> Schema.field "city" _.City
              |> Schema.build)
@@ -208,10 +196,9 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
     let wrappedPersonSchema =
-        Schema.define<WrappedPerson>
-        |> Schema.construct makeWrappedPerson
-        |> Schema.fieldWith "id" _.Id personIdSchema
-        |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        Schema.record makeWrappedPerson
+        |> Schema.fieldWith "id" (fun (person: WrappedPerson) -> person.Id) personIdSchema
+        |> Schema.fieldWith "tags" (fun (person: WrappedPerson) -> person.Tags) (Schema.list Schema.string)
         |> Schema.build
 
     let codec = Json.compileSchema wrappedPersonSchema
@@ -228,8 +215,7 @@ let ``Round-trip mapped type (PersonId) JSON`` () =
 [<Fact>]
 let ``Round-trip collections with auto-resolution`` () =
     let collectionSchema =
-        Schema.define<CollectionRecord>
-        |> Schema.construct makeCollectionRecord
+        Schema.record makeCollectionRecord
         |> Schema.field "list" _.List
         |> Schema.field "array" _.Array
         |> Schema.build
@@ -248,8 +234,7 @@ let ``Round-trip collections with auto-resolution`` () =
 [<Fact>]
 let ``Round-trip using typed pipeline with 20 fields`` () =
     let largeSchema =
-        Schema.define<LargeRecord>
-        |> Schema.construct makeLargeRecord
+        Schema.record makeLargeRecord
         |> Schema.field "f1" _.F1
         |> Schema.field "f2" _.F2
         |> Schema.field "f3" _.F3
@@ -345,10 +330,9 @@ let ``Recursive tagged union round-trips JSON XML and YAML`` () =
 [<Fact>]
 let ``Inline tagged unions round-trip across JSON XML YAML and KeyValue`` () =
     let payloadSchema =
-        Schema.define<CreatedData>
-        |> Schema.construct makeCreatedData
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makeCreatedData
+        |> Schema.field "id" (fun (data: CreatedData) -> data.Id)
+        |> Schema.field "name" (fun (data: CreatedData) -> data.Name)
         |> Schema.build
 
     let schema =
@@ -393,8 +377,7 @@ let ``String enums round-trip across JSON XML YAML and KeyValue`` () =
         Schema.stringEnum [ "strict", Strict; "lenient", Lenient; "off", Off ]
 
     let configSchema =
-        Schema.define<ModeConfig>
-        |> Schema.construct makeModeConfig
+        Schema.record makeModeConfig
         |> Schema.fieldWith "mode" _.Mode modeSchema
         |> Schema.build
 
@@ -422,10 +405,9 @@ let ``String enums round-trip across JSON XML YAML and KeyValue`` () =
 [<Fact>]
 let ``Envelope helpers use type and data field names across formats`` () =
     let payloadSchema =
-        Schema.define<CreatedData>
-        |> Schema.construct makeCreatedData
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makeCreatedData
+        |> Schema.field "id" (fun (data: CreatedData) -> data.Id)
+        |> Schema.field "name" (fun (data: CreatedData) -> data.Name)
         |> Schema.build
 
     let schema =
@@ -465,10 +447,9 @@ let ``Envelope helpers use type and data field names across formats`` () =
 [<Fact>]
 let ``Inline envelope helpers inline payload fields next to type`` () =
     let payloadSchema =
-        Schema.define<CreatedData>
-        |> Schema.construct makeCreatedData
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
+        Schema.record makeCreatedData
+        |> Schema.field "id" (fun (data: CreatedData) -> data.Id)
+        |> Schema.field "name" (fun (data: CreatedData) -> data.Name)
         |> Schema.build
 
     let schema =
@@ -509,18 +490,16 @@ let ``Inline envelope helpers inline payload fields next to type`` () =
 [<Fact>]
 let ``Pipeline DSL can use opened Schema module at file scope`` () =
     let addressSchema =
-        define<Address>
-        |> construct makeAddress
+        record makeAddress
         |> field "street" _.Street
         |> field "city" _.City
         |> build
 
     let personSchema =
-        define<Person>
-        |> construct makePerson
-        |> field "id" _.Id
-        |> field "name" _.Name
-        |> fieldWith "home" _.Home addressSchema
+        record makePerson
+        |> field "id" (fun (person: Person) -> person.Id)
+        |> field "name" (fun (person: Person) -> person.Name)
+        |> fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
         |> build
 
     let codec = Json.compileSchema personSchema

@@ -645,7 +645,9 @@ module XmlBackend =
                                             struct (value, next))
                             MissingValue = innerCodec.MissingValue
                         }
-                    | ERecord(t, fields, ctor) ->
+                    | ERecord(t, recordRuntime) ->
+                        let fields = recordRuntime.Fields
+
                         let compiledFields =
                             fields
                             |> List.toArray
@@ -672,29 +674,34 @@ module XmlBackend =
                             Decode =
                                 (fun src tag ->
                                     let mutable current = Runtime.expectOpenTag tag src
+                                    let recordState = recordRuntime.CreateState()
 
-                                    let args =
-                                        compiledFields
-                                        |> Array.map (fun f ->
+                                    try
+                                        for index, f in compiledFields |> Array.indexed do
                                             current <- Runtime.skipWhitespace current
 
-                                            match Runtime.tryReadCloseTag tag current with
-                                            | Some _ ->
-                                                match f.Codec.MissingValue with
-                                                | Some value -> value
+                                            let value =
+                                                match Runtime.tryReadCloseTag tag current with
+                                                | Some _ ->
+                                                    match f.Codec.MissingValue with
+                                                    | Some missingValue -> missingValue
+                                                    | None ->
+                                                        Runtime.withPath (Element f.Name) (fun () ->
+                                                            Runtime.decodeFailure (sprintf "Expected <%s>" f.Name))
                                                 | None ->
-                                                    Runtime.withPath (Element f.Name) (fun () ->
-                                                        Runtime.decodeFailure (sprintf "Expected <%s>" f.Name))
-                                            | None ->
-                                                let struct (v, next) =
-                                                    Runtime.withPath (Element f.Name) (fun () ->
-                                                        f.Codec.Decode current f.Name)
+                                                    let struct (decoded, next) =
+                                                        Runtime.withPath (Element f.Name) (fun () ->
+                                                            f.Codec.Decode current f.Name)
 
-                                                current <- next
-                                                v)
+                                                    current <- next
+                                                    decoded
 
-                                    current <- Runtime.expectCloseTag tag current
-                                    struct (ctor args, current))
+                                            recordRuntime.StoreField(recordState, index, value)
+
+                                        current <- Runtime.expectCloseTag tag current
+                                        struct (recordRuntime.Complete recordState, current)
+                                    finally
+                                        recordRuntime.Release recordState)
                             MissingValue = None
                         }
                     | EUnion(discriminatorName, valueName, cases) ->

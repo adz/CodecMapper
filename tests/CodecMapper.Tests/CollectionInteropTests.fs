@@ -7,8 +7,7 @@ open CodecMapper
 open TestCommon
 
 let interopCollectionSchema =
-    Schema.define<InteropCollectionRecord>
-    |> Schema.construct makeInteropCollectionRecord
+    Schema.record makeInteropCollectionRecord
     |> Schema.fieldWith "buffer" _.Buffer (Schema.resizeArray Schema.string)
     |> Schema.field "names" _.Names
     |> Schema.field "scores" _.Scores

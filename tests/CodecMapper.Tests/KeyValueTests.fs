@@ -6,8 +6,7 @@ open CodecMapper
 open TestCommon
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
+    Schema.record makeAddress
     |> Schema.field "street" _.Street
     |> Schema.field "city" _.City
     |> Schema.build
@@ -15,33 +14,29 @@ let addressSchema =
 let userIdSchema = Schema.int |> Schema.tryMap UserId.create UserId.value
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
+    Schema.record makePerson
+    |> Schema.field "id" (fun (person: Person) -> person.Id)
+    |> Schema.field "name" (fun (person: Person) -> person.Name)
+    |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
     |> Schema.build
 
 let optionalSchema =
-    Schema.define<OptionalRecord>
-    |> Schema.construct makeOptionalRecord
+    Schema.record makeOptionalRecord
     |> Schema.field "nickname" _.Nickname
     |> Schema.field "age" _.Age
     |> Schema.build
 
 let accountSchema =
-    Schema.define<Account>
-    |> Schema.construct makeAccount
-    |> Schema.fieldWith "id" _.Id userIdSchema
-    |> Schema.field "name" _.Name
+    Schema.record makeAccount
+    |> Schema.fieldWith "id" (fun (account: Account) -> account.Id) userIdSchema
+    |> Schema.field "name" (fun (account: Account) -> account.Name)
     |> Schema.build
 
 type ListRecord = { Values: string list }
 let makeListRecord values = { Values = values }
 
 let listSchema =
-    Schema.define<ListRecord>
-    |> Schema.construct makeListRecord
+    Schema.record makeListRecord
     |> Schema.fieldWith "values" _.Values (Schema.list Schema.string)
     |> Schema.build
 

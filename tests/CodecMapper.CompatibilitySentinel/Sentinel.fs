@@ -100,17 +100,17 @@ module Schemas =
 
     let person =
         Schema.record makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
-        |> Schema.fieldWith "home" _.Home address
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) address
         |> Schema.build
 
     let personId = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
     let wrappedPerson =
         Schema.record makeWrappedPerson
-        |> Schema.fieldWith "id" _.Id personId
-        |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        |> Schema.fieldWith "id" (fun (person: WrappedPerson) -> person.Id) personId
+        |> Schema.fieldWith "tags" (fun (person: WrappedPerson) -> person.Tags) (Schema.list Schema.string)
         |> Schema.build
 
     let userId = Schema.int |> Schema.tryMap UserId.create UserId.value
@@ -157,9 +157,9 @@ module Schemas =
 
     let keyValueRecord =
         Schema.record makePerson
-        |> Schema.field "id" _.Id
-        |> Schema.field "name" _.Name
-        |> Schema.fieldWith "home" _.Home address
+        |> Schema.field "id" (fun (person: Person) -> person.Id)
+        |> Schema.field "name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) address
         |> Schema.build
 
     let rec recursiveNode: Schema<RecursiveNode> =

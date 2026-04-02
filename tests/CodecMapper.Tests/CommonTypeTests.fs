@@ -7,8 +7,7 @@ open CodecMapper
 open TestCommon
 
 let commonTypeSchema =
-    Schema.define<CommonTypeRecord>
-    |> Schema.construct makeCommonTypeRecord
+    Schema.record makeCommonTypeRecord
     |> Schema.field "age" _.Age
     |> Schema.field "level" _.Level
     |> Schema.field "delta" _.Delta

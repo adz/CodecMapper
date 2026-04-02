@@ -10,18 +10,16 @@ type Person = { Id: int; Name: string; Home: Address }
 
 module Schemas =
     let address =
-        Schema.define<Address>
-        |> Schema.construct (fun street city -> { Street = street; City = city })
-        |> Schema.field "Street" _.Street
-        |> Schema.field "City" _.City
+        Schema.record (fun street city -> { Street = street; City = city })
+        |> Schema.field "Street" (fun (address: Address) -> address.Street)
+        |> Schema.field "City" (fun (address: Address) -> address.City)
         |> Schema.build
 
     let person =
-        Schema.define<Person>
-        |> Schema.construct (fun id name home -> { Id = id; Name = name; Home = home })
-        |> Schema.field "Id" _.Id
-        |> Schema.field "Name" _.Name
-        |> Schema.fieldWith "Home" _.Home address
+        Schema.record (fun id name home -> { Id = id; Name = name; Home = home })
+        |> Schema.field "Id" (fun (person: Person) -> person.Id)
+        |> Schema.field "Name" (fun (person: Person) -> person.Name)
+        |> Schema.fieldWith "Home" (fun (person: Person) -> person.Home) address
         |> Schema.build
 
     ///

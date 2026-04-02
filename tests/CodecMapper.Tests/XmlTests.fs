@@ -6,18 +6,16 @@ open CodecMapper
 open TestCommon
 
 let addressSchema =
-    Schema.define<Address>
-    |> Schema.construct makeAddress
-    |> Schema.field "street" _.Street
-    |> Schema.field "city" _.City
+    Schema.record makeAddress
+    |> Schema.field "street" (fun (address: Address) -> address.Street)
+    |> Schema.field "city" (fun (address: Address) -> address.City)
     |> Schema.build
 
 let personSchema =
-    Schema.define<Person>
-    |> Schema.construct makePerson
-    |> Schema.field "id" _.Id
-    |> Schema.field "name" _.Name
-    |> Schema.fieldWith "home" _.Home addressSchema
+    Schema.record makePerson
+    |> Schema.field "id" (fun (person: Person) -> person.Id)
+    |> Schema.field "name" (fun (person: Person) -> person.Name)
+    |> Schema.fieldWith "home" (fun (person: Person) -> person.Home) addressSchema
     |> Schema.build
 
 [<Fact>]
@@ -82,10 +80,9 @@ let ``Round-trip collections and mapped wrappers XML`` () =
     let personIdSchema = Schema.int |> Schema.map PersonId (fun (PersonId id) -> id)
 
     let wrappedPersonSchema =
-        Schema.define<WrappedPerson>
-        |> Schema.construct makeWrappedPerson
-        |> Schema.fieldWith "id" _.Id personIdSchema
-        |> Schema.fieldWith "tags" _.Tags (Schema.list Schema.string)
+        Schema.record makeWrappedPerson
+        |> Schema.fieldWith "id" (fun (person: WrappedPerson) -> person.Id) personIdSchema
+        |> Schema.fieldWith "tags" (fun (person: WrappedPerson) -> person.Tags) (Schema.list Schema.string)
         |> Schema.build
 
     let codec = Xml.compileSchema wrappedPersonSchema
@@ -105,8 +102,7 @@ let ``Round-trip collections and mapped wrappers XML`` () =
 let ``Round-trip bool and arrays XML`` () =
     let codec =
         Xml.compileSchema (
-            Schema.define<BoolArrayRecord>
-            |> Schema.construct makeBoolArrayRecord
+            Schema.record makeBoolArrayRecord
             |> Schema.field "enabled" _.Enabled
             |> Schema.field "aliases" _.Aliases
             |> Schema.build

@@ -6,8 +6,7 @@ open CodecMapper
 open TestCommon
 
 let enumSchema =
-    Schema.define<EnumRecord>
-    |> Schema.construct makeEnumRecord
+    Schema.record makeEnumRecord
     |> Schema.field "status" _.Status
     |> Schema.build
 
