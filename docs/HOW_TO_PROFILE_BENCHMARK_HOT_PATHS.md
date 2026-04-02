@@ -28,6 +28,9 @@ Artifacts land under `.artifacts/profiling/<operation>-<scenario-or-records>-<it
 - `stj-deserialize`
 - `newtonsoft-serialize`
 - `newtonsoft-deserialize`
+- `our-parser-scan-bytes`
+- `utf8jsonreader-scan-bytes`
+- `typed-experiment-deserialize-bytes`
 
 ## Typical workflow
 
@@ -51,6 +54,7 @@ Read `perf.stat.txt` for high-level counters and `perf.report.txt` for the hotte
 
 - The profile wrapper now defaults to the `person-batch-25` scenario from the shared benchmark matrix.
 - Pass a scenario name such as `telemetry-500` or `escaped-articles-20` to profile one of the standard workloads.
+- The diagnostics matrix now also includes decode-focused scenarios such as `decode-strings-1000`, `decode-flat-objects-400`, and `decode-flat-objects-400-unknown-fields` when you need to isolate string handling, flat record assembly, or unknown-field skipping.
 - Passing a plain integer as the third argument still uses the legacy nested-record batch with `--records <n>`.
 - The wrapper sets `DOTNET_PerfMapEnabled=3` and `COMPlus_PerfMapEnabled=3` so `perf inject --jit` has the metadata it needs for managed symbol names.
 - If `perf record` is blocked by local kernel permissions, the script will fail before writing `perf.report.txt`. In that case, fix local `perf` permissions first and rerun the same command.

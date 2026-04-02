@@ -2,20 +2,23 @@
 
 Active work only. Historical completed work lives in [notes/AGENT_NOTES.md](notes/AGENT_NOTES.md) and [AGENTS.md](AGENTS.md).
 
-- [x] **Task 42: Finalize the core boxed contract runtime**
-  - Remove `ISchema`, `SchemaDefinition`, `SchemaField`, and `obj[] -> obj` record construction from the active core implementation.
-  - Move the public authored DSL to `Schema.*` over `Schema<'T>`.
-  - Delete the old schema DSL instead of keeping compatibility shims.
-  - Retarget `Json`, `Xml`, `Yaml`, `KeyValue`, and `JsonSchema` to compile from the new boxed contract IR directly.
-  - Remove any `Lowering.lower` or legacy boxed-schema bridge from the runtime path.
-  - Update tests, benchmarks, and docs to the new surface.
-  - Explicitly exclude bridge internals from this task. Bridge cleanup can follow once the core runtime shape is stable.
-  - Completion bar: there is no old boxed DSL left in the core runtime path or public authored surface.
+- Recently completed: **Task 42** landed the boxed contract runtime and `Schema<'T>` surface. Keep the historical rationale, benchmark notes, and follow-up findings in [notes/AGENT_NOTES.md](notes/AGENT_NOTES.md) and [docs/PROFILE-REPORT-ANALYSIS-INSTRUCTIONAL.md](docs/PROFILE-REPORT-ANALYSIS-INSTRUCTIONAL.md).
+
+- [ ] **Task 50: Run a narrow post-Task-42 performance follow-up**
+  - Treat the current numbers as two separate problems: typed record decode overhead and handwritten parser hot loops.
+  - Stay disciplined: no broad runtime rewrite until a narrower experiment wins clearly on the published scenario set.
+  - First pass:
+    - generalize the typed JSON record-decode lane beyond the benchmark-only hand-written shapes
+    - profile string-heavy decode and serialize hotspots again after each step
+    - identify whether the next worthwhile work is parser scanning, string handling, unknown-field skipping, or record assembly
+  - Output:
+    - refresh the benchmark notes with before/after numbers
+    - either promote one proven optimization direction into production work or explicitly close the line of investigation
 
 - [ ] **Task 49: Review and improve the new DSL for DX**
-  - After Task 42, review the new `Schema.*` surface for compactness, clarity, and maintainability.
+  - Review the new `Schema.*` surface for compactness, clarity, and maintainability after the immediate perf follow-up is settled.
   - Capture improvements in `PLAN-TO-IMPROVE-DSL`.
-  - Do not implement that review directly in the same pass unless it is required to complete Task 42.
+  - Do not fold speculative API cleanup into performance work unless it materially simplifies a measured hot path.
 
 - [ ] **Task 37: Add structured decode error outputs for app boundaries**
   - Provide a structured error model that callers can use for REST responses, startup config failures, and message rejection logs.

@@ -32,6 +32,15 @@ let ``Decode unicode escape string JSON`` () =
     test <@ decoded = "Hello, World!" @>
 
 [<Fact>]
+let ``Decode escaped strings with mixed unicode content JSON`` () =
+    let codec = Json.compileSchema Schema.string
+
+    let decoded =
+        Json.deserialize codec (quoted """Ol\u00e1,\n\t\"mundo\" \\ snowman: \u2603""")
+
+    test <@ decoded = "Olá,\n\t\"mundo\" \\ snowman: ☃" @>
+
+[<Fact>]
 let ``Round-trip bool JSON`` () =
     let codec = Json.compileSchema Schema.bool
 

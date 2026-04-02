@@ -54,6 +54,15 @@ type TelemetryPoint = {
     Healthy: bool
 }
 
+type FlatProbe = {
+    Id: int
+    Name: string
+    Code: string
+    Enabled: bool
+    Score: float
+    Trace: string
+}
+
 module ParserScanExperiment =
     let private mixHash state value = (state * 16777619) ^^^ value
 
@@ -279,11 +288,7 @@ module TypedJsonExperiment =
 
         current
 
-    let private record2
-        (field1: Field<'A>)
-        (field2: Field<'B>)
-        (ctor: 'A -> 'B -> 'T)
-        : Decoder<'T> =
+    let private record2 (field1: Field<'A>) (field2: Field<'B>) (ctor: 'A -> 'B -> 'T) : Decoder<'T> =
         fun src ->
             let mutable value1 = Unchecked.defaultof<'A>
             let mutable value2 = Unchecked.defaultof<'B>
@@ -652,7 +657,9 @@ module TypedJsonExperiment =
     let private articlesDecoder = list articleDecoder
     let private telemetryDecoder = list telemetryPointDecoder
 
-    let deserializeSmallMessageBytes (bytes: byte[]) = deserializeBytes smallMessageDecoder bytes
+    let deserializeSmallMessageBytes (bytes: byte[]) =
+        deserializeBytes smallMessageDecoder bytes
+
     let deserializePeopleBytes (bytes: byte[]) = deserializeBytes peopleDecoder bytes
     let deserializeArticlesBytes (bytes: byte[]) = deserializeBytes articlesDecoder bytes
     let deserializeTelemetryBytes (bytes: byte[]) = deserializeBytes telemetryDecoder bytes
@@ -722,9 +729,28 @@ module Schemas =
         |> Schema.field "Healthy" (fun (point: TelemetryPoint) -> point.Healthy)
         |> Schema.build
 
+    let flatProbe =
+        Schema.record (fun id name code enabled score trace -> {
+            Id = id
+            Name = name
+            Code = code
+            Enabled = enabled
+            Score = score
+            Trace = trace
+        })
+        |> Schema.field "Id" (fun (probe: FlatProbe) -> probe.Id)
+        |> Schema.field "Name" (fun (probe: FlatProbe) -> probe.Name)
+        |> Schema.field "Code" (fun (probe: FlatProbe) -> probe.Code)
+        |> Schema.field "Enabled" (fun (probe: FlatProbe) -> probe.Enabled)
+        |> Schema.field "Score" (fun (probe: FlatProbe) -> probe.Score)
+        |> Schema.field "Trace" (fun (probe: FlatProbe) -> probe.Trace)
+        |> Schema.build
+
     let personList = Schema.list person
     let articleList = Schema.list article
     let telemetryList = Schema.list telemetryPoint
+    let flatProbeList = Schema.list flatProbe
+    let stringList = Schema.list Schema.string
 
 module Data =
     let private stjOptions = JsonSerializerOptions()
@@ -820,29 +846,48 @@ module Data =
     let serializeJsonNewtonsoft value = JsonConvert.SerializeObject(value)
     let utf8Bytes (json: string) = Encoding.UTF8.GetBytes(json)
 
-    let createParserStringArray count =
+    let createStringSamples count =
         [ 1..count ]
         |> List.map (fun index ->
             String.replicate 2 $"entry-{index}-with-escapes-\"quoted\"-and-\\\\slashes\\\\-plus-newlines\n")
-        |> serializeJson
+
+    let createFlatProbes count =
+        [ 1..count ]
+        |> List.map (fun index -> {
+            Id = index
+            Name = $"record-{index}"
+            Code = $"X{index}"
+            Enabled = index % 2 = 0
+            Score = 18.25 + float index / 10.0
+            Trace = $"01HV{index:D4}ABCDEF"
+        })
+
+    let createParserStringArray count =
+        createStringSamples count |> serializeJson
 
     let createParserNumberArray count =
         [ 1..count ]
         |> List.map (fun index -> 1_700_000_000_000L + int64 (index * 37))
         |> serializeJson
 
-    let createParserFlatObjectArray count =
+    let createParserFlatObjectArray count = createFlatProbes count |> serializeJson
+
+    ///
+    /// The unknown-field variant keeps the core record shape unchanged so the
+    /// profile can isolate skip-path cost without nested-record noise.
+    let createParserFlatObjectArrayWithUnknownFields count =
         let items =
-            [ 1..count ]
-            |> List.map (fun index ->
+            createFlatProbes count
+            |> List.map (fun probe ->
                 sprintf
-                    """{"Id":%d,"Name":"record-%d","Code":"X%d","Enabled":%s,"Score":%s,"Trace":"01HV%04dABCDEF"}"""
-                    index
-                    index
-                    index
-                    (if index % 2 = 0 then "true" else "false")
-                    ((18.25 + float index / 10.0).ToString(System.Globalization.CultureInfo.InvariantCulture))
-                    index)
+                    """{"Id":%d,"Name":"%s","Code":"%s","Enabled":%s,"Score":%s,"Trace":"%s","Extra":"ignored-%d"}"""
+                    probe.Id
+                    probe.Name
+                    probe.Code
+                    (if probe.Enabled then "true" else "false")
+                    (probe.Score.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                    probe.Trace
+                    probe.Id)
 
         "[" + String.concat "," items + "]"
 
@@ -902,6 +947,22 @@ module Workloads =
                 ^^^ int (value.Sequence &&& 0xFFFFUL)
                 ^^^ int value.Timestamp
                 ^^^ System.Decimal.ToInt32(System.Decimal.Truncate(value.Voltage * 100M)))
+            0
+
+    let private hashStrings (values: string list) =
+        values |> List.fold (fun acc value -> acc ^^^ value.Length) 0
+
+    let private hashFlatProbes (values: FlatProbe list) =
+        values
+        |> List.fold
+            (fun acc value ->
+                acc
+                ^^^ value.Id
+                ^^^ value.Name.Length
+                ^^^ value.Code.Length
+                ^^^ (if value.Enabled then 1 else 0)
+                ^^^ int (value.Score * 100.0)
+                ^^^ value.Trace.Length)
             0
 
     let private hashJsonValue (value: JsonValue) =
@@ -981,6 +1042,43 @@ module Workloads =
             NewtonsoftDeserialize = (fun () -> diagnosticOnly ())
             HashSerialized = String.length
             HashValue = (fun boxed -> hashJsonValue (unbox boxed))
+        }
+
+    ///
+    /// Decode-only diagnostics keep serialize out of the picture when the
+    /// question is whether string handling, flat-record assembly, or
+    /// unknown-field skipping is the next worthwhile decode target.
+    let private makeDecodeDiagnosticWorkload<'T>
+        (name: string)
+        (description: string)
+        (deserializeIterations: int)
+        (decodeJson: string)
+        (codec: Json.Codec<'T>)
+        (stjDeserialize: string -> 'T)
+        (hashValue: 'T -> int)
+        =
+        let decodeBytes = Data.utf8Bytes decodeJson
+
+        let diagnosticOnly () =
+            failwith "This diagnostic workload is intended for decode and parser operations only."
+
+        {
+            Name = name
+            Description = description
+            SerializeIterations = 1
+            DeserializeIterations = deserializeIterations
+            JsonSizeBytes = decodeBytes.Length
+            CodecMapperSerialize = (fun () -> diagnosticOnly ())
+            StjSerialize = (fun () -> diagnosticOnly ())
+            NewtonsoftSerialize = (fun () -> diagnosticOnly ())
+            OurParserScanBytes = (fun () -> ParserScanExperiment.scanWithOurParser decodeBytes)
+            Utf8JsonReaderScanBytes = (fun () -> ParserScanExperiment.scanWithUtf8JsonReader decodeBytes)
+            CodecMapperDeserializeBytes = (fun () -> box (Json.deserializeBytes codec decodeBytes))
+            TypedExperimentDeserializeBytes = None
+            StjDeserialize = (fun () -> box (stjDeserialize decodeJson))
+            NewtonsoftDeserialize = (fun () -> box (JsonConvert.DeserializeObject<'T>(decodeJson)))
+            HashSerialized = String.length
+            HashValue = (fun boxed -> hashValue (unbox boxed))
         }
 
     let createLegacyPersonBatch recordCount =
@@ -1120,6 +1218,7 @@ module Workloads =
         let stringArray = Data.createParserStringArray 1000
         let numberArray = Data.createParserNumberArray 4000
         let flatObjects = Data.createParserFlatObjectArray 400
+        let flatObjectsWithUnknowns = Data.createParserFlatObjectArrayWithUnknownFields 400
 
         [|
             makeParserDiagnosticWorkload
@@ -1139,6 +1238,33 @@ module Workloads =
                 "Parser-only diagnostic: flat object traversal with repeated property names."
                 1500
                 flatObjects
+
+            makeDecodeDiagnosticWorkload
+                "decode-strings-1000"
+                "Decode diagnostic: escaped string array to isolate string unescaping and list construction."
+                3000
+                stringArray
+                (Json.compile Schemas.stringList)
+                (fun json -> System.Text.Json.JsonSerializer.Deserialize<string list>(json, stjOptions))
+                hashStrings
+
+            makeDecodeDiagnosticWorkload
+                "decode-flat-objects-400"
+                "Decode diagnostic: flat records to isolate field dispatch and record assembly."
+                1500
+                flatObjects
+                (Json.compile Schemas.flatProbeList)
+                (fun json -> System.Text.Json.JsonSerializer.Deserialize<FlatProbe list>(json, stjOptions))
+                hashFlatProbes
+
+            makeDecodeDiagnosticWorkload
+                "decode-flat-objects-400-unknown-fields"
+                "Decode diagnostic: flat records with ignored fields to isolate unknown-field skipping."
+                1500
+                flatObjectsWithUnknowns
+                (Json.compile Schemas.flatProbeList)
+                (fun json -> System.Text.Json.JsonSerializer.Deserialize<FlatProbe list>(json, stjOptions))
+                hashFlatProbes
         |]
 
     let names =

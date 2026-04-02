@@ -150,7 +150,10 @@ This keeps compilation cost visible and avoids hidden recompilation or implicit 
 - `benchmarks/CodecMapper.Benchmarks/Program.fs` now forces BenchmarkDotNet onto `InProcessEmitToolchain` to avoid child-project generation entirely.
 - The remaining warning during local runs is just Linux process-priority elevation failure (`Permission denied`), which does not stop benchmarks from executing.
 - A manual Release runner was added in `benchmarks/CodecMapper.Benchmarks.Runner` to keep benchmark reporting moving while that tooling issue remains unresolved.
-- `BenchmarkScenarios.fs` now expresses the benchmark-only typed JSON decode lane through reusable `recordN` and `list` combinators instead of one bespoke decoder loop per workload shape. Keep future `Task 42` work in that benchmark-only lane unless the production runtime decision has been made explicitly.
+- `Json.fs` now ships a production typed-record decode fast path for supported JSON record shapes, backed by `JsonTypedRecordDecode.fs`.
+- Focused reruns on April 2, 2026 showed the old benchmark-only typed lane no longer beating production on the checked scenarios (`small-message` and `telemetry-500`), so treat it as a comparison artifact rather than as the main forward path.
+- `BenchmarkScenarios.fs` now includes decode diagnostics for escaped string arrays, flat records, and flat records with unknown fields so profiling can separate parser scanning, string handling, record assembly, and skip-path cost more cleanly.
+- A first `.NET`-only escaped-string decoder experiment that replaced `StringBuilder` with a pooled `char[]` path produced mixed results and was reverted the same day: it improved the synthetic long escaped-string array diagnostic, but it did not hold up cleanly on the more realistic `escaped-articles-20` workload. Treat string decode as still open, but prefer narrower experiments over broad decoder rewrites.
 - Keep the manual Release runner for fast local snapshots and README updates; use BenchmarkDotNet when you specifically want richer statistical output.
 
 ## Formatting
